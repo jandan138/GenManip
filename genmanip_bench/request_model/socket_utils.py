@@ -1,33 +1,42 @@
-import pickle
-import struct
-import socket
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
 
-def send_message(send_socket: socket.socket, data: dict):
+Licensed under the MIT License.
+"""
+
+import pickle
+import socket
+import struct
+
+
+def send_message(send_socket: socket.socket, data: dict) -> None:
     serialized_data = pickle.dumps(data)
     message_size = struct.pack("Q", len(serialized_data))
     send_socket.sendall(message_size + serialized_data)
 
-def wait_message(conn: socket.socket):
-    data = b""
+
+def _recv_all(conn: socket.socket, size: int) -> bytes:
+    data = bytearray()
+    while len(data) < size:
+        packet = conn.recv(size - len(data))
+        if not packet:
+            raise ConnectionError("Socket connection closed unexpectedly")
+        data.extend(packet)
+    return bytes(data)
+
+
+def wait_message(conn: socket.socket) -> dict:
     payload_size = struct.calcsize("Q")
-    while len(data) < payload_size:
-        data += conn.recv(4096)
-    packed_msg_size = data[:payload_size]
-    data = data[payload_size:]
-    msg_size = struct.unpack("Q", packed_msg_size)[0]
+    packed_size = _recv_all(conn, payload_size)
+    msg_size = struct.unpack("Q", packed_size)[0]
+    frame_data = _recv_all(conn, msg_size)
+    return pickle.loads(frame_data)
 
-    while len(data) < msg_size:
-        data += conn.recv(4096)
 
-    frame_data = data[:msg_size]
-    data = data[msg_size:]
-
-    received_data = pickle.loads(frame_data)
-
-    return received_data
-
-def create_send_port_and_wait(port: int):
+def create_send_port_and_wait(port: int) -> socket.socket:
     serial = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serial.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     serial.bind(("localhost", port))
     serial.listen(1)
     print("Waiting for a connection...")
@@ -35,9 +44,9 @@ def create_send_port_and_wait(port: int):
     print("Connected by", addr)
     return conn
 
-def create_receive_port_and_attach(port:int):
+
+def create_receive_port_and_attach(port: int) -> socket.socket:
     serial = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serial.connect(("localhost", port))
     print("connected port ", port)
     return serial
-

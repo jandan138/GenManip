@@ -1,148 +1,151 @@
-import cv2
-import numpy as np
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import os
 import random
+
+import cv2
 from mplib import Pose
-from genmanip.utils.pc_utils import compute_aabb_lwh, compute_mesh_bbox
+import numpy as np
 from scipy.spatial.transform import Rotation as R
+
+from omni.isaac.core.prims import XFormPrim  # type: ignore
+from omni.isaac.core.robots.robot import Robot  # type: ignore
+from omni.isaac.core.utils.prims import get_prim_at_path, delete_prim  # type: ignore
+from omni.isaac.sensor import Camera  # type: ignore
+
+from genmanip.core.loading.hardcode_rule import verify_cup_and_plate
+from genmanip.core.loading.utils import (
+    add_object_to_scene_from_preload_list,
+    adjust_object_scale_by_thickness,
+    get_object_scale,
+    remove_object_from_scene_by_preload,
+    reset_object_xyz,
+    reset_articulation_positions,
+    resize_object_in_scene_by_uid,
+)
+from genmanip.core.pointcloud.pointcloud import (
+    get_current_pcList_by_meshList,
+    get_mesh_info_by_load,
+)
 from genmanip.core.random_place.random_place import (
+    setup_random_all_range,
+    setup_random_all_range_buffered,
+    setup_random_custom_tableset,
+    setup_random_obj1_range,
     setup_random_tableset,
     setup_random_tableset_buffered,
     setup_random_tableset_by_centric_range,
-    meshlist_to_pclist,
-    verify_placement,
-    setup_random_obj1_range,
-    setup_random_custom_tableset,
-    setup_random_all_range,
-    setup_random_all_range_buffered,
     setup_scene_graph_placement,
-)
-from genmanip.demogen.evaluate.evaluate import check_finished
-from genmanip.core.loading.loading import reset_object_xyz, reset_articulation_positions
-from genmanip.core.pointcloud.pointcloud import (
-    get_current_meshList,
-    get_mesh_info_by_load,
-    meshlist_to_pclist,
+    verify_placement,
 )
 from genmanip.core.sensor.camera import get_src
-from genmanip.core.usd_utils.light_utils import create_dome_light
-from genmanip.core.usd_utils.material_utils import (
+from genmanip.core.usd_utils import (
+    add_usd_to_world,
     change_material_info,
     change_table_mdl,
-)
-from genmanip.core.usd_utils.prim_utils import (
-    add_usd_to_world,
+    clean_prim_velocity,
+    create_dome_light,
     get_prim_bbox,
-    resize_object,
     resize_object_by_lwh,
     set_colliders,
 )
+from genmanip.core.robot.embodiment import BaseEmbodiment
+from genmanip.demogen.evaluate.evaluate import check_finished
 from genmanip.thirdparty.mplib_planner import get_mplib_planner
+from genmanip.utils.file_utils import load_yaml
 from genmanip.utils.robot_utils import joint_positions_to_position_and_orientation
-from omni.isaac.core.utils.prims import delete_prim  # type: ignore
 
 
-def remove_object_from_scene_by_preload(uid, scene):
-    if scene["object_list"][uid].prim.IsActive():
-        scene["object_list"][uid].prim.SetActive(False)
-    scene["cacheDict"]["meshDict"].pop(uid)
-    scene["object_list"].pop(uid)
+def random_camera_pose(
+    camera: Camera,
+    camera_cfg: dict,
+    max_translation_noise: float = 0.05,
+    max_orientation_noise: float = 10.0,
+) -> None:
+    translation = np.array(camera_cfg["position"])
+    orientation = np.array(camera_cfg["orientation"])
 
+    random_direction = np.random.randn(3)
+    random_direction /= np.linalg.norm(random_direction)
+    random_distance = np.random.uniform(0, max_translation_noise)
+    perturbed_translation = translation + random_direction * random_distance
 
-def add_object_to_scene_by_preload(uid, scene, default_config, demogen_config):
-    scene["object_list"][uid] = scene["cacheDict"]["preloaded_object_list"][uid]
-    if not scene["object_list"][uid].prim.IsActive():
-        scene["object_list"][uid].prim.SetActive(True)
-    if uid in scene["cacheDict"]["preloaded_object_path_list"]:
-        scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
-            scene["object_list"][uid],
-            os.path.join(
-                default_config["ASSETS_DIR"],
-                "mesh_data",
-                demogen_config["task_name"],
-                os.path.dirname(scene["cacheDict"]["preloaded_object_path_list"][uid]),
-                f"{uid}.obj",
-            ),
-        )
-    else:
-        scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
-            scene["object_list"][uid],
-            os.path.join(
-                default_config["ASSETS_DIR"],
-                "mesh_data",
-                demogen_config["task_name"],
-                f"{uid}.obj",
-            ),
-        )
+    original_rot = R.from_quat(orientation, scalar_first=True)
+    random_axis = np.random.randn(3)
+    random_axis /= np.linalg.norm(random_axis)
+    random_angle_deg = np.random.uniform(-max_orientation_noise, max_orientation_noise)
+    random_angle_rad = np.radians(random_angle_deg)
+    perturbation_rot = R.from_rotvec(random_axis * random_angle_rad)
+    perturbed_rot = perturbation_rot * original_rot
+    perturbed_orientation = perturbed_rot.as_quat(scalar_first=True)
 
-
-def replace_object_in_scene_by_uid(
-    previous_uid, replaced_uid, scene, default_config, demogen_config
-):
-    if previous_uid in scene["object_list"]:
-        remove_object_from_scene_by_preload(previous_uid, scene)
-    add_object_to_scene_by_preload(replaced_uid, scene, default_config, demogen_config)
-
-
-def resize_object_in_scene_by_uid(uid, scene, default_config, scale, demogen_config):
-    meshlist = get_current_meshList(
-        scene["object_list"], scene["cacheDict"]["meshDict"]
+    camera.set_local_pose(
+        translation=perturbed_translation,
+        orientation=perturbed_orientation,
+        camera_axes=camera_cfg["camera_axes"],
     )
-    resize_object(
-        scene["object_list"][uid],
-        scale,
-        meshlist[uid],
-    )
-    if uid in scene["cacheDict"]["preloaded_object_path_list"]:
-        scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
-            scene["object_list"][uid],
-            os.path.join(
-                default_config["ASSETS_DIR"],
-                "mesh_data",
-                demogen_config["task_name"],
-                os.path.dirname(scene["cacheDict"]["preloaded_object_path_list"][uid]),
-                f"{uid}.obj",
-            ),
-        )
-    else:
-        scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
-            scene["object_list"][uid],
-            os.path.join(
-                default_config["ASSETS_DIR"],
-                "mesh_data",
-                demogen_config["task_name"],
-                f"{uid}.obj",
-            ),
+
+
+def random_camera_list_pose(
+    camera_list: dict[str, Camera],
+    camera_cfg: dict[str, dict],
+    camera_randomization_cfg: dict,
+) -> None:
+    for camera_name in camera_randomization_cfg.keys():
+        random_camera_pose(
+            camera_list[camera_name],
+            camera_cfg[camera_name],
+            max_translation_noise=camera_randomization_cfg[camera_name][
+                "max_translation_noise"
+            ],
+            max_orientation_noise=camera_randomization_cfg[camera_name][
+                "max_orientation_noise"
+            ],
         )
 
 
-def replace_object_in_scene_by_uid_and_resize(
-    previous_uid, replaced_uid, scene, default_config, scale, demogen_config
-):
-    replace_object_in_scene_by_uid(
-        previous_uid, replaced_uid, scene, default_config, demogen_config
-    )
-    if scale != None:
-        resize_object_in_scene_by_uid(
-            replaced_uid, scene, default_config, scale, demogen_config
-        )
-
-
-def random_robot_pose(robot, random_range):
+def random_robot_pose(robot: Robot, random_range: float | dict) -> None:
     position, _ = robot.get_world_pose()
-    robot.set_world_pose(
-        position=(
+    if isinstance(random_range, (int, float)):
+        new_position = (
             random.uniform(position[0] - random_range, position[0] + random_range),
             random.uniform(position[1] - random_range, position[1] + random_range),
             position[2],
-        ),
-    )
+        )
+    elif isinstance(random_range, dict) and all(
+        key in random_range for key in ["x", "y", "z"]
+    ):
+        new_position = (
+            random.uniform(
+                position[0] - random_range["x"], position[0] + random_range["x"]
+            ),
+            random.uniform(
+                position[1] - random_range["y"], position[1] + random_range["y"]
+            ),
+            random.uniform(
+                position[2] - random_range["z"], position[2] + random_range["z"]
+            ),
+        )
+    else:
+        raise ValueError(
+            "random_range must be a number or a dict with 'x', 'y', 'z' keys"
+        )
+
+    robot.set_world_pose(position=new_position)
 
 
-def random_robot_eepose(robot, current_dir):
+def random_robot_eepose(robot: BaseEmbodiment, current_dir: str) -> int:
+    assert (
+        robot.embodiment_name == "franka"
+    ), "Only franka robot is supported for random robot eepose"
     franka_robot = robot.robot
     planner = get_mplib_planner(
-        franka_robot, robot_type="franka", current_dir=current_dir
+        franka_robot, robot_type=robot.embodiment_name, current_dir=current_dir
     )
     position, orientation = joint_positions_to_position_and_orientation(
         franka_robot.get_joint_positions()
@@ -179,21 +182,39 @@ def random_robot_eepose(robot, current_dir):
         return 0
 
 
-def replace_table(object_list, table_path, uuid):
+def replace_table(
+    object_list: dict,
+    table_path: str,
+    uuid: str,
+    without_collider: bool = False,
+) -> None:
+    # "00000000000000000000000000000000" is the default table key
     object = object_list["00000000000000000000000000000000"]
+    # Disable the default table
     try:
         object_list["00000000000000000000000000000000"].prim.SetActive(False)
     except:
         pass
+    # Get the new table uid from table path, table path is like "/path/to/folder/table_uid/instance.usd"
     table_uid = table_path.split("/")[-2]
-    object_list["00000000000000000000000000000000"] = add_usd_to_world(
-        asset_path=table_path,
-        prim_path=f"/World/{uuid}/obj_{table_uid}",
-        name=f"obj_{table_uid}",
-        orientation=R.from_euler("xyz", [0, 0, 90], degrees=True).as_quat()[
-            [3, 0, 1, 2]
-        ],
-    )
+    # If the new table is already in the scene, use the existing prim
+    if get_prim_at_path(f"/World/{uuid}/obj_{table_uid}").IsValid():
+        object_list["00000000000000000000000000000000"] = XFormPrim(
+            prim_path=f"/World/{uuid}/obj_{table_uid}",
+            name=f"obj_{table_uid}",
+        )
+        object_list["00000000000000000000000000000000"].prim.SetActive(True)
+    # If the new table is not in the scene, add it to the scene
+    else:
+        object_list["00000000000000000000000000000000"] = add_usd_to_world(
+            asset_path=table_path,
+            prim_path=f"/World/{uuid}/obj_{table_uid}",
+            name=f"obj_{table_uid}",
+            orientation=R.from_euler("xyz", [0, 0, 90], degrees=True).as_quat()[
+                [3, 0, 1, 2]
+            ],
+        )
+    # Resize the table and set the position
     try:
         resize_object_by_lwh(
             object_list["00000000000000000000000000000000"], l=1.0, w=1.50, h=1.002
@@ -204,26 +225,104 @@ def replace_table(object_list, table_path, uuid):
         object_list["00000000000000000000000000000000"].set_world_pose(
             position=position
         )
-        set_colliders(object_list["00000000000000000000000000000000"].prim_path)
+        if not without_collider:
+            set_colliders(object_list["00000000000000000000000000000000"].prim_path)
     except:
         delete_prim(object_list["00000000000000000000000000000000"].prim_path)
         object_list["00000000000000000000000000000000"] = object
         object_list["00000000000000000000000000000000"].prim.SetActive(True)
 
 
-def random_texture_once(scene, default_config, demogen_config):
-    if demogen_config["domain_randomization"]["random_environment"]["hdr"]:
-        light_path = random.choice(scene["assets_list"]["domelight"])
-        create_dome_light(
-            f"/World/{scene['uuid']}/obj_defaultGroundPlane/GroundPlane/DomeLight",
-            f"{default_config['ASSETS_DIR']}/miscs/hdrs/{light_path}",
+def replace_table_for_eval(
+    object_list: dict,
+    table_path: str,
+    uuid: str,
+    real_table_uid: str,
+    without_collider: bool = False,
+) -> None:
+    # "00000000000000000000000000000000" is the default table key
+    object = object_list["00000000000000000000000000000000"]
+    # Disable the default table
+    try:
+        # If the new table is not the real table, disable the default table
+        if (
+            str(object_list["00000000000000000000000000000000"].prim_path).split(
+                "obj_"
+            )[-1]
+            != real_table_uid
+        ):
+            object_list["00000000000000000000000000000000"].prim.SetActive(False)
+        else:
+            object_list["00000000000000000000000000000000"].prim.GetAttribute(
+                "visibility"
+            ).Set("invisible")
+    except:
+        pass
+    # Get the new table uid from table path, table path is like "/path/to/folder/table_uid/instance.usd"
+    table_uid = table_path.split("/")[-2]
+    # If the new table is already in the scene, use the existing prim
+    if get_prim_at_path(f"/World/{uuid}/obj_{table_uid}").IsValid():
+        object_list["00000000000000000000000000000000"] = XFormPrim(
+            prim_path=f"/World/{uuid}/obj_{table_uid}",
+            name=f"obj_{table_uid}",
         )
-    if demogen_config["domain_randomization"]["random_environment"][
-        "table_texture"
-    ] and not (
-        "table_type" in demogen_config["domain_randomization"]["random_environment"]
-        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
-    ):
+        object_list["00000000000000000000000000000000"].prim.SetActive(True)
+    else:
+        object_list["00000000000000000000000000000000"] = add_usd_to_world(
+            asset_path=table_path,
+            prim_path=f"/World/{uuid}/obj_{table_uid}",
+            name=f"obj_{table_uid}",
+            orientation=R.from_euler("xyz", [0, 0, 90], degrees=True).as_quat()[
+                [3, 0, 1, 2]
+            ],
+        )
+    # Resize the table and set the position
+    try:
+        resize_object_by_lwh(
+            object_list["00000000000000000000000000000000"], l=1.0, w=1.50, h=1.002
+        )
+        aabb = get_prim_bbox(object_list["00000000000000000000000000000000"].prim)
+        position, _ = object_list["00000000000000000000000000000000"].get_world_pose()
+        position[2] -= aabb.get_min_bound()[2]
+        object_list["00000000000000000000000000000000"].set_world_pose(
+            position=position
+        )
+        if not without_collider:
+            set_colliders(object_list["00000000000000000000000000000000"].prim_path)
+    except:
+        delete_prim(object_list["00000000000000000000000000000000"].prim_path)
+        object_list["00000000000000000000000000000000"] = object
+        object_list["00000000000000000000000000000000"].prim.SetActive(True)
+        object_list["00000000000000000000000000000000"].prim.GetAttribute(
+            "visibility"
+        ).Set("invisible")
+
+
+def random_objaverse_table_texture(scene: dict, default_config: dict) -> None:
+    light_intensity = 0
+    while light_intensity < 80:
+        texture_path = random.choice(scene["assets_list"]["wall_texture"])
+        image = cv2.imread(
+            os.path.abspath(
+                f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
+            )
+        )
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        light_intensity = np.mean(np.array(image))
+    change_material_info(
+        f"{scene['object_list']['00000000000000000000000000000000'].prim_path}",
+        texture_path=os.path.abspath(
+            f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
+        ),
+        translation=(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)),
+        rotation=0,
+        scale=[0.4, 0.4],
+    )
+
+
+def random_wall_texture(scene: dict, default_config: dict) -> None:
+    # randomize 5 walls' texture, [left, right, front, back, top]
+    for i in range(5):
         light_intensity = 0
         while light_intensity < 80:
             texture_path = random.choice(scene["assets_list"]["wall_texture"])
@@ -234,38 +333,49 @@ def random_texture_once(scene, default_config, demogen_config):
             )
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             light_intensity = np.mean(np.array(image))
-        change_material_info(
-            f"{scene['object_list']['00000000000000000000000000000000'].prim_path}",
-            texture_path=os.path.abspath(
+        scene["background"]["wall_textures"][i].set_texture(
+            os.path.abspath(
                 f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
-            ),
-            translation=(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)),
-            rotation=0,
-            scale=[0.4, 0.4],
-        )
-    if demogen_config["domain_randomization"]["random_environment"]["wall_texture"]:
-        for i in range(5):
-            light_intensity = 0
-            while light_intensity < 80:
-                texture_path = random.choice(scene["assets_list"]["wall_texture"])
-                image = cv2.imread(
-                    os.path.abspath(
-                        f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
-                    )
-                )
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                light_intensity = np.mean(np.array(image))
-            scene["background"]["wall_textures"][i].set_texture(
-                os.path.abspath(
-                    f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
-                )
             )
+        )
+
+
+def random_texture_once(
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+    table_without_collider: bool = False,
+) -> float:
+    # randomize the dome light
+    if demogen_config["domain_randomization"]["random_environment"]["hdr"]:
+        light_path = random.choice(scene["assets_list"]["domelight"])
+        create_dome_light(
+            f"/World/{scene['uuid']}/obj_defaultGroundPlane/GroundPlane/DomeLight",
+            f"{default_config['ASSETS_DIR']}/miscs/hdrs/{light_path}",
+        )
+    # randomize table texture for the default table, table prim tree is under objaverse format
+    if demogen_config["domain_randomization"]["random_environment"][
+        "table_texture"
+    ] and not (
+        "table_type" in demogen_config["domain_randomization"]["random_environment"]
+        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
+    ):
+        random_objaverse_table_texture(scene, default_config)
+    # randomize wall texture
+    if demogen_config["domain_randomization"]["random_environment"]["wall_texture"]:
+        random_wall_texture(scene, default_config)
+    # randomize table and table texture for grutopia format table, table prim tree is under grutopia format
     if (
         "table_type" in demogen_config["domain_randomization"]["random_environment"]
         and demogen_config["domain_randomization"]["random_environment"]["table_type"]
     ):
         table_path = random.choice(scene["assets_list"]["table"])
-        replace_table(scene["object_list"], table_path, scene["uuid"])
+        replace_table(
+            scene["object_list"],
+            table_path,
+            scene["uuid"],
+            without_collider=table_without_collider,
+        )
         if demogen_config["domain_randomization"]["random_environment"][
             "table_texture"
         ]:
@@ -278,17 +388,140 @@ def random_texture_once(scene, default_config, demogen_config):
                     for table_mdl_path in scene["assets_list"]["table_mdl"]
                 ],
             )
+    # randomize camera pose
+    if (
+        "camera_randomization"
+        in demogen_config["domain_randomization"]["random_environment"]
+    ):
+        current_dir = default_config["current_dir"]
+        camera_data = load_yaml(
+            os.path.join(
+                current_dir,
+                demogen_config["domain_randomization"]["cameras"]["config_path"],
+            )
+        )
+        random_camera_list_pose(
+            scene["camera_list"],
+            camera_data,
+            demogen_config["domain_randomization"]["random_environment"][
+                "camera_randomization"
+            ],
+        )
+    # render the scene and get the light intensity
     for _ in range(10):
         scene["world"].render()
-    image = get_src(scene["camera_list"]["obs_camera"], "rgb")
+    if "obs_camera" in scene["camera_list"]:
+        image = get_src(scene["camera_list"]["obs_camera"], "rgb")
+    elif "top_camera" in scene["camera_list"]:
+        image = get_src(scene["camera_list"]["top_camera"], "rgb")
+    else:
+        raise ValueError("No main camera found")
+    # get the light intensity
     light_intensity = np.mean(image)
     return light_intensity
 
 
-def random_texture(scene, default_config, demogen_config):
+def random_texture_once_for_eval(
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+    table_without_collider: bool = True,
+) -> float:
+    # randomize the dome light
+    if demogen_config["domain_randomization"]["random_environment"]["hdr"]:
+        light_path = random.choice(scene["assets_list"]["domelight"])
+        create_dome_light(
+            f"/World/{scene['uuid']}/obj_defaultGroundPlane/GroundPlane/DomeLight",
+            f"{default_config['ASSETS_DIR']}/miscs/hdrs/{light_path}",
+        )
+    # randomize table texture for the default table, table prim tree is under objaverse format
+    if demogen_config["domain_randomization"]["random_environment"][
+        "table_texture"
+    ] and not (
+        "table_type" in demogen_config["domain_randomization"]["random_environment"]
+        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
+    ):
+        random_objaverse_table_texture(scene, default_config)
+    # randomize wall texture
+    if demogen_config["domain_randomization"]["random_environment"]["wall_texture"]:
+        random_wall_texture(scene, default_config)
+    # randomize table and table texture for grutopia format table, table prim tree is under grutopia format
+    if (
+        "table_type" in demogen_config["domain_randomization"]["random_environment"]
+        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
+    ):
+        table_path = random.choice(scene["assets_list"]["table"])
+        replace_table_for_eval(
+            scene["object_list"],
+            table_path,
+            scene["uuid"],
+            real_table_uid=demogen_config["table_uid"],
+            without_collider=table_without_collider,
+        )
+        if demogen_config["domain_randomization"]["random_environment"][
+            "table_texture"
+        ]:
+            change_table_mdl(
+                scene["object_list"]["00000000000000000000000000000000"].prim_path,
+                texture_path_list=[
+                    os.path.abspath(
+                        f"{default_config['ASSETS_DIR']}/object_usds/grutopia_usd/Table/Materials/{table_mdl_path}"
+                    )
+                    for table_mdl_path in scene["assets_list"]["table_mdl"]
+                ],
+            )
+    # render the scene and get the light intensity
+    for _ in range(10):
+        scene["world"].render()
+    if "obs_camera" in scene["camera_list"]:
+        image = get_src(scene["camera_list"]["obs_camera"], "rgb")
+    elif "top_camera" in scene["camera_list"]:
+        image = get_src(scene["camera_list"]["top_camera"], "rgb")
+    else:
+        raise ValueError("No main camera found")
+    light_intensity = np.mean(image)
+    return light_intensity
+
+
+def random_texture(
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+    table_without_collider: bool = False,
+) -> int:
     cnt = 0
     while cnt < 10:
-        light_intensity = random_texture_once(scene, default_config, demogen_config)
+        # randomize the texture of the scene
+        light_intensity = random_texture_once(
+            scene,
+            default_config,
+            demogen_config,
+            table_without_collider=table_without_collider,
+        )
+        # if the light intensity is >= 80, break the loop
+        if light_intensity >= 80:
+            break
+        cnt += 1
+    # if the light intensity is < 80 after 10 times, print error message and return -1
+    if cnt == 10:
+        print("random texture failed")
+        return -1
+    return 0
+
+
+def random_texture_for_eval(
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+) -> int:
+    cnt = 0
+    while cnt < 10:
+        # randomize the texture of the scene
+        light_intensity = random_texture_once_for_eval(
+            scene,
+            default_config,
+            demogen_config,
+        )
         if light_intensity >= 80:
             break
         cnt += 1
@@ -299,8 +532,13 @@ def random_texture(scene, default_config, demogen_config):
 
 
 def domain_randomization(
-    scene, default_config, demogen_config, task_data, mode="default"
-):
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+    task_data: dict,
+    mode: str = "demogen",
+) -> dict:
+    # randomize robot base position
     if demogen_config["domain_randomization"]["random_environment"][
         "robot_base_position"
     ]:
@@ -319,6 +557,7 @@ def domain_randomization(
                 )
             else:
                 random_robot_pose(robot.robot, 0.1)
+    # randomize robot eepose
     if demogen_config["domain_randomization"]["random_environment"].get(
         "robot_eepose", False
     ):
@@ -327,6 +566,8 @@ def domain_randomization(
                 robot,
                 default_config["current_dir"],
             )
+    # setup random table layout
+    print("setup random position")
     if demogen_config["layout_config"]["type"] == "random_all":
         IS_OK = setup_random_tableset(
             scene["object_list"],
@@ -363,6 +604,7 @@ def domain_randomization(
             scene["articulation_list"],
             scene["cacheDict"]["meshDict"],
             demogen_config["layout_config"]["custom_tableset"],
+            in_order=demogen_config["layout_config"].get("in_order", False),
         )
     elif demogen_config["layout_config"]["type"] == "random_all_range":
         IS_OK = setup_random_all_range(
@@ -390,6 +632,11 @@ def domain_randomization(
     if IS_OK == -1:
         print("random position failed")
         return IS_OK
+    # clean prim velocity because the prim velocity may not zero from the previous scene
+    for key in scene["object_list"]:
+        clean_prim_velocity(scene["object_list"][key].prim_path)
+    print("verify placement")
+    # verify if the placement is stable
     if (
         len(task_data["goal"]) > 0
         and len(task_data["goal"][0]) > 0
@@ -403,23 +650,27 @@ def domain_randomization(
             if not IS_OK:
                 print("verify placement failed")
                 return -1
-    meshlist = get_current_meshList(
-        scene["object_list"], scene["cacheDict"]["meshDict"]
-    )
-    pclist = meshlist_to_pclist(meshlist)
+    # clean prim velocity because the prim velocity may not zero from the previous scene
+    for key in scene["object_list"]:
+        clean_prim_velocity(scene["object_list"][key].prim_path)
+    # task should not be finished after randomization
     finished = (
-        check_finished(task_data["goal"], pclist, scene["articulation_list"]) == 1
+        check_finished(
+            task_data["goal"],
+            pclist=get_current_pcList_by_meshList(
+                scene["object_list"], scene["cacheDict"]["meshDict"]
+            ),
+            articulation_list=scene["articulation_list"],
+        )
+        == 1
     )
     if finished:
         print("check finished failed")
         return -1
-    if mode == "demogen":
-        return 0
-    random_texture(scene, default_config, demogen_config)
     return 0
 
 
-def reset_scene(scene):
+def reset_scene(scene: dict) -> None:
     reset_object_xyz(scene["object_list"], scene["meta_infos"]["world_pose_list"])
     reset_articulation_positions(scene)
     for robot, joint_positions, joint_velocities, robot_pose in zip(
@@ -433,76 +684,59 @@ def reset_scene(scene):
         robot.robot.set_world_pose(*robot_pose)
 
 
-def adjust_object_scale_by_thickness(
-    scene, uid, default_config, demogen_config, object_scale, min_thickness
-):
-    meshlist = get_current_meshList(
-        scene["object_list"], scene["cacheDict"]["meshDict"]
-    )
-    mesh = meshlist[uid]
-    aabb = compute_mesh_bbox(mesh)
-    if np.min(compute_aabb_lwh(aabb)) > min_thickness:
-        l, w, h = compute_aabb_lwh(aabb)
-        min_thickness_ratio = min_thickness / np.min(compute_aabb_lwh(aabb))
-        min_thickness_ratio = max(min_thickness_ratio, 0.04 / h)
-        l *= min_thickness_ratio
-        w *= min_thickness_ratio
-        h *= min_thickness_ratio
-        resize_object_by_lwh(
-            scene["object_list"][uid],
-            l=l,
-            w=w,
-            h=h,
-            mesh=mesh,
-        )
-        scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
-            scene["object_list"][uid],
-            os.path.join(
-                default_config["ASSETS_DIR"],
-                "mesh_data",
-                demogen_config["task_name"],
-                os.path.dirname(scene["cacheDict"]["preloaded_object_path_list"][uid]),
-                f"{uid}.obj",
-            ),
-        )
-
-
-def get_object_scale(replace_object_config, key, replaced_uid, object_pool):
+def satisfy_replace_existed_object(
+    replace_object_config: dict,
+    key: str,
+    replaced_uid: str,
+    added_uid_list: list[str],
+    object_config_key_list: list[str],
+) -> bool:
     if (
         "option" in replace_object_config[key]
-        and "plain_replace" in replace_object_config[key]["option"]
+        and "cup_plate_replace" in replace_object_config[key]["option"]
     ):
-        scale = None
+        if verify_cup_and_plate(
+            object_config_key_list,
+            key,
+            object_config_key_list.index(key),
+            replaced_uid,
+            added_uid_list,
+        ):
+            return True
+        return False
     else:
-        object_info = object_pool.get_object_info(replaced_uid)
-        if object_info is None:
-            scale = random.uniform(0.08, 0.12)
-        else:
-            scale = random.uniform(
-                object_info["scale"][0],
-                object_info["scale"][1],
-            )
-    if "clip_range" in replace_object_config[key]:
-        scale = np.clip(
-            scale,
-            replace_object_config[key]["clip_range"]["min"],
-            replace_object_config[key]["clip_range"]["max"],
-        )
-    return scale
+        return True
 
 
-def build_up_scene(scene, demogen_config, default_config, task_data):
+def build_up_scene(
+    scene: dict,
+    demogen_config: dict,
+    default_config: dict,
+    task_data: dict,
+) -> dict:
+    """
+    initialize meta_to_fine_projection
+    for config:
+    object1:
+        type: load_object_from_path
+        ...
+    `object1` is called meta key, which may represent a set of objects in the scene, each time for one object. The uid of the object is called fine key.
+    meta_to_fine_projection is a dict, the key is the meta key, the value is the fine key.
+    by recording it, we can disactivate last added object and add new object to the scene.
+    """
+    # 1. initialize meta_to_fine_projection
     if "meta_to_fine_projection" not in scene["cacheDict"]:
         scene["cacheDict"]["meta_to_fine_projection"] = {}
         for key in scene["cacheDict"]["preload_hash_feature"]:
             scene["cacheDict"]["meta_to_fine_projection"][key] = ""
+
+    # 2. initialize configs
     replace_object_config = demogen_config["object_config"]
     added_uid_list = []
     object_config_key_list = list(replace_object_config.keys())
     object_config_key_list.sort()
-    for key in replace_object_config:
-        if replace_object_config[key]["type"] == "add_additional_object_from_path":
-            object_config_key_list.remove(key)
+
+    # 3. choose new object to replace for each object in the object_config
     for key in object_config_key_list:
         while True:
             replaced_uid = random.choice(
@@ -510,23 +744,37 @@ def build_up_scene(scene, demogen_config, default_config, task_data):
                     scene["cacheDict"]["preload_hash_feature"][key]
                 ]
             )
-            if replaced_uid not in added_uid_list:
+            if replaced_uid not in added_uid_list and satisfy_replace_existed_object(
+                replace_object_config,
+                key,
+                replaced_uid,
+                added_uid_list,
+                object_config_key_list,
+            ):
                 break
         added_uid_list.append(replaced_uid)
+
+    # 4. remove the old object
     for key, replaced_uid in scene["cacheDict"]["meta_to_fine_projection"].items():
         if (
             replaced_uid in scene["object_list"]
             and replace_object_config[key]["type"] == "load_object_from_path"
         ):
             remove_object_from_scene_by_preload(replaced_uid, scene)
+
+    # 5. add new object and resize it
     for key, replaced_uid in zip(object_config_key_list, added_uid_list):
+        # 5-1. existed object
         if replace_object_config[key]["type"] == "existed_object":
+            # 5-1-1. activate object if it is not active
             if not scene["cacheDict"]["preloaded_object_list"][
                 replaced_uid
             ].prim.IsActive():
                 scene["cacheDict"]["preloaded_object_list"][
                     replaced_uid
                 ].prim.SetActive(True)
+
+            # 5-1-2. add object to object_list and compute mesh cache for the object
             if replaced_uid not in scene["object_list"]:
                 scene["object_list"][replaced_uid] = scene["cacheDict"][
                     "preloaded_object_list"
@@ -540,19 +788,70 @@ def build_up_scene(scene, demogen_config, default_config, task_data):
                         f"{replaced_uid}.obj",
                     ),
                 )
+
+            if "fixed_size" in replace_object_config[key]:
+                resize_object_in_scene_by_uid(
+                    replaced_uid,
+                    scene,
+                    default_config,
+                    replace_object_config[key]["fixed_size"],
+                    demogen_config,
+                )
+
+            # 5-1-3. record the meta_to_fine_projection
             scene["cacheDict"]["meta_to_fine_projection"][key] = replaced_uid
+
+        # 5-2. load_object_from_path
         elif replace_object_config[key]["type"] == "load_object_from_path":
+            # 5-2-1. add object to the scene
+            add_object_to_scene_from_preload_list(
+                replaced_uid, scene, default_config, demogen_config
+            )
+
+            # 5-2-2. get the scale of the object
             scale = get_object_scale(
                 replace_object_config, key, replaced_uid, scene["object_pool"]
             )
-            add_object_to_scene_by_preload(
-                replaced_uid, scene, default_config, demogen_config
-            )
-            if scale is not None:
+
+            # 5-2-3. resize the object by scale
+            # 5-2-3-1. if scale is in meter, and is float or list[float]
+            if scale is not None and "fixed_scale" not in replace_object_config[key]:
                 resize_object_in_scene_by_uid(
                     replaced_uid, scene, default_config, scale, demogen_config
                 )
-            scene["cacheDict"]["meta_to_fine_projection"][key] = replaced_uid
+
+            # 5-2-3-2. if scale is relative to the original object, and is float or list[float]
+            elif "fixed_scale" in replace_object_config[key]:
+                if not isinstance(replace_object_config[key]["fixed_scale"], list):
+                    scene["object_list"][replaced_uid].set_local_scale(
+                        [replace_object_config[key]["fixed_scale"]] * 3
+                    )
+                else:
+                    scene["object_list"][replaced_uid].set_local_scale(
+                        replace_object_config[key]["fixed_scale"]
+                    )
+                scene["cacheDict"]["meshDict"][replaced_uid] = get_mesh_info_by_load(
+                    scene["object_list"][replaced_uid],
+                    os.path.join(
+                        default_config["ASSETS_DIR"],
+                        "mesh_data",
+                        demogen_config["task_name"],
+                        os.path.dirname(
+                            scene["cacheDict"]["preloaded_object_path_list"][
+                                replaced_uid
+                            ]
+                        ),
+                        f"{replaced_uid}.obj",
+                    ),
+                )
+
+            # 5-2-3-3. if scale is not defined, raise error
+            else:
+                raise ValueError(
+                    f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
+                )
+
+            # 5-2-3-4. adjust object scale by thickness if needed
             if (
                 "option" in replace_object_config[key]
                 and "adjust_thickness" in replace_object_config[key]["option"]
@@ -565,6 +864,86 @@ def build_up_scene(scene, demogen_config, default_config, task_data):
                     scale,
                     0.06,
                 )
+
+            # 5-2-4. record the meta_to_fine_projection
+            scene["cacheDict"]["meta_to_fine_projection"][key] = replaced_uid
+
+        # 5-3. add_additional_object_from_path
+        elif replace_object_config[key]["type"] == "add_additional_object_from_path":
+            # 5-3-0. get real uid of the object
+            if "uid" in replace_object_config[key]:
+                replaced_uid = replace_object_config[key]["uid"]
+            else:
+                replaced_uid = (
+                    replace_object_config[key]["path"].split("/")[-1].split(".")[0]
+                )
+
+            # 5-3-1. add object to the scene
+            add_object_to_scene_from_preload_list(
+                replaced_uid, scene, default_config, demogen_config
+            )
+
+            # 5-3-2. get the scale of the object
+            scale = get_object_scale(
+                replace_object_config, key, replaced_uid, scene["object_pool"]
+            )
+
+            # 5-3-3. resize the object by scale
+            # 5-3-3-1. if scale is in meter, and is float or list[float]
+            if scale is not None and "fixed_scale" not in replace_object_config[key]:
+                resize_object_in_scene_by_uid(
+                    replaced_uid, scene, default_config, scale, demogen_config
+                )
+
+            # 5-3-3-2. if scale is relative to the original object, and is float or list[float]
+            elif "fixed_scale" in replace_object_config[key]:
+                if not isinstance(replace_object_config[key]["fixed_scale"], list):
+                    scene["object_list"][replaced_uid].set_local_scale(
+                        [replace_object_config[key]["fixed_scale"]] * 3
+                    )
+                else:
+                    scene["object_list"][replaced_uid].set_local_scale(
+                        replace_object_config[key]["fixed_scale"]
+                    )
+                scene["cacheDict"]["meshDict"][replaced_uid] = get_mesh_info_by_load(
+                    scene["object_list"][replaced_uid],
+                    os.path.join(
+                        default_config["ASSETS_DIR"],
+                        "mesh_data",
+                        demogen_config["task_name"],
+                        os.path.dirname(
+                            scene["cacheDict"]["preloaded_object_path_list"][
+                                replaced_uid
+                            ]
+                        ),
+                        f"{replaced_uid}.obj",
+                    ),
+                )
+
+            # 5-3-3-3. if scale is not defined, raise error
+            else:
+                raise ValueError(
+                    f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
+                )
+
+            # 5-3-3-4. adjust object scale by thickness if needed
+            if (
+                "option" in replace_object_config[key]
+                and "adjust_thickness" in replace_object_config[key]["option"]
+            ):
+                adjust_object_scale_by_thickness(
+                    scene,
+                    replaced_uid,
+                    default_config,
+                    demogen_config,
+                    scale,
+                    0.06,
+                )
+
+            # 5-3-4. record the meta_to_fine_projection
+            scene["cacheDict"]["meta_to_fine_projection"][key] = replaced_uid
+
+    # 6. replace the uid in the goal
     for i in range(len(task_data["goal"])):
         for j in range(len(task_data["goal"][i])):
             if (
@@ -592,6 +971,33 @@ def build_up_scene(scene, demogen_config, default_config, task_data):
                         task_data["goal"][i][j]["ignored_uid"][k] = scene["cacheDict"][
                             "meta_to_fine_projection"
                         ][task_data["goal"][i][j]["ignored_uid"][k]]
+
+    # 7. replace uid in layout config
+    if "layout_config" in demogen_config:
+        if demogen_config["layout_config"]["type"] == "random_custom_tableset":
+            custom_dict = {}
+            if isinstance(demogen_config["layout_config"]["custom_tableset"], list):
+                demogen_config["layout_config"]["custom_tableset"] = random.choice(
+                    demogen_config["layout_config"]["custom_tableset"]
+                )
+            for key in demogen_config["layout_config"]["custom_tableset"]:
+                custom_dict[scene["cacheDict"]["meta_to_fine_projection"][key]] = (
+                    demogen_config["layout_config"]["custom_tableset"][key]
+                )
+                if (
+                    demogen_config["layout_config"]["custom_tableset"][key]["type"]
+                    == "scene_graph"
+                ):
+                    custom_dict[scene["cacheDict"]["meta_to_fine_projection"][key]][
+                        "obj2_uid"
+                    ] = scene["cacheDict"]["meta_to_fine_projection"][
+                        demogen_config["layout_config"]["custom_tableset"][key][
+                            "obj2_uid"
+                        ]
+                    ]
+            demogen_config["layout_config"]["custom_tableset"] = custom_dict
+
+    # 8. add object_infos to task_data
     task_data["object_infos"] = {}
     for obj_uid in scene["object_list"]:
         obj_info = scene["object_pool"].get_object_info(obj_uid)

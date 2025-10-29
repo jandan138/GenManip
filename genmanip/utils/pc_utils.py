@@ -1,24 +1,34 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
+import random
+
+from concave_hull import concave_hull
+import matplotlib
 import numpy as np
 import open3d as o3d
-import random
 from scipy.spatial import ConvexHull
-from shapely.geometry import Polygon, Point
+import shapely
+from shapely.geometry import Polygon, MultiPolygon, Point
 import trimesh
-import matplotlib
 
 matplotlib.use("Agg")  # Set non-interactive backend
 import matplotlib.pyplot as plt
-import shapely
-from concave_hull import concave_hull
 
 
-def bbox_to_polygon(x, y, w, h):
+def bbox_to_polygon(x: float, y: float, w: float, h: float) -> Polygon:
     points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
     return Polygon(points)
 
 
-def check_mesh_collision(mesh1, mesh2):
-    def o3d2trimesh(o3d_mesh):
+def check_mesh_collision(
+    mesh1: o3d.geometry.TriangleMesh, mesh2: o3d.geometry.TriangleMesh
+) -> bool:
+    def o3d2trimesh(o3d_mesh: o3d.geometry.TriangleMesh) -> trimesh.Trimesh:
         vertices = np.asarray(o3d_mesh.vertices)
         faces = np.asarray(o3d_mesh.triangles)
         return trimesh.Trimesh(vertices=vertices, faces=faces)
@@ -32,7 +42,9 @@ def check_mesh_collision(mesh1, mesh2):
     return collision_manager.in_collision_internal()
 
 
-def compute_aabb_lwh(aabb):
+def compute_aabb_lwh(
+    aabb: o3d.geometry.AxisAlignedBoundingBox,
+) -> tuple[float, float, float]:
     # compute the length, width, and height of the aabb
     length = aabb.get_max_bound()[0] - aabb.get_min_bound()[0]
     width = aabb.get_max_bound()[1] - aabb.get_min_bound()[1]
@@ -40,7 +52,9 @@ def compute_aabb_lwh(aabb):
     return length, width, height
 
 
-def compute_min_distance_between_two_polygons(polygon1, polygon2, num_points=1000):
+def compute_min_distance_between_two_polygons(
+    polygon1: Polygon, polygon2: Polygon, num_points: int = 1000
+) -> float:
     points1 = sample_points_in_polygon(polygon1, num_points=num_points)
     points2 = sample_points_in_polygon(polygon2, num_points=num_points)
     from sklearn.neighbors import NearestNeighbors
@@ -51,7 +65,7 @@ def compute_min_distance_between_two_polygons(polygon1, polygon2, num_points=100
     return res
 
 
-def sample_points_in_polygon(polygon, num_points=1000):
+def sample_points_in_polygon(polygon: Polygon, num_points: int = 1000) -> np.ndarray:
     boundary = polygon.boundary
     boundary_length = boundary.length
     points = []
@@ -61,17 +75,24 @@ def sample_points_in_polygon(polygon, num_points=1000):
     return np.array(points)
 
 
-def transform_polygon(polygon, x, y):
+def transform_polygon(polygon: Polygon, x: float, y: float) -> Polygon:
     return shapely.affinity.translate(polygon, xoff=x, yoff=y)
 
 
-def rotate_polygon(polygon, angle, center):
+def rotate_polygon(
+    polygon: Polygon, angle: float, center: tuple[float, float]
+) -> Polygon:
     return shapely.affinity.rotate(
         polygon, angle, origin=tuple(center), use_radians=True
     )
 
 
-def compute_near_area(mesh1, mesh2, near_distance=0.1, angle_steps=36):
+def compute_near_area(
+    mesh1: o3d.geometry.TriangleMesh,
+    mesh2: o3d.geometry.TriangleMesh,
+    near_distance: float = 0.1,
+    angle_steps: int = 36,
+) -> Polygon:
     pcd1 = get_pcd_from_mesh(mesh1)
     pcd2 = get_pcd_from_mesh(mesh2)
     polygon1 = get_xy_contour(pcd1, contour_type="concave_hull")
@@ -105,7 +126,9 @@ def compute_near_area(mesh1, mesh2, near_distance=0.1, angle_steps=36):
     return near_area
 
 
-def compute_lrfb_area(position, mesh1, mesh2):
+def compute_lrfb_area(
+    position: str, mesh1: o3d.geometry.TriangleMesh, mesh2: o3d.geometry.TriangleMesh
+) -> Polygon:
     from genmanip.demogen.evaluate.evaluate import XY_DISTANCE_CLOSE_THRESHOLD
 
     aabb1 = compute_mesh_bbox(mesh1)
@@ -244,41 +267,47 @@ def compute_lrfb_area(position, mesh1, mesh2):
     return polygon
 
 
-def compute_mesh_xyr(mesh):
+def compute_mesh_xyr(mesh: o3d.geometry.TriangleMesh) -> float:
     bbox = compute_mesh_bbox(mesh)
     l, w, _ = compute_aabb_lwh(bbox)
     xyr = np.sqrt(l**2 + w**2) / 2
     return xyr
 
 
-def compute_mesh_bbox(mesh):
+def compute_mesh_bbox(
+    mesh: o3d.geometry.TriangleMesh,
+) -> o3d.geometry.AxisAlignedBoundingBox:
     pcd = get_pcd_from_mesh(mesh)
     return compute_pcd_bbox(pcd)
 
 
-def compute_mesh_center(mesh):
+def compute_mesh_center(mesh: o3d.geometry.TriangleMesh) -> np.ndarray:
     pcd = get_pcd_from_mesh(mesh)
     return compute_pcd_center(pcd)
 
 
-def compute_pcd_bbox(pcd):
+def compute_pcd_bbox(
+    pcd: o3d.geometry.PointCloud,
+) -> o3d.geometry.AxisAlignedBoundingBox:
     aabb = pcd.get_axis_aligned_bounding_box()
     return aabb
 
 
-def compute_pcd_center(pcd):
+def compute_pcd_center(pcd: o3d.geometry.PointCloud) -> np.ndarray:
     pointcloud = np.asarray(pcd.points)
     center = np.mean(pointcloud, axis=0)
     return center
 
 
-def get_max_distance_to_polygon(polygon, point):
+def get_max_distance_to_polygon(polygon: Polygon, point: Point) -> float:
     return max(
         [point.distance(Point(vertex)) for vertex in list(polygon.exterior.coords)]
     )
 
 
-def get_mesh_from_points_and_faces(points, faceVertexCounts, faceVertexIndices):
+def get_mesh_from_points_and_faces(
+    points, faceVertexCounts, faceVertexIndices
+) -> o3d.geometry.TriangleMesh:
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = o3d.utility.Vector3dVector(points)
     triangles = []
@@ -286,29 +315,54 @@ def get_mesh_from_points_and_faces(points, faceVertexCounts, faceVertexIndices):
     for count in faceVertexCounts:
         if count == 3:
             triangles.append(faceVertexIndices[idx : idx + 3])
+        elif count == 4:
+            face_indices = faceVertexIndices[idx : idx + 4]
+            triangles.append([face_indices[0], face_indices[1], face_indices[2]])
+            triangles.append([face_indices[0], face_indices[2], face_indices[3]])
+        elif count > 4:
+            face_indices = faceVertexIndices[idx : idx + count]
+            for i in range(1, count - 1):
+                triangles.append(
+                    [face_indices[0], face_indices[i], face_indices[i + 1]]
+                )
         idx += count
     mesh.triangles = o3d.utility.Vector3iVector(triangles)
     mesh.compute_vertex_normals()
     return mesh
 
 
-def get_pcd_from_mesh(mesh, num_points=1000):
+def get_pcd_from_mesh(
+    mesh: o3d.geometry.TriangleMesh, num_points: int = 1000
+) -> o3d.geometry.PointCloud:
     pcd = mesh.sample_points_uniformly(number_of_points=num_points)
     return pcd
 
 
-def visualize_polygons(polygons: list[Polygon]):
+def visualize_polygons(polygons: list, output_path: str = "polygons.png") -> None:
     fig, ax = plt.subplots()
     for polygon in polygons:
-        x, y = polygon.exterior.xy
-        ax.plot(x, y)
+        if isinstance(polygon, Polygon):
+            x, y = polygon.exterior.xy
+            ax.plot(x, y)
+        elif isinstance(polygon, MultiPolygon):
+            for single_polygon in polygon.geoms:
+                x, y = single_polygon.exterior.xy
+                ax.plot(x, y)
+        else:
+            continue
     ax.set_xlim(-1, 1)
     ax.set_ylim(-1, 1)
-    plt.savefig("polygons.png")
+    plt.savefig(output_path)
     plt.close(fig)
 
 
-def get_platform_available_area(platform_pc, pc_list, filtered_uid=[], visualize=False):
+def get_platform_available_area(
+    platform_pc: o3d.geometry.PointCloud,
+    pc_list: dict,
+    filtered_uid: list[str] = [],
+    visualize: bool = False,
+    buffer_size: float = 0.0,
+) -> Polygon:
     platform_polygon = get_xy_contour(platform_pc, contour_type="concave_hull")
     if visualize:
         polygons = []
@@ -318,13 +372,15 @@ def get_platform_available_area(platform_pc, pc_list, filtered_uid=[], visualize
         visualize_polygons(polygons)
     for key in pc_list:
         if key not in filtered_uid:
-            platform_polygon = platform_polygon.difference(
-                get_xy_contour(pc_list[key], contour_type="concave_hull")
+            pc = pc_list[key]
+            pc_polygon = get_xy_contour(pc, contour_type="concave_hull").buffer(
+                buffer_size
             )
+            platform_polygon = platform_polygon.difference(pc_polygon)
     return platform_polygon
 
 
-def get_random_point_within_polygon(polygon, attempts=1000):
+def get_random_point_within_polygon(polygon: Polygon, attempts: int = 1000) -> Point:
     min_x, min_y, max_x, max_y = polygon.bounds
     for _ in range(attempts):
         rand_x = random.uniform(min_x, max_x)
@@ -335,7 +391,9 @@ def get_random_point_within_polygon(polygon, attempts=1000):
     return None
 
 
-def get_xy_contour(points, contour_type="convex_hull"):
+def get_xy_contour(
+    points: np.ndarray | o3d.geometry.PointCloud, contour_type: str = "convex_hull"
+) -> Polygon:
     if type(points) == o3d.geometry.PointCloud:
         points = np.asarray(points.points)
     if points.shape[1] == 3:
@@ -353,28 +411,34 @@ def get_xy_contour(points, contour_type="convex_hull"):
     return polygon
 
 
-def max_distance_to_centroid(polygon):
+def max_distance_to_centroid(polygon: Polygon) -> float:
     centroid = np.array(polygon.centroid.coords[0])
     vertices = np.array(polygon.exterior.coords)
     distances = np.linalg.norm(vertices - centroid, axis=1)
     return np.max(distances)
 
 
-def sample_point_in_2d_line(point1, point2, num_samples=100):
+def sample_point_in_2d_line(
+    point1: np.ndarray, point2: np.ndarray, num_samples: int = 100
+) -> np.ndarray:
     t = np.linspace(0, 1, num_samples)
     x = point1[0] + (point2[0] - point1[0]) * t
     y = point1[1] + (point2[1] - point1[1]) * t
     return np.stack([x, y], axis=1)
 
 
-def sample_points_in_aabb(aabb, num_points=1000):
+def sample_points_in_aabb(
+    aabb: o3d.geometry.AxisAlignedBoundingBox, num_points: int = 1000
+) -> np.ndarray:
     min_bound = aabb.min_bound
     max_bound = aabb.max_bound
     points = np.random.uniform(min_bound, max_bound, size=(num_points, 3))
     return points
 
 
-def sample_points_in_convex_hull(mesh, num_points=1000):
+def sample_points_in_convex_hull(
+    mesh: o3d.geometry.TriangleMesh, num_points: int = 1000
+) -> np.ndarray:
     vertices = np.asarray(mesh.vertices)
     hull = ConvexHull(vertices)
     hull_vertices = vertices[hull.vertices]
@@ -389,7 +453,9 @@ def sample_points_in_convex_hull(mesh, num_points=1000):
     return points
 
 
-def sort_boundary_points(boundary_points, centroid):
+def sort_boundary_points(
+    boundary_points: dict, centroid: tuple[float, float]
+) -> np.ndarray:
     cx, cy = centroid
 
     def angle(point):
@@ -400,14 +466,18 @@ def sort_boundary_points(boundary_points, centroid):
     return np.array(sorted_points)
 
 
-def sort_points_clockwise(points):
+def sort_points_clockwise(points: np.ndarray) -> np.ndarray:
     center = np.mean(points, axis=0)
     angles = np.arctan2(points[:, 1] - center[1], points[:, 0] - center[0])
     sorted_indices = np.argsort(angles)
     return points[sorted_indices]
 
 
-def save_numpy_to_pcd(points, colors=None, filename="pointcloud.pcd"):
+def save_numpy_to_pcd(
+    points: np.ndarray,
+    colors: np.ndarray | None = None,
+    filename: str = "pointcloud.pcd",
+) -> None:
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
     if colors is not None:
@@ -415,11 +485,22 @@ def save_numpy_to_pcd(points, colors=None, filename="pointcloud.pcd"):
     o3d.io.write_point_cloud(filename, pcd)
 
 
-def compute_polygon_iou(polygon1, polygon2):
+def compute_polygon_iou(polygon1: Polygon, polygon2: Polygon) -> float:
     return polygon1.intersection(polygon2).area / polygon1.union(polygon2).area
 
 
-def find_polygon_placement(large_polygon, small_polygon, max_attempts=1000):
+def find_fixed_polygon_placement(
+    large_polygon: Polygon, small_polygon: Polygon
+) -> list[tuple[np.ndarray, float]]:
+    large_center = np.array(large_polygon.centroid.coords[0])
+    small_center = np.array(small_polygon.centroid.coords[0])
+    translation = large_center - small_center
+    return [(translation, 0)]
+
+
+def find_polygon_placement(
+    large_polygon: Polygon, small_polygon: Polygon, max_attempts: int = 1000
+) -> list[tuple[np.ndarray, float]]:
     if large_polygon.is_empty or small_polygon.is_empty:
         return []
     minx, miny, maxx, maxy = large_polygon.bounds
@@ -442,8 +523,11 @@ def find_polygon_placement(large_polygon, small_polygon, max_attempts=1000):
 
 
 def find_polygon_placement_with_rotation(
-    large_polygon, small_polygon, object1_center, max_attempts=1000
-):
+    large_polygon: Polygon,
+    small_polygon: Polygon,
+    object1_center: tuple[float, float],
+    max_attempts: int = 1000,
+) -> list[tuple[np.ndarray, float]]:
     if large_polygon.is_empty or small_polygon.is_empty:
         return []
     minx, miny, maxx, maxy = large_polygon.bounds
@@ -467,7 +551,7 @@ def find_polygon_placement_with_rotation(
     return valid_placements
 
 
-def get_world_corners_from_bbox3d(extents):
+def get_world_corners_from_bbox3d(extents: dict) -> np.ndarray:
     rdb = np.array([extents["x_max"], extents["y_min"], extents["z_min"]])
     ldb = np.array([extents["x_min"], extents["y_min"], extents["z_min"]])
     lub = np.array([extents["x_min"], extents["y_max"], extents["z_min"]])

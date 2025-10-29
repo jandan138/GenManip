@@ -1,16 +1,29 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
+from filelock import SoftFileLock, FileLock, Timeout
+import os
+from pathlib import Path
+import pickle
+import copy
+
 import csv
 import json
 import yaml
 import trimesh
-import os
-from pathlib import Path
-import pickle
-from filelock import SoftFileLock, FileLock, Timeout
 
 
 def increment_index_in_file(
-    file_path, line_number=49, keyword="file = ", increment=1, delimiter="="
-):
+    file_path: str,
+    line_number: int = 49,
+    keyword: str = "file = ",
+    increment: int = 1,
+    delimiter: str = "=",
+) -> None:
     with open(file_path, "r") as file:
         lines = file.readlines()
     if line_number <= len(lines):
@@ -34,7 +47,7 @@ def increment_index_in_file(
         file.writelines(lines)
 
 
-def load_json(config_path: str):
+def load_json(config_path: str) -> dict:
     with open(config_path, "r") as file:
         config = json.load(file)
     return config
@@ -42,7 +55,7 @@ def load_json(config_path: str):
 
 def load_default_config(
     current_dir: str, config_name: str, anygrasp_mode: str = "default"
-):
+) -> dict:
     config_path = os.path.join(current_dir, "assets/configs", config_name)
     if not os.path.exists(config_path):
         config = {}
@@ -69,17 +82,26 @@ def load_default_config(
         config["TASKS_DIR"] = os.path.join(current_dir, "saved/tasks")
     if "TEST_USD_NAME" not in config:
         config["TEST_USD_NAME"] = "base"
-    config["current_dir"] = current_dir
     return config
 
 
-def load_yaml(config_path: str):
+def load_task_config(config_path: str) -> dict:
+    config_path_str = str(config_path)
+    if config_path_str.endswith(".yml") or config_path_str.endswith(".yaml"):
+        return load_yaml(config_path)
+    elif config_path_str.endswith(".json"):
+        return load_json(config_path)
+    else:
+        raise ValueError(f"Unsupported file type: {config_path_str}")
+
+
+def load_yaml(config_path: str) -> dict:
     with open(config_path, "r") as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
-    return config
+        config = yaml.safe_load(file)
+    return json.loads(json.dumps(config))
 
 
-def read_task_csv_to_dict(file_path):
+def read_task_csv_to_dict(file_path: str) -> dict:
     result = {}
     with open(file_path, mode="r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -102,28 +124,28 @@ def read_task_csv_to_dict(file_path):
     return result
 
 
-def save_dict_to_json(data, file_path):
+def save_dict_to_json(data, file_path: str) -> None:
     with open(file_path, "w", encoding="utf-8") as json_file:
         json.dump(data, json_file, ensure_ascii=False, indent=4)
     # print(f"JSON saved: {file_path}")
 
 
-def save_dict_as_yaml(data, file_path):
+def save_dict_as_yaml(data: dict, file_path: str) -> None:
     with open(file_path, "w", encoding="utf-8") as yaml_file:
         yaml.dump(data, yaml_file, allow_unicode=True, default_flow_style=False)
 
 
-def save_dict_as_pkl(dict, path):
+def save_dict_as_pkl(dict: dict, path: str) -> None:
     with open(path, "wb") as f:
         pickle.dump(dict, f)
 
 
-def load_dict_from_pkl(path):
+def load_dict_from_pkl(path: str) -> dict:
     with open(path, "rb") as f:
         return pickle.load(f)
 
 
-def check_glb_properties(file_path):
+def check_glb_properties(file_path: str) -> tuple[bool, int]:
     try:
         scene = trimesh.load(file_path)
         total_vertex_count = 0
@@ -141,7 +163,9 @@ def check_glb_properties(file_path):
         return None, None
 
 
-def is_glb_vaild(file_path, min_vertex_count=1000, debug=False):
+def is_glb_vaild(
+    file_path: str, min_vertex_count: int = 1000, debug: bool = False
+) -> bool:
     if not os.path.exists(file_path):
         return False
     has_normal_map, total_vertex_count = check_glb_properties(file_path)
@@ -153,7 +177,7 @@ def is_glb_vaild(file_path, min_vertex_count=1000, debug=False):
     return has_normal_map or (total_vertex_count > min_vertex_count)
 
 
-def check_uids(sorted_uids, directory, json_file):
+def check_uids(sorted_uids: list[str] | None, directory: str, json_file: str) -> bool:
     if sorted_uids is None:
         print("sorted_uids is None")
         return False
@@ -172,11 +196,11 @@ def check_uids(sorted_uids, directory, json_file):
     return True
 
 
-def make_dir(dir_path):
+def make_dir(dir_path: str) -> None:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 
-def clean_stale_filelocks(lock_dir, timeout=0.0):
+def clean_stale_filelocks(lock_dir: str, timeout: float = 0.0) -> None:
     for root, dirs, files in os.walk(lock_dir):
         for file in files:
             if file.endswith(".lock"):
@@ -189,7 +213,7 @@ def clean_stale_filelocks(lock_dir, timeout=0.0):
                     print(f"[Keep] Lock in use: {lock_path}")
 
 
-def record_log(log_path, info):
+def record_log(log_path: str, info: str) -> None:
     lock_file = os.path.join(log_path, "log_soft.lock")
     try:
         with SoftFileLock(lock_file, timeout=600.0):
@@ -209,7 +233,7 @@ def record_log(log_path, info):
         )
 
 
-def report_log(log_path):
+def report_log(log_path: str) -> dict:
     log_pkl_path = os.path.join(log_path, "log.pkl")
     if os.path.exists(log_pkl_path):
         failed_log = load_dict_from_pkl(log_pkl_path)

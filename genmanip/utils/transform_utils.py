@@ -1,23 +1,37 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 
-def adjust_orientation(ori):
+def adjust_orientation(ori: np.ndarray) -> np.ndarray:
     ori = R.from_quat(ori[[1, 2, 3, 0]])
     if ori.apply(np.array([1, 0, 0]))[0] < 0:
-        ori = R.from_euler("z", 180, degrees=True) * ori
+        ori = ori * R.from_euler("z", 180, degrees=True)
     return ori.as_quat()[[3, 0, 1, 2]]
 
 
-def rot_orientation_by_z_axis(ori, angle):
+def rot_orientation_by_z_axis(ori: np.ndarray, angle: float) -> np.ndarray:
+    return rot_orientation_by_axis(ori, "z", angle)
+
+
+def rot_orientation_by_axis(ori: np.ndarray, axis: str, angle: float) -> np.ndarray:
     ori = R.from_quat(ori[[1, 2, 3, 0]])
-    ori = R.from_euler("z", angle, degrees=True) * ori
+    ori = ori * R.from_euler(axis, angle, degrees=True)
     return ori.as_quat()[[3, 0, 1, 2]]
 
 
 def adjust_translation_along_quaternion(
-    translation, quaternion, distance, aug_distance=0.0
-):
+    translation: np.ndarray,
+    quaternion: np.ndarray,
+    distance: float,
+    aug_distance: float = 0.0,
+) -> np.ndarray:
     rotation = R.from_quat(quaternion[[1, 2, 3, 0]])
     direction_vector = rotation.apply([0, 0, 1])
     reverse_direction = -direction_vector
@@ -34,7 +48,14 @@ def adjust_translation_along_quaternion(
     return new_translation
 
 
-def compute_final_pose(P_A0, Q_A0, P_B0, Q_B0, P_A1, Q_A1):
+def compute_final_pose(
+    P_A0: np.ndarray,
+    Q_A0: np.ndarray,
+    P_B0: np.ndarray,
+    Q_B0: np.ndarray,
+    P_A1: np.ndarray,
+    Q_A1: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     rot_A0 = R.from_quat(Q_A0[[1, 2, 3, 0]])
     rot_A1 = R.from_quat(Q_A1[[1, 2, 3, 0]])
     rot_B0 = R.from_quat(Q_B0[[1, 2, 3, 0]])
@@ -46,7 +67,7 @@ def compute_final_pose(P_A0, Q_A0, P_B0, Q_B0, P_A1, Q_A1):
     return P_B1, Q_B1
 
 
-def compute_delta_eepose(pose1, pose2):
+def compute_delta_eepose(pose1: np.ndarray, pose2: np.ndarray) -> np.ndarray:
     """
     return the delta eepose between two poses: pose1 - pose2
     """
@@ -56,13 +77,13 @@ def compute_delta_eepose(pose1, pose2):
     return transform_to_pose(delta_transform)
 
 
-def transform_to_pose(transform):
+def transform_to_pose(transform: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     trans = transform[:3, 3]
     quat = R.from_matrix(transform[:3, :3]).as_quat()[[3, 0, 1, 2]]
     return trans, quat
 
 
-def pose_to_transform(pose):
+def pose_to_transform(pose: tuple[np.ndarray, np.ndarray]) -> np.ndarray:
     trans, quat = pose
     transform = np.eye(4)
     transform[:3, 3] = trans
@@ -70,7 +91,11 @@ def pose_to_transform(pose):
     return transform
 
 
-def compute_pose2(current_pose1, previous_pose1, previous_pose2):
+def compute_pose2(
+    current_pose1: tuple[np.ndarray, np.ndarray],
+    previous_pose1: tuple[np.ndarray, np.ndarray],
+    previous_pose2: tuple[np.ndarray, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
     current_pose1_transform = pose_to_transform(current_pose1)
     previous_pose1_transform = pose_to_transform(previous_pose1)
     previous_pose2_transform = pose_to_transform(previous_pose2)

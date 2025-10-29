@@ -1,17 +1,29 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
+from typing import Optional, Sequence  # type: ignore
+
 from mplib import Planner, Pose
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from typing import Optional, Sequence  # type: ignore
-from genmanip.thirdparty.mplib_planner import relate_planner_with_franka
+
 from omni.isaac.core.articulations import ArticulationView  # type: ignore
-from omni.isaac.franka import Franka  # type: ignore
 from omni.isaac.core.prims import XFormPrim  # type: ignore
-import roboticstoolbox as rtb
+from omni.isaac.core.robots.robot import Robot  # type: ignore
+from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
+from omni.isaac.franka import Franka  # type: ignore
+
+from genmanip.core.usd_utils import get_robot_all_links
+from genmanip.thirdparty.mplib_planner import relate_planner_with_franka
 
 
 def get_franka_PD_controller(
     franka: Franka, max_joint_velocities: Optional[Sequence[float]] = [1.0] * 9
-):
+) -> ArticulationView:
     franka_view = ArticulationView(franka.prim_path)
     franka_view.initialize()
     franka_view.set_max_joint_velocities(max_joint_velocities)
@@ -20,14 +32,19 @@ def get_franka_PD_controller(
 
 def joint_positions_action_to_joint_positions_state(
     joint_positions: np.ndarray, franka: Franka
-):
+) -> np.ndarray:
     grasp_action = franka.gripper.forward(
         action=("close" if joint_positions[7] < 0 else "open")
     ).joint_positions[7:]
     return np.concatenate([joint_positions[:7], grasp_action])
 
 
-def replay_skill(object_to_franka, franka, planner, skill_data):
+def replay_skill(
+    object_to_franka: np.ndarray,
+    franka: Franka,
+    planner: Planner,
+    skill_data: list[dict],
+) -> list[np.ndarray]:
     pose_data = []
     gripper_data = []
     # set planner base to [0, 0, 0] in robot frame
@@ -68,7 +85,12 @@ def replay_skill(object_to_franka, franka, planner, skill_data):
     return actions
 
 
-def replay_skill_curobo(object_to_franka, franka, curobo_planner, skill_data):
+def replay_skill_curobo(
+    object_to_franka: np.ndarray,
+    franka: Franka,
+    curobo_planner: Planner,
+    skill_data: list[dict],
+) -> list[np.ndarray]:
     pose_data = []
     gripper_data = []
     actions = []
@@ -92,28 +114,19 @@ def replay_skill_curobo(object_to_franka, franka, curobo_planner, skill_data):
     return actions
 
 
-def create_joint_xform_list(robot):
-    joint_name_list = [
-        "panda_link0",
-        "panda_link1",
-        "panda_link2",
-        "panda_link3",
-        "panda_link4",
-        "panda_link5",
-        "panda_link6",
-        "panda_link7",
-        "panda_link8",
-        "panda_hand",
-        "panda_leftfinger",
-        "panda_rightfinger",
-    ]
-    joint_xform_list = {}
-    for joint_name in joint_name_list:
-        joint_xform_list[joint_name] = XFormPrim(f"{robot.prim_path}/{joint_name}")
+def create_joint_xform_list(robot: Robot) -> dict[str, XFormPrim]:
+    robot_prim = get_prim_at_path(robot.prim_path)
+    joint_prim_dict = get_robot_all_links(robot_prim)
+    blacklist = ["Defeatured_2F_85_PAD_OPEN_basestep"]
+    joint_xform_list = {
+        joint_name: XFormPrim(str(joint_prim.GetPath()))
+        for joint_name, joint_prim in joint_prim_dict.items()
+        if all([black not in joint_name for black in blacklist])
+    }
     return joint_xform_list
 
 
-def create_tcp_xform_list(robot, tcp_config):
+def create_tcp_xform_list(robot: Robot, tcp_config: list[dict]) -> list[XFormPrim]:
     tcp_xform_list = []
     for tcp_info in tcp_config:
         tcp = XFormPrim(
@@ -122,13 +135,3 @@ def create_tcp_xform_list(robot, tcp_config):
         tcp.set_local_pose(tcp_info["position"], tcp_info["orientation"])
         tcp_xform_list.append(tcp)
     return tcp_xform_list
-
-
-def joint_position_to_end_effector_pose(joint_position, panda=None):
-    if panda is None:
-        panda = rtb.models.Panda()
-    hand_pose = panda.fkine(q=joint_position, end="panda_hand").A
-    position = hand_pose[:3, 3]
-    rotation = hand_pose[:3, :3]
-    orientation = R.from_matrix(rotation).as_quat()[[3, 0, 1, 2]]
-    return position, orientation

@@ -1,9 +1,10 @@
 from functools import partial
 from pathlib import Path
-from pxr import Sdf, Gf, Usd, UsdGeom, UsdUI  # type: ignore
 from typing import List
 
 import omni.usd  # type: ignore
+from pxr import Sdf, Gf, Usd, UsdGeom, UsdUI  # type: ignore
+
 
 
 def __set_xform_prim_transform(prim: UsdGeom.Xformable, transform: Gf.Matrix4d):

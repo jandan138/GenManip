@@ -1,7 +1,17 @@
-import os
-import random
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 from copy import deepcopy
 from filelock import SoftFileLock
+import os
+import random
+
+import numpy as np
+
 from genmanip.utils.file_utils import make_dir, load_dict_from_pkl
 
 
@@ -108,12 +118,26 @@ def random_choice_from_object_or_list(object_or_list):
         return object_or_list
 
 
-def get_random_position_candidate():
+def get_random_position_candidate() -> list[str]:
     return ["top", "near", "left", "right", "front", "back"]
 
 
-def corse_process_task_data(demogen_config):
+def is_triple_layer_list(goal: list) -> bool:
+    if (
+        isinstance(goal, list)
+        and isinstance(goal[0], list)
+        and isinstance(goal[0][0], list)
+    ):
+        return True
+    return False
+
+
+def corse_process_task_data(demogen_config: dict) -> dict:
     task_data = {}
+    if is_triple_layer_list(demogen_config["generation_config"]["goal"]):
+        demogen_config["generation_config"]["goal"] = random.choice(
+            demogen_config["generation_config"]["goal"]
+        )
     task_data["goal"] = deepcopy(demogen_config["generation_config"]["goal"])
     if "long_horizon_meta_info" in demogen_config:
         task_data["long_horizon_meta_info"] = demogen_config["long_horizon_meta_info"]
@@ -163,7 +187,11 @@ def corse_process_task_data(demogen_config):
     return task_data
 
 
-def concat_instruction(task_data, sequence=None):
+def concat_instruction(
+    task_data: dict,
+    sequence: int | list | tuple | None = None,
+    record_arm_info: bool = False,
+) -> str:
     instruction = ""
     goals = task_data["goal"][0]
     if sequence is not None:
@@ -202,26 +230,47 @@ def concat_instruction(task_data, sequence=None):
                 instruction += f"Open the {obj1_caption}"
             else:
                 instruction += f", open the {obj1_caption}"
+        if record_arm_info and subgoal.get("arm", None) is not None:
+            instruction += f" with {subgoal['arm']} arm"
     instruction += "."
     return instruction
 
 
-def rewrite_instruction(task_data, demogen_config):
+def rewrite_instruction(task_data: dict, demogen_config: dict) -> None:
     if demogen_config["domain_randomization"].get("rewrite_instruction", False):
         sequence = demogen_config["domain_randomization"].get("rewrite_sequece", None)
-        task_data["instruction"] = concat_instruction(task_data, sequence)
+        task_data["instruction"] = concat_instruction(
+            task_data,
+            sequence,
+            record_arm_info=demogen_config["domain_randomization"].get(
+                "record_arm_info", False
+            ),
+        )
     else:
         task_data["instruction"] = demogen_config["instruction"]
 
 
-def get_action_list(task_data, demogen_config):
+def get_action_list(task_data: dict, demogen_config: dict) -> dict:
     task_data["task_path"] = random.choice(task_data["goal"])
     if demogen_config["generation_config"].get("is_shuffle", False):
         random.shuffle(task_data["task_path"])
     return task_data
 
 
-def refine_task_data(task_data, demogen_config):
+def refine_task_data(task_data: dict, demogen_config: dict) -> dict:
     rewrite_instruction(task_data, demogen_config)
     task_data = get_action_list(task_data, demogen_config)
     return task_data
+
+
+def adjust_arm_gripper_action_by_embodiment(
+    arm_action: np.ndarray,
+    gripper_action: np.ndarray,
+    embodiment_name: str,
+) -> np.ndarray:
+    if embodiment_name == "aloha_split":
+        return np.concatenate(
+            [arm_action[:6], gripper_action[:2], arm_action[6:], gripper_action[2:]]
+        )
+    else:
+        return np.concatenate([arm_action, gripper_action])

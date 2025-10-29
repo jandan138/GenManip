@@ -1,24 +1,33 @@
-from filelock import SoftFileLock
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 from copy import deepcopy
+from filelock import SoftFileLock
+import os
+from pathlib import Path
+
 import numpy as np
 import open3d as o3d
 from tqdm import tqdm
-import os
-from pathlib import Path
+
+from omni.isaac.core.prims import XFormPrim  # type: ignore
+from omni.isaac.core.utils.prims import get_prim_at_path, get_prim_parent, get_prim_path  # type: ignore
+
 from genmanip.core.pointcloud.transform import (
     forward_transform_mesh,
     inverse_transform_mesh,
     transform_between_meshes,
     transform_between_point_clouds,
 )
-from genmanip.core.usd_utils.prim_utils import get_mesh_from_prim
+from genmanip.core.usd_utils import get_mesh_from_prim
 from genmanip.utils.pc_utils import get_pcd_from_mesh
 
-from omni.isaac.core.utils.prims import get_prim_at_path, get_prim_parent, get_prim_path  # type: ignore
-from omni.isaac.core.prims import XFormPrim  # type: ignore
 
-
-def get_current_mesh(object: XFormPrim, mesh_dict):
+def get_current_mesh(object: XFormPrim, mesh_dict: dict) -> o3d.geometry.TriangleMesh:
     scale = np.array([1, 1, 1])
     trans, quat = object.get_world_pose()
     quat = quat[[1, 2, 3, 0]]
@@ -33,7 +42,9 @@ def get_current_mesh(object: XFormPrim, mesh_dict):
     )
 
 
-def get_current_meshList(object_list, mesh_dict):
+def get_current_meshList(
+    object_list: dict[str, XFormPrim], mesh_dict: dict
+) -> dict[str, o3d.geometry.TriangleMesh]:
     updatedMeshList = {}
     for key in mesh_dict:
         mesh = get_current_mesh(object_list[key], mesh_dict[key])
@@ -42,7 +53,16 @@ def get_current_meshList(object_list, mesh_dict):
     return updatedMeshList
 
 
-def get_current_pointCloud(object: XFormPrim, point_dict):
+def get_current_pcList_by_meshList(
+    object_list: dict[str, XFormPrim], mesh_list: dict[str, o3d.geometry.TriangleMesh]
+) -> dict[str, np.ndarray]:
+    mesh_list = get_current_meshList(object_list, mesh_list)
+    return meshlist_to_pclist(mesh_list)
+
+
+def get_current_pointCloud(
+    object: XFormPrim, point_dict: dict
+) -> o3d.geometry.PointCloud:
     scale = np.array([1, 1, 1])
     trans, quat = object.get_world_pose()
     quat = quat[[1, 2, 3, 0]]
@@ -57,7 +77,9 @@ def get_current_pointCloud(object: XFormPrim, point_dict):
     )
 
 
-def get_current_pointCloutList(object_list, point_dict):
+def get_current_pointCloutList(
+    object_list: dict[str, XFormPrim], point_dict: dict
+) -> dict[str, o3d.geometry.PointCloud]:
     updatedPointCloudList = {}
     for key in point_dict:
         updatedPointCloudList[key] = get_current_pointCloud(
@@ -66,10 +88,15 @@ def get_current_pointCloutList(object_list, point_dict):
     return updatedPointCloudList
 
 
-def get_mesh_info_by_load(object: XFormPrim, mesh_path: str):
+def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> dict | None:
     lock = SoftFileLock(mesh_path + "_soft.lock", timeout=600.0)
     try:
         with lock:
+            if os.path.exists(mesh_path):
+                try:
+                    mesh = o3d.io.read_triangle_mesh(mesh_path)
+                except:
+                    os.remove(mesh_path)
             if not os.path.exists(mesh_path):
                 if not os.path.exists(mesh_path):
                     Path(mesh_path).parent.mkdir(parents=True, exist_ok=True)
@@ -83,11 +110,32 @@ def get_mesh_info_by_load(object: XFormPrim, mesh_path: str):
                     mesh = inverse_transform_mesh(mesh, scale, quat, trans)
                     print(f"save mesh to {mesh_path}")
                     o3d.io.write_triangle_mesh(mesh_path, mesh)
-            mesh = o3d.io.read_triangle_mesh(mesh_path)
     except:
-        raise Exception(
-            f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
-        )
+        os.remove(mesh_path + "_soft.lock")
+        try:
+            with lock:
+                if os.path.exists(mesh_path):
+                    try:
+                        mesh = o3d.io.read_triangle_mesh(mesh_path)
+                    except:
+                        os.remove(mesh_path)
+                if not os.path.exists(mesh_path):
+                    if not os.path.exists(mesh_path):
+                        Path(mesh_path).parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            mesh = get_mesh_from_prim(object.prim)
+                        except:
+                            return None
+                        scale = object.get_local_scale()
+                        trans, quat = object.get_local_pose()
+                        quat = quat[[1, 2, 3, 0]]
+                        mesh = inverse_transform_mesh(mesh, scale, quat, trans)
+                        print(f"save mesh to {mesh_path}")
+                        o3d.io.write_triangle_mesh(mesh_path, mesh)
+        except:
+            raise Exception(
+                f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
+            )
     mesh_info = {}
     mesh_info["mesh"] = get_world_mesh(mesh, object.prim_path)
     mesh_info["trans"], mesh_info["quat"] = object.get_world_pose()
@@ -96,7 +144,7 @@ def get_mesh_info_by_load(object: XFormPrim, mesh_path: str):
     return mesh_info
 
 
-def get_mesh_info(object):
+def get_mesh_info(object: XFormPrim) -> dict | None:
     try:
         mesh = get_mesh_from_prim(object.prim)
     except:
@@ -113,7 +161,9 @@ def get_mesh_info(object):
     return mesh_info
 
 
-def get_world_mesh(mesh, prim_path):
+def get_world_mesh(
+    mesh: o3d.geometry.TriangleMesh, prim_path: str
+) -> o3d.geometry.TriangleMesh:
     prim = get_prim_at_path(prim_path)
     mesh = deepcopy(mesh)
     while get_prim_path(prim) != "/":
@@ -131,7 +181,7 @@ def get_world_mesh(mesh, prim_path):
     return mesh
 
 
-def meshDict2pointCloudDict(mesh_dict):
+def meshDict2pointCloudDict(mesh_dict: dict) -> dict[str, dict]:
     pointcloud_dict = {}
     for key in mesh_dict:
         pointCloud_info = mesh_info2pointCloud_info(mesh_dict[key])
@@ -140,7 +190,9 @@ def meshDict2pointCloudDict(mesh_dict):
     return pointcloud_dict
 
 
-def meshlist_to_pclist(meshlist):
+def meshlist_to_pclist(
+    meshlist: dict[str, o3d.geometry.TriangleMesh],
+) -> dict[str, np.ndarray]:
     pointcloudlist = {}
     for key in meshlist:
         try:
@@ -157,7 +209,7 @@ def meshlist_to_pclist(meshlist):
     return pointcloudlist
 
 
-def mesh_info2pointCloud_info(mesh_info):
+def mesh_info2pointCloud_info(mesh_info: dict) -> dict | None:
     try:
         points = np.asarray(get_pcd_from_mesh(mesh_info["mesh"]).points)
         scale = mesh_info["scale"]
@@ -173,7 +225,9 @@ def mesh_info2pointCloud_info(mesh_info):
         return None
 
 
-def objectList2meshList(object_list, mesh_folder_path=None):
+def objectList2meshList(
+    object_list: dict[str, XFormPrim], mesh_folder_path: str | None = None
+) -> dict[str, dict]:
     mesh_dict = {}
     for key in tqdm(object_list):
         if key == "defaultGroundPlane":
@@ -189,7 +243,9 @@ def objectList2meshList(object_list, mesh_folder_path=None):
     return mesh_dict
 
 
-def objectList2pointCloudList(object_list, visualize=False):
+def objectList2pointCloudList(
+    object_list: dict[str, XFormPrim], visualize: bool = False
+) -> dict[str, dict]:
     mesh_dict = objectList2meshList(object_list)
     point_dict = meshDict2pointCloudDict(mesh_dict)
     if visualize:

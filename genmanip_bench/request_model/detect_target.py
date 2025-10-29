@@ -1,9 +1,19 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import numpy as np
 import open3d as o3d
-from genmanip.core.usd_utils.prim_utils import get_world_pose_by_prim_path
+
+from omni.isaac.franka import Franka  # type: ignore
+
+from genmanip.core.usd_utils import get_world_pose_by_prim_path
 
 
-def triangle_normal(A, B, C):
+def triangle_normal(A: np.ndarray, B: np.ndarray, C: np.ndarray) -> np.ndarray:
     AB = B - A
     AC = C - A
     normal = np.cross(AB, AC)
@@ -11,14 +21,18 @@ def triangle_normal(A, B, C):
     return normal
 
 
-def extrude_triangle(A, B, C, distance):
+def extrude_triangle(
+    A: np.ndarray, B: np.ndarray, C: np.ndarray, distance: float
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
     normal = triangle_normal(A, B, C)
     A1, B1, C1 = A + distance * normal, B + distance * normal, C + distance * normal
     A2, B2, C2 = A - distance * normal, B - distance * normal, C - distance * normal
     return [A1, B1, C1], [A2, B2, C2]
 
 
-def is_point_in_triangle(p, A, B, C):
+def is_point_in_triangle(
+    p: np.ndarray, A: np.ndarray, B: np.ndarray, C: np.ndarray
+) -> bool:
     # 使用重心坐标法
     v0, v1, v2 = C - A, B - A, p - A
     dot00 = np.dot(v0, v0)
@@ -35,7 +49,9 @@ def is_point_in_triangle(p, A, B, C):
     return (u >= 0) and (v >= 0) and (u + v <= 1)
 
 
-def is_point_in_prism(p, A, B, C, distance=0.2):
+def is_point_in_prism(
+    p: np.ndarray, A: np.ndarray, B: np.ndarray, C: np.ndarray, distance: float = 0.2
+) -> bool:
     normal = triangle_normal(A, B, C)
     d = np.dot(normal, A)  # 平面常数
     proj = np.dot(normal, p)
@@ -82,7 +98,12 @@ def sample_points_in_mesh(
     centers = np.array(centers)
 
     # jitter 掉每个中心，产生多个点
-    def jitter_points(points, voxel_size, jitter_ratio, samples_per_voxel):
+    def jitter_points(
+        points: np.ndarray,
+        voxel_size: float,
+        jitter_ratio: float,
+        samples_per_voxel: int,
+    ) -> np.ndarray:
         jittered = []
         for p in points:
             for _ in range(samples_per_voxel):
@@ -100,7 +121,7 @@ def sample_points_in_mesh(
     return pcd
 
 
-def detect_target_is_grasped(franka, mesh):
+def detect_target_is_grasped(franka: Franka, mesh: o3d.geometry.TriangleMesh) -> bool:
     # as numpy
     point_cloud = np.asarray(sample_points_in_mesh(mesh).points)
     joint_positions = franka.get_joint_positions()

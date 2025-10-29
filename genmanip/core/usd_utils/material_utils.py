@@ -1,11 +1,21 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import random
-from pxr import Sdf, UsdShade, Gf  # type: ignore
-import omni.usd  # type: ignore
+
 from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
 from omni.isaac.core.materials.omni_pbr import OmniPBR  # type: ignore
+import omni.usd  # type: ignore
+from pxr import Sdf, UsdShade, Gf  # type: ignore
 
 
-def create_omni_pbr(prim_path, scale=(0.1125, 0.2)):
+def create_omni_pbr(
+    prim_path: str, scale: tuple[float, float] = (0.1125, 0.2)
+) -> OmniPBR:
     stage = omni.usd.get_context().get_stage()
     mtl_path = Sdf.Path(prim_path)
     mtl = UsdShade.Material.Define(stage, mtl_path)
@@ -28,8 +38,12 @@ def create_omni_pbr(prim_path, scale=(0.1125, 0.2)):
 
 
 def change_material_info(
-    prim_path, texture_path=None, translation=None, rotation=None, scale=None
-):
+    prim_path: str,
+    texture_path: str | None = None,
+    translation: tuple[float, float] | None = None,
+    rotation: float | None = None,
+    scale: tuple[float, float] | None = None,
+) -> None:
     prim = get_prim_at_path(prim_path)
     for child in prim.GetAllChildren():
         if str(child.GetPath()).endswith("Looks"):
@@ -53,7 +67,7 @@ def change_material_info(
                                 print(f"Error changing material info: {e}")
 
 
-def change_table_mdl(prim_path, texture_path_list):
+def change_table_mdl(prim_path: str, texture_path_list: list[str]) -> None:
     prim = get_prim_at_path(prim_path)
     for child in prim.GetAllChildren():
         if str(child.GetPath()).endswith("Looks"):

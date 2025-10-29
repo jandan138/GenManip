@@ -1,10 +1,20 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import random
+import requests
+
 import numpy as np
 import open3d as o3d
-import requests
-from scipy.spatial.transform import Rotation as R
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context  # type: ignore
+from scipy.spatial.transform import Rotation as R
 from urllib3.exceptions import InsecureRequestWarning
+
+from omni.isaac.sensor import Camera  # type: ignore
 
 from genmanip.core.sensor.camera import get_src, get_intrinsic_matrix
 
@@ -12,7 +22,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
 class HostnameIgnoringAdapter(requests.adapters.HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
+    def init_poolmanager(self, *args, **kwargs) -> None:
         context = create_urllib3_context()
         context.check_hostname = False
         context.verify_mode = False
@@ -20,7 +30,7 @@ class HostnameIgnoringAdapter(requests.adapters.HTTPAdapter):
         return super().init_poolmanager(*args, **kwargs)
 
 
-def anygrasp_response_to_list(grasp_groups):
+def anygrasp_response_to_list(grasp_groups: list[dict]) -> list[dict]:
     grasp_list = []
     for grasp in grasp_groups:
         grasp_list.append(
@@ -34,7 +44,9 @@ def anygrasp_response_to_list(grasp_groups):
     return grasp_list
 
 
-def compute_distance_list_from_point_list_to_mesh(mesh, points):
+def compute_distance_list_from_point_list_to_mesh(
+    mesh: o3d.geometry.TriangleMesh, points: np.ndarray
+) -> tuple[list[np.ndarray], list[float]]:
     pcd_mesh = mesh.sample_points_uniformly(number_of_points=10000)
     mesh_points = np.asarray(pcd_mesh.points)
     kdtree = o3d.geometry.KDTreeFlann(pcd_mesh)
@@ -50,12 +62,12 @@ def compute_distance_list_from_point_list_to_mesh(mesh, points):
 
 
 def find_closest_grasp_to_mesh(
-    mesh,
-    grasp_list,
-    distance_threshold=0.09,
-    angle_threshold=None,
-    distance_only=False,
-):
+    mesh: o3d.geometry.TriangleMesh,
+    grasp_list: list[dict],
+    distance_threshold: float = 0.09,
+    angle_threshold: float | None = None,
+    distance_only: bool = False,
+) -> tuple[dict | None, float | None]:
     grasp_points = np.array([grasp["translation"] for grasp in grasp_list])
     nearest_points, distances = compute_distance_list_from_point_list_to_mesh(
         mesh, grasp_points
@@ -95,12 +107,12 @@ def find_closest_grasp_to_mesh(
 
 
 def find_closest_grasp_to_point(
-    point,
-    grasp_list,
-    distance_threshold=0.09,
-    angle_threshold=None,
-    distance_only=False,
-):
+    point: np.ndarray,
+    grasp_list: list[dict],
+    distance_threshold: float = 0.09,
+    angle_threshold: float | None = None,
+    distance_only: bool = False,
+) -> dict | None:
     grasp_points = np.array([grasp["translation"] for grasp in grasp_list])
     distances = np.linalg.norm(grasp_points - np.array(point), axis=1)
     within_threshold_indices = np.where(distances <= distance_threshold)[0]
@@ -143,7 +155,7 @@ def get_grasp_pose(
     scale: float = 1000.0,
     address: str = "127.0.0.1",
     port: str = "5001",
-):
+) -> list[dict] | None:
     data = {
         "colors": colors.tolist(),
         "depths": (depth * scale).tolist(),
@@ -167,7 +179,9 @@ def get_grasp_pose(
         print("Failed to process data:", response.text)
 
 
-def request_anygrasp(camera, address="127.0.0.1", port="5001"):
+def request_anygrasp(
+    camera: Camera, address: str = "127.0.0.1", port: str = "5001"
+) -> list[dict] | None:
     if isinstance(port, list):
         port = port[random.randint(0, len(port) - 1)]
     colors = get_src(camera, "rgb")
@@ -209,7 +223,21 @@ def request_anygrasp(camera, address="127.0.0.1", port="5001"):
     return world_grasp_list
 
 
-def get_init_grasp(camera, mesh, address="127.0.0.1", port="5001"):
+def get_init_grasp(
+    camera: Camera,
+    mesh: o3d.geometry.TriangleMesh,
+    address: str = "127.0.0.1",
+    port: str = "5001",
+    allow_fixed_grasp: bool = False,
+    force_fixed_grasp: bool = False,
+) -> dict:
+    if force_fixed_grasp:
+        top_point_of_mesh = mesh.get_max_bound()
+        init_grasp = {
+            "translation": np.array([0.0, 0.0, top_point_of_mesh[2]]),
+            "orientation": np.array([0.0, 1.0, 0.0, 0.0]),
+        }
+        return init_grasp
     world_grasp_list = request_anygrasp(camera, address, port)
     if world_grasp_list is None or len(world_grasp_list) == 0:
         raise Exception("server return empty grasp list")
@@ -217,7 +245,14 @@ def get_init_grasp(camera, mesh, address="127.0.0.1", port="5001"):
         mesh, world_grasp_list, distance_threshold=0.08
     )
     if init_grasp is None:
-        raise Exception("find no valid grasp")
+        if allow_fixed_grasp:
+            top_point_of_mesh = mesh.get_max_bound()
+            init_grasp = {
+                "translation": np.array([0.0, 0.0, top_point_of_mesh[2]]),
+                "orientation": np.array([0.0, 1.0, 0.0, 0.0]),
+            }
+        else:
+            raise Exception("find no valid grasp")
     return init_grasp
 
 
@@ -226,7 +261,7 @@ def get_world_grasp_from_camera_coords(
     camera_quaternion: np.ndarray,
     point_3d: np.ndarray,
     matrix_grasp: np.ndarray,
-):
+) -> tuple[np.ndarray, np.ndarray]:
     rotation_cam_to_world = R.from_quat(camera_quaternion[[1, 2, 3, 0]])
     transform_costum_pose = np.array([[0, 0, 1], [0, -1, 0], [1, 0, 0]])
     correction_matrix = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])

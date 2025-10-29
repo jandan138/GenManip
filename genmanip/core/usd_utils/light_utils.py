@@ -1,7 +1,15 @@
-from pxr import UsdLux  # type: ignore
-from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
 
-def create_dome_light(prim_path, hdr):
+Licensed under the MIT License.
+"""
+
+from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
+from pxr import UsdLux  # type: ignore
+
+
+def create_dome_light(prim_path: str, hdr: str) -> UsdLux.DomeLight:
     light_prim = get_prim_at_path(prim_path)
     light = UsdLux.DomeLight(light_prim)
     light.CreateTextureFileAttr(hdr)

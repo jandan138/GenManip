@@ -1,7 +1,18 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import random
 
+from object_utils.object_pool import ObjectPool
 
-def apply_rule(rule_name, usd_list, object_pool):
+
+def apply_rule(
+    rule_name: str, usd_list: list[str], object_pool: ObjectPool
+) -> list[str]:
     if rule_name == "can_grasp":
         can_grasp_list = [
             usd for usd in usd_list if check_can_grasp(usd.split(".")[0], object_pool)
@@ -113,7 +124,9 @@ def apply_rule(rule_name, usd_list, object_pool):
         return usd_list
 
 
-def retrieve_scale_greater_than(uid, object_pool, rule_name):
+def retrieve_scale_greater_than(
+    uid: str, object_pool: ObjectPool, rule_name: str
+) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -123,7 +136,7 @@ def retrieve_scale_greater_than(uid, object_pool, rule_name):
         return False
 
 
-def retrieve_scale_less_than(uid, object_pool, rule_name):
+def retrieve_scale_less_than(uid: str, object_pool: ObjectPool, rule_name: str) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -133,7 +146,7 @@ def retrieve_scale_less_than(uid, object_pool, rule_name):
         return False
 
 
-def retrieve_materials(uid, object_pool, rule_name):
+def retrieve_materials(uid: str, object_pool: ObjectPool, rule_name: str) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -143,7 +156,7 @@ def retrieve_materials(uid, object_pool, rule_name):
         return False
 
 
-def retrieve_color(uid, object_pool, rule_name):
+def retrieve_color(uid: str, object_pool: ObjectPool, rule_name: str) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -153,7 +166,7 @@ def retrieve_color(uid, object_pool, rule_name):
         return False
 
 
-def retrieve_category(uid, object_pool, rule_name):
+def retrieve_category(uid: str, object_pool: ObjectPool, rule_name: str) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -163,7 +176,7 @@ def retrieve_category(uid, object_pool, rule_name):
         return False
 
 
-def retrieve_shape(uid, object_pool, rule_name):
+def retrieve_shape(uid: str, object_pool: ObjectPool, rule_name: str) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
@@ -173,7 +186,7 @@ def retrieve_shape(uid, object_pool, rule_name):
         return False
 
 
-def check_mass(mass, threshold):
+def check_mass(mass: list[str], threshold: float) -> bool:
     if isinstance(mass, list):
         if len(mass) == 0:
             return False
@@ -182,21 +195,23 @@ def check_mass(mass, threshold):
         return float(mass) < threshold
 
 
-def check_can_grasp(uid, object_pool):
+def check_can_grasp(uid: str, object_pool: ObjectPool) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
     return object_info["can_grasp"]
 
 
-def check_is_container(uid, object_pool):
+def check_is_container(uid: str, object_pool: ObjectPool) -> bool:
     object_info = object_pool.get_object_info(uid)
     if object_info is None:
         return False
     return object_info["is_container"]
 
 
-def find_parent_category(usd_list, category, object_pool):
+def find_parent_category(
+    usd_list: list[str], category: str, object_pool: ObjectPool
+) -> list[str]:
     parent_category_list = []
     for usd in usd_list:
         uid = usd.split(".")[0]
@@ -210,7 +225,9 @@ def find_parent_category(usd_list, category, object_pool):
     return parent_category_list
 
 
-def collect_shapes_by_category(usd_list, category, object_pool):
+def collect_shapes_by_category(
+    usd_list: list[str], category: str, object_pool: ObjectPool
+) -> list[str]:
     shape_list = []
     for usd in usd_list:
         uid = usd.split(".")[0]
@@ -222,7 +239,9 @@ def collect_shapes_by_category(usd_list, category, object_pool):
     return list(set(shape_list))
 
 
-def collect_materials_by_category(usd_list, category, object_pool):
+def collect_materials_by_category(
+    usd_list: list[str], category: str, object_pool: ObjectPool
+) -> list[str]:
     material_list = []
     for usd in usd_list:
         uid = usd.split(".")[0]
@@ -234,7 +253,9 @@ def collect_materials_by_category(usd_list, category, object_pool):
     return list(set(material_list))
 
 
-def collect_colors_by_category(usd_list, category, object_pool):
+def collect_colors_by_category(
+    usd_list: list[str], category: str, object_pool: ObjectPool
+) -> list[str]:
     color_list = []
     for usd in usd_list:
         uid = usd.split(".")[0]
@@ -246,7 +267,7 @@ def collect_colors_by_category(usd_list, category, object_pool):
     return list(set(color_list))
 
 
-def collect_all_categories(usd_list, object_pool):
+def collect_all_categories(usd_list: list[str], object_pool: ObjectPool) -> list[str]:
     category_list = []
     for usd in usd_list:
         uid = usd.split(".")[0]
@@ -257,7 +278,7 @@ def collect_all_categories(usd_list, object_pool):
     return list(set(category_list))
 
 
-def collect_all_shapes(object_pool):
+def collect_all_shapes(object_pool: ObjectPool) -> list[str]:
     uid_list = object_pool.uids
     shape_list = []
     for uid in uid_list:
@@ -268,7 +289,7 @@ def collect_all_shapes(object_pool):
     return list(set(shape_list))
 
 
-def collect_all_materials(object_pool):
+def collect_all_materials(object_pool: ObjectPool) -> list[str]:
     uid_list = object_pool.uids
     material_list = []
     for uid in uid_list:
@@ -279,7 +300,7 @@ def collect_all_materials(object_pool):
     return list(set(material_list))
 
 
-def collect_all_colors(object_pool):
+def collect_all_colors(object_pool: ObjectPool) -> list[str]:
     uid_list = object_pool.uids
     color_list = []
     for uid in uid_list:
@@ -290,7 +311,9 @@ def collect_all_colors(object_pool):
     return list(set(color_list))
 
 
-def generate_long_horizon_by_shape(scene, usd_list, folder_path):
+def generate_long_horizon_by_shape(
+    scene: dict, usd_list: list[str], folder_path: str
+) -> tuple[dict, dict] | None:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -365,7 +388,9 @@ def generate_long_horizon_by_shape(scene, usd_list, folder_path):
     return replacement_config, meta_info
 
 
-def generate_long_horizon_by_materials(scene, usd_list, folder_path):
+def generate_long_horizon_by_materials(
+    scene: dict, usd_list: list[str], folder_path: str
+) -> tuple[dict, dict] | None:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -440,7 +465,9 @@ def generate_long_horizon_by_materials(scene, usd_list, folder_path):
     return replacement_config, meta_info
 
 
-def generate_long_horizon_by_color(scene, usd_list, folder_path):
+def generate_long_horizon_by_color(
+    scene: dict, usd_list: list[str], folder_path: str
+) -> tuple[dict, dict] | None:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -515,7 +542,9 @@ def generate_long_horizon_by_color(scene, usd_list, folder_path):
     return replacement_config, meta_info
 
 
-def generate_long_horizon_by_category(scene, usd_list, folder_path):
+def generate_long_horizon_by_category(
+    scene: dict, usd_list: list[str], folder_path: str
+) -> tuple[dict, dict] | None:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )

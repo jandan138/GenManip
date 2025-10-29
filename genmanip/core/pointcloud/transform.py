@@ -1,10 +1,23 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import copy
+
 import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 
-def forward_transform_mesh(mesh, scale_factors, quaternion, translation_vector):
+def forward_transform_mesh(
+    mesh: o3d.geometry.TriangleMesh,
+    scale_factors: list[float],
+    quaternion: np.ndarray,
+    translation_vector: np.ndarray,
+) -> o3d.geometry.TriangleMesh:
     vertices = mesh.vertices
     vertices = vertices * np.array(scale_factors)
     rotation = R.from_quat(quaternion)
@@ -16,8 +29,11 @@ def forward_transform_mesh(mesh, scale_factors, quaternion, translation_vector):
 
 
 def forward_transform_point_cloud(
-    points, scale_factors, quaternion, translation_vector
-):
+    points: np.ndarray,
+    scale_factors: list[float],
+    quaternion: np.ndarray,
+    translation_vector: np.ndarray,
+) -> np.ndarray:
     points = points * np.array(scale_factors)
     rotation = R.from_quat(quaternion)
     points = rotation.apply(points)
@@ -25,7 +41,12 @@ def forward_transform_point_cloud(
     return points
 
 
-def inverse_transform_mesh(mesh, scale_factors, quaternion, translation_vector):
+def inverse_transform_mesh(
+    mesh: o3d.geometry.TriangleMesh,
+    scale_factors: list[float],
+    quaternion: np.ndarray,
+    translation_vector: np.ndarray,
+) -> o3d.geometry.TriangleMesh:
     vertices = mesh.vertices
     vertices = vertices - translation_vector
     rotation = R.from_quat(quaternion)
@@ -37,8 +58,11 @@ def inverse_transform_mesh(mesh, scale_factors, quaternion, translation_vector):
 
 
 def inverse_transform_point_cloud(
-    points, scale_factors, quaternion, translation_vector
-):
+    points: np.ndarray,
+    scale_factors: list[float],
+    quaternion: np.ndarray,
+    translation_vector: np.ndarray,
+) -> np.ndarray:
     points = points - translation_vector
     rotation = R.from_quat(quaternion)
     points = rotation.inv().apply(points)
@@ -47,8 +71,14 @@ def inverse_transform_point_cloud(
 
 
 def transform_between_meshes(
-    mesh_A, scale_A, quat_A, trans_A, scale_B, quat_B, trans_B
-):
+    mesh_A: o3d.geometry.TriangleMesh,
+    scale_A: list[float],
+    quat_A: np.ndarray,
+    trans_A: np.ndarray,
+    scale_B: list[float],
+    quat_B: np.ndarray,
+    trans_B: np.ndarray,
+) -> o3d.geometry.TriangleMesh:
     mesh_in_world_frame = inverse_transform_mesh(mesh_A, scale_A, quat_A, trans_A)
     transformed_mesh_B = forward_transform_mesh(
         mesh_in_world_frame, scale_B, quat_B, trans_B
@@ -57,8 +87,14 @@ def transform_between_meshes(
 
 
 def transform_between_point_clouds(
-    points_A, scale_A, quat_A, trans_A, scale_B, quat_B, trans_B
-):
+    points_A: np.ndarray,
+    scale_A: list[float],
+    quat_A: np.ndarray,
+    trans_A: np.ndarray,
+    scale_B: list[float],
+    quat_B: np.ndarray,
+    trans_B: np.ndarray,
+) -> np.ndarray:
     points_in_world_frame = inverse_transform_point_cloud(
         points_A, scale_A, quat_A, trans_A
     )

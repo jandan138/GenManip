@@ -1,13 +1,18 @@
-import random
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 from collections import defaultdict, deque
 import copy
+import random
 
 
-def process_scene_graph(demogen_config, object_list_key):
+def process_scene_graph(demogen_config: dict, object_list_key: list[str]) -> list[dict]:
     TABLE_UID = "00000000000000000000000000000000"
-    scene_graph = copy.deepcopy(
-        demogen_config["layout_config"]["scene_graph"]
-    )
+    scene_graph = copy.deepcopy(demogen_config["layout_config"]["scene_graph"])
     on_table_uids = collect_on_table_uids(scene_graph)
     for uid in on_table_uids:
         scene_graph.append(
@@ -32,7 +37,7 @@ def process_scene_graph(demogen_config, object_list_key):
     return sorted_scene_graph
 
 
-def topo_sort_by_on(scene_graph):
+def topo_sort_by_on(scene_graph: list[dict]) -> list[dict]:
     graph = defaultdict(list)
     in_degree = defaultdict(int)
     all_nodes = set()
@@ -62,7 +67,7 @@ def topo_sort_by_on(scene_graph):
     return result
 
 
-def collect_metioned_uids(scene_graph):
+def collect_metioned_uids(scene_graph: list[dict]) -> list[str]:
     mentioned_uids = set()
     for edge in scene_graph:
         mentioned_uids.add(edge["obj1_uid"])
@@ -70,7 +75,7 @@ def collect_metioned_uids(scene_graph):
     return list(mentioned_uids)
 
 
-def collect_on_table_uids(scene_graph):
+def collect_on_table_uids(scene_graph: list[dict]) -> list[str]:
     on_table_uids = set()
     for edge in scene_graph:
         on_table_uids.add(edge["obj1_uid"])
@@ -80,17 +85,19 @@ def collect_on_table_uids(scene_graph):
     return list(on_table_uids)
 
 
-def sort_scene_graph_by_topo_sort(scene_graph, sorted_uids):
+def sort_scene_graph_by_topo_sort(
+    scene_graph: list[dict], sorted_uids: list[str]
+) -> list[dict]:
     sorted_scene_graph = []
     seen_edges = set()
     seen_uids = set()
 
-    def is_valid_edge(uid, edge):
+    def is_valid_edge(uid: str, edge: dict) -> bool:
         return (edge["obj1_uid"] == uid and edge["obj2_uid"] in seen_uids) or (
             edge["obj2_uid"] == uid and edge["obj1_uid"] in seen_uids
         )
 
-    def transform_edge(edge):
+    def transform_edge(edge: dict) -> dict:
         if edge["position"] not in ("on", "top"):
             return {
                 "obj1_uid": edge["obj2_uid"],
@@ -115,7 +122,7 @@ def sort_scene_graph_by_topo_sort(scene_graph, sorted_uids):
     return sorted_scene_graph
 
 
-def flip_position(position):
+def flip_position(position: str) -> str:
     flips = {
         "left": "right",
         "right": "left",

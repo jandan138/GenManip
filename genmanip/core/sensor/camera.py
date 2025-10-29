@@ -1,13 +1,23 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import math
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from genmanip.utils.pc_utils import get_world_corners_from_bbox3d
-from omni.isaac.sensor import Camera  # type: ignore
-from genmanip.utils.transform_utils import pose_to_transform
+
 from omni.isaac.core.prims import XFormPrim  # type: ignore
+from omni.isaac.sensor import Camera  # type: ignore
+
+from genmanip.utils.pc_utils import get_world_corners_from_bbox3d
+from genmanip.utils.transform_utils import pose_to_transform
 
 
-def get_tcp_3d_trace(tcp_xform_list):
+def get_tcp_3d_trace(tcp_xform_list: list[XFormPrim]) -> list[np.ndarray]:
     tcp_3d_trace = []
     for tcp in tcp_xform_list:
         position, orientation = tcp.get_world_pose()
@@ -15,7 +25,9 @@ def get_tcp_3d_trace(tcp_xform_list):
     return tcp_3d_trace
 
 
-def get_tcp_2d_trace(camera, tcp_xform_list):
+def get_tcp_2d_trace(
+    camera: Camera, tcp_xform_list: list[XFormPrim]
+) -> list[np.ndarray]:
     tcp_3d_trace = get_tcp_3d_trace(tcp_xform_list)
     tcp_2d_trace = []
     for tcp in tcp_3d_trace:
@@ -24,23 +36,28 @@ def get_tcp_2d_trace(camera, tcp_xform_list):
     return tcp_2d_trace
 
 
-def collect_camera_info(camera: Camera):
+def collect_camera_info(camera: Camera) -> dict:
     info = {}
     info["p"], info["q"] = camera.get_world_pose()
     info["rgb"] = get_src(camera, "rgb")
-    info["depth"] = get_src(camera, "depth")
-    seg_data = get_src(camera, "seg")
-    if seg_data is not None:
+    if camera._custom_annotators["distance_to_image_plane"] is not None:
+        info["depth"] = get_src(camera, "depth")
+    if camera._custom_annotators["semantic_segmentation"] is not None:
+        seg_data = get_src(camera, "seg")
         info["obj_mask"] = seg_data["mask"]
         info["obj_mask_id2labels"] = seg_data["id2labels"]
-    info["bbox2d_tight"], info["bbox2d_tight_id2labels"] = get_src(
-        camera, "bbox2d_tight"
-    )
-    info["bbox2d_loose"], info["bbox2d_loose_id2labels"] = get_src(
-        camera, "bbox2d_loose"
-    )
-    info["bbox3d"], info["bbox3d_id2labels"] = get_src(camera, "bbox3d")
-    info["motion_vectors"] = get_src(camera, "motion_vectors")
+    if camera._custom_annotators["bounding_box_2d_tight"] is not None:
+        info["bbox2d_tight"], info["bbox2d_tight_id2labels"] = get_src(
+            camera, "bbox2d_tight"
+        )
+    if camera._custom_annotators["bounding_box_2d_loose"] is not None:
+        info["bbox2d_loose"], info["bbox2d_loose_id2labels"] = get_src(
+            camera, "bbox2d_loose"
+        )
+    if camera._custom_annotators["bounding_box_3d"] is not None:
+        info["bbox3d"], info["bbox3d_id2labels"] = get_src(camera, "bbox3d")
+    if camera._custom_annotators["motion_vectors"] is not None:
+        info["motion_vectors"] = get_src(camera, "motion_vectors")
     info["focal_length"] = camera.get_focal_length()
     info["focus_distance"] = camera.get_focus_distance()
     info["frequency"] = camera.get_frequency()
@@ -52,33 +69,44 @@ def collect_camera_info(camera: Camera):
     return info
 
 
-def get_eval_camera_data(camera_list):
+def collect_camera_info_eval(camera: Camera) -> dict:
+    info = {}
+    info["p"], info["q"] = camera.get_world_pose()
+    info["rgb"] = get_src(camera, "rgb")
+    info["depth"] = get_src(camera, "depth")
+    info["focal_length"] = camera.get_focal_length()
+    info["focus_distance"] = camera.get_focus_distance()
+    info["frequency"] = camera.get_frequency()
+    info["horizontal_aperture"] = camera.get_horizontal_aperture()
+    info["horizontal_fov"] = camera.get_horizontal_fov()
+    info["vertical_aperture"] = camera.get_vertical_aperture()
+    info["vertical_fov"] = camera.get_vertical_fov()
+    info["intrinsics_matrix"] = get_intrinsic_matrix(camera)
+    return info
+
+
+def get_eval_camera_data(camera_list: dict) -> dict:
     camera_data = {}
     for camera_name, camera in camera_list.items():
-        camera_info = collect_camera_info(camera)
+        camera_info = collect_camera_info_eval(camera)
         camera_data[camera_name] = {}
         camera_data[camera_name]["rgb"] = camera_info["rgb"]
         camera_data[camera_name]["depth"] = camera_info["depth"]
         camera_data[camera_name]["intrinsics_matrix"] = camera_info["intrinsics_matrix"]
         camera_data[camera_name]["p"] = camera_info["p"]
         camera_data[camera_name]["q"] = camera_info["q"]
-        if "obj_mask" in camera_info:
-            camera_data[camera_name]["seg_mask"] = camera_info["obj_mask"]
-            camera_data[camera_name]["seg_mask_id2labels"] = camera_info[
-                "obj_mask_id2labels"
-            ]
     return camera_data
 
 
-def get_depth(camera: Camera):
-    depth = camera.get_depth()
+def get_depth(camera: Camera) -> np.ndarray | None:
+    depth = camera._custom_annotators["distance_to_image_plane"].get_data()
     if isinstance(depth, np.ndarray) and depth.size > 0:
         return depth
     else:
         return None
 
 
-def get_pointcloud(camera: Camera):
+def get_pointcloud(camera: Camera) -> np.ndarray | None:
     cloud = camera._custom_annotators["pointcloud"].get_data()["data"]
     if isinstance(cloud, np.ndarray) and cloud.size > 0:
         return cloud
@@ -86,7 +114,7 @@ def get_pointcloud(camera: Camera):
         return None
 
 
-def get_objectmask(camera: Camera):
+def get_objectmask(camera: Camera) -> dict | None:
     annotator = camera._custom_annotators["semantic_segmentation"]
     annotation_data = annotator.get_data()
     mask = annotation_data["data"]
@@ -97,7 +125,7 @@ def get_objectmask(camera: Camera):
         return None
 
 
-def get_rgb(camera: Camera):
+def get_rgb(camera: Camera) -> np.ndarray | None:
     frame = camera.get_rgba()
     if isinstance(frame, np.ndarray) and frame.size > 0:
         frame = frame[:, :, :3]
@@ -106,7 +134,7 @@ def get_rgb(camera: Camera):
         return None
 
 
-def get_bounding_box_2d_tight(camera: Camera):
+def get_bounding_box_2d_tight(camera: Camera) -> tuple[np.ndarray, dict]:
     annotator = camera._custom_annotators["bounding_box_2d_tight"]
     annotation_data = annotator.get_data()
     bbox = annotation_data["data"]
@@ -114,7 +142,7 @@ def get_bounding_box_2d_tight(camera: Camera):
     return bbox, info["idToLabels"]
 
 
-def get_bounding_box_2d_loose(camera: Camera):
+def get_bounding_box_2d_loose(camera: Camera) -> tuple[np.ndarray, dict]:
     annotator = camera._custom_annotators["bounding_box_2d_loose"]
     annotation_data = annotator.get_data()
     bbox = annotation_data["data"]
@@ -122,7 +150,7 @@ def get_bounding_box_2d_loose(camera: Camera):
     return bbox, info["idToLabels"]
 
 
-def get_bounding_box_3d(camera: Camera):
+def get_bounding_box_3d(camera: Camera) -> tuple[list[dict], dict]:
     annotator = camera._custom_annotators["bounding_box_3d"]
     annotation_data = annotator.get_data()
     bbox = annotation_data["data"]
@@ -146,14 +174,14 @@ def get_bounding_box_3d(camera: Camera):
     return bbox_data, info["idToLabels"]
 
 
-def get_motion_vectors(camera: Camera):
+def get_motion_vectors(camera: Camera) -> np.ndarray:
     annotator = camera._custom_annotators["motion_vectors"]
     annotation_data = annotator.get_data()
     motion_vectors = annotation_data
     return motion_vectors
 
 
-def get_src(camera: Camera, type: str):
+def get_src(camera: Camera, type: str) -> np.ndarray | dict | None:
     if type == "rgb":
         return get_rgb(camera)
     if type == "depth":
@@ -172,18 +200,18 @@ def get_src(camera: Camera, type: str):
         return get_motion_vectors(camera)
 
 
-def get_world_point_from_pixel_(camera: Camera, point: np.ndarray):
+def get_world_point_from_pixel_(camera: Camera, point: np.ndarray) -> np.ndarray:
     return camera.get_world_points_from_image_coords(
         np.array([int(point[0]), int(point[1])]).reshape(-1, 2),
         np.array([get_src(camera, "depth")[int(point[1]), int(point[0])]]).reshape(-1),
     )[0]
 
 
-def get_pixel_from_world_point_(camera: Camera, point: np.ndarray):
+def get_pixel_from_world_point_(camera: Camera, point: np.ndarray) -> np.ndarray:
     return camera.get_image_coords_from_world_points(point.reshape(-1, 3))
 
 
-def get_world_point_from_pixel(camera: Camera, point: np.ndarray):
+def get_world_point_from_pixel(camera: Camera, point: np.ndarray) -> np.ndarray:
     intrinsic = get_intrinsic_matrix(camera)
     translation, quaternion = camera.get_world_pose()
     depth = get_src(camera, "depth")
@@ -205,7 +233,7 @@ def get_world_point_from_pixel(camera: Camera, point: np.ndarray):
     return point3d
 
 
-def get_pixel_from_world_point(camera: Camera, point: np.ndarray):
+def get_pixel_from_world_point(camera: Camera, point: np.ndarray) -> np.ndarray:
     point = point.reshape(-1, 3)
     translation, quaternion = camera.get_world_pose()
     camera_to_world = pose_to_transform((translation, quaternion))
@@ -227,7 +255,7 @@ def get_pixel_from_world_point(camera: Camera, point: np.ndarray):
     return np.column_stack((x, y))
 
 
-def get_intrinsic_matrix(camera):
+def get_intrinsic_matrix(camera: Camera) -> np.ndarray:
     fx, fy = compute_fx_fy(
         camera, camera.get_resolution()[1], camera.get_resolution()[0]
     )
@@ -235,7 +263,7 @@ def get_intrinsic_matrix(camera):
     return np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
 
 
-def compute_fx_fy(camera, height, width):
+def compute_fx_fy(camera: Camera, height: int, width: int) -> tuple[float, float]:
     focal_length = camera.get_focal_length()
     horiz_aperture = camera.get_horizontal_aperture()
     vert_aperture = camera.get_vertical_aperture()
@@ -247,17 +275,17 @@ def compute_fx_fy(camera, height, width):
 
 
 def set_camera_rational_polynomial(
-    camera,
-    fx,
-    fy,
-    cx,
-    cy,
-    width,
-    height,
-    pixel_size=3,
-    f_stop=2.0,
-    focus_distance=0.3,
-    D=None,
+    camera: Camera,
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    width: int,
+    height: int,
+    pixel_size: float = 3,
+    f_stop: float = 2.0,
+    focus_distance: float = 0.3,
+    D: np.ndarray | None = None,
 ) -> Camera:
     if D is None:
         D = np.zeros(8)
@@ -282,7 +310,13 @@ def set_camera_rational_polynomial(
     return camera
 
 
-def set_camera_look_at(camera, target, distance=0.4, elevation=90.0, azimuth=0.0):
+def set_camera_look_at(
+    camera: Camera,
+    target: XFormPrim | np.ndarray,
+    distance: float = 0.4,
+    elevation: float = 90.0,
+    azimuth: float = 0.0,
+) -> None:
     if isinstance(target, XFormPrim):
         target_position, _ = target.get_world_pose()
     else:
@@ -301,33 +335,66 @@ def set_camera_look_at(camera, target, distance=0.4, elevation=90.0, azimuth=0.0
 
 def setup_camera(
     camera: Camera,
-    focal_length: float = 4.5,
-    clipping_range_min: float = 0.01,
-    clipping_range_max: float = 10000.0,
-    vertical_aperture: float = 5.625,
-    horizontal_aperture: float = 10.0,
-    with_distance: bool = True,
-    with_semantic: bool = False,
-    with_bbox2d: bool = False,
-    with_bbox3d: bool = False,
-    with_motion_vector: bool = False,
-    camera_params: dict = None,
-):
+    camera_cfg: dict,
+    only_depth_rep_for_camera: bool = False,
+) -> None:
     camera.initialize()
-    camera.set_focal_length(focal_length)
-    camera.set_clipping_range(clipping_range_min, clipping_range_max)
-    camera.set_vertical_aperture(vertical_aperture)
-    camera.set_horizontal_aperture(horizontal_aperture)
-    if with_distance:
+
+    # SimBox Style
+    if "pixel_size" in camera_cfg:
+        pixel_size = camera_cfg.get("pixel_size")  # Pixel size in microns
+        f_number = camera_cfg.get("f_number")  # F-number
+        focus_distance = camera_cfg.get("focus_distance")  # Focus distance in meters
+        fx, fy, cx, cy = camera_cfg.get("camera_params")
+        width, height = camera_cfg.get("resolution")
+        horizontal_aperture = pixel_size * 1e-3 * width
+        vertical_aperture = pixel_size * 1e-3 * height
+        focal_length_x = fx * pixel_size * 1e-3
+        focal_length_y = fy * pixel_size * 1e-3
+        focal_length = (focal_length_x + focal_length_y) / 2  # in mm
+
+        # Set the camera parameters, note the unit conversion between Isaac Sim sensor and Kit
+        camera.set_focal_length(focal_length / 10.0)
+        camera.set_focus_distance(focus_distance)
+        camera.set_lens_aperture(f_number * 100.0)
+        camera.set_horizontal_aperture(horizontal_aperture / 10.0)
+        camera.set_vertical_aperture(vertical_aperture / 10.0)
+        camera.set_clipping_range(0.05, 1.0e5)
+        camera.set_projection_type("pinhole")
+        fx = width * camera.get_focal_length() / camera.get_horizontal_aperture()
+        fy = height * camera.get_focal_length() / camera.get_vertical_aperture()
+        camera.is_camera_matrix = np.array(
+            [[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]]
+        )
+        camera.set_local_pose(
+            translation=camera_cfg.get("position"),
+            orientation=camera_cfg.get("orientation"),
+            camera_axes=camera_cfg.get("camera_axes", "usd"),
+        )
+    # GenManip Style
+    else:
+        camera.set_focal_length(camera_cfg.get("focal_length", 4.5))
+        camera.set_clipping_range(
+            camera_cfg.get("clipping_range_min", 0.01),
+            camera_cfg.get("clipping_range_max", 10000.0),
+        )
+        camera.set_vertical_aperture(camera_cfg.get("vertical_aperture", 5.625))
+        camera.set_horizontal_aperture(camera_cfg.get("horizontal_aperture", 10.0))
+        if camera_cfg.get("camera_params", None) is not None:
+            set_camera_rational_polynomial(
+                camera, *camera_cfg.get("camera_params", None)
+            )
+
+    # add custom annotators
+    if camera_cfg.get("with_distance", False):
         camera.add_distance_to_image_plane_to_frame()
-    if with_semantic:
-        camera.add_semantic_segmentation_to_frame()
-    if with_bbox2d:
-        camera.add_bounding_box_2d_tight_to_frame()
-        camera.add_bounding_box_2d_loose_to_frame()
-    if with_bbox3d:
-        camera.add_bounding_box_3d_to_frame()
-    if with_motion_vector:
-        camera.add_motion_vectors_to_frame()
-    if camera_params is not None:
-        set_camera_rational_polynomial(camera, *camera_params)
+    if not only_depth_rep_for_camera:
+        if camera_cfg.get("with_semantic", False):
+            camera.add_semantic_segmentation_to_frame()
+        if camera_cfg.get("with_bbox2d", False):
+            camera.add_bounding_box_2d_tight_to_frame()
+            camera.add_bounding_box_2d_loose_to_frame()
+        if camera_cfg.get("with_bbox3d", False):
+            camera.add_bounding_box_3d_to_frame()
+        if camera_cfg.get("with_motion_vector", False):
+            camera.add_motion_vectors_to_frame()

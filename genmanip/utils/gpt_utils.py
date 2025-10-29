@@ -1,18 +1,26 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import base64
 from io import BytesIO
 import json
 import logging
-import numpy as np
 import os
-from PIL import Image
-import requests
 import time
 import traceback
+
+import numpy as np
+from PIL import Image
+import requests
 
 
 class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.claudeshop.top/v1")
     if not OPENAI_API_KEY:
         raise ValueError("Please set the OPENAI_API_KEY environment variable.")
     GPT_HEADERS = {
@@ -24,14 +32,14 @@ class Config:
     TIMEOUT = 50
 
 
-def encode_image(image: np.array):
+def encode_image(image: np.ndarray) -> str:
     buffered = BytesIO()
     pil_image = Image.fromarray(image)  # 将 numpy 数组转换为 PIL Image
     pil_image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-def parse_gpt_response(response):
+def parse_gpt_response(response: str) -> dict | list:
     try:
         if "```json" in response.lower():
             json_str = response.lower().split("```json")[1].split("```")[0]
@@ -55,12 +63,12 @@ def parse_gpt_response(response):
 
 
 def prepare_gpt_payload(
-    messages,
-    images=None,
-    meta_prompt="You are an assistant.",
-    model_name=None,
-    local_image=False,
-):
+    messages: list[str],
+    images: list[np.ndarray] | None = None,
+    meta_prompt: str = "You are an assistant.",
+    model_name: str | None = None,
+    local_image: bool = False,
+) -> dict:
     user_content = []
     if not isinstance(messages, list):
         messages = [messages]
@@ -75,10 +83,11 @@ def prepare_gpt_payload(
             images = [images]
         for image in images:
             if local_image:
+                # 假设这里的 image 是一个 numpy 数组
                 base64_image = encode_image(image)
                 image_url = f"data:image/jpeg;base64,{base64_image}"
             else:
-                image_url = image
+                image_url = image  # 这里的 image 应该是一个有效的 URL
             content = {
                 "type": "image_url",
                 "image_url": {"url": image_url, "detail": "high"},
@@ -103,10 +112,10 @@ def prepare_gpt_payload(
 
 
 def request_gpt(
-    message,
-    images=None,
-    meta_prompt="You are an assistant that helps design pick and place operations.",
-    model_name=None,
+    message: list[str],
+    images: list[np.ndarray] | None = None,
+    meta_prompt: str = "You are an assistant that helps design pick and place operations.",
+    model_name: str | None = None,
     local_image=False,
     max_retries=50,
 ):

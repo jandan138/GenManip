@@ -1,69 +1,42 @@
-import time
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 from datetime import datetime
 import os
 import json
+from pathlib import Path
 import pickle
-import numpy as np
+import shutil
+from typing import Any
+
 import cv2
 import lmdb
-from pathlib import Path
-from tqdm import tqdm
-from typing import Any
-from genmanip.utils.frame_utils import create_video_from_image_array
+import numpy as np
+import roboticstoolbox as rtb
+
+from omni.isaac.sensor import Camera  # type: ignore
+
 from genmanip.core.sensor.camera import (
     collect_camera_info,
+    get_intrinsic_matrix,
+    get_pixel_from_world_point,
     get_tcp_2d_trace,
     get_tcp_3d_trace,
-    get_pixel_from_world_point,
-    get_intrinsic_matrix,
 )
-from genmanip.core.robot.franka import create_joint_xform_list
-from omni.isaac.franka import Franka  # type: ignore
-import shutil
-from genmanip.core.robot.franka import (
-    create_tcp_xform_list,
-    joint_position_to_end_effector_pose,
-)
+from genmanip.core.robot.embodiment import BaseEmbodiment
+from genmanip.core.robot.franka import create_joint_xform_list, create_tcp_xform_list
 from genmanip.utils.transform_utils import (
     compute_delta_eepose,
+    compute_pose2,
     pose_to_transform,
     transform_to_pose,
-    compute_pose2,
 )
-import roboticstoolbox as rtb
+
 DEFAULT_RGB_SCALE_FACTOR = 256000.0
-
-
-def collect_task_data(object_list, franka_list, camera_data, task_data, usd_path_list):
-    task_data["initial_scene_graph"] = None
-    task_data["initial_layout"] = {}
-    for key in object_list:
-        task_data["initial_layout"][key] = {}
-        task_data["initial_layout"][key]["position"] = object_list[
-            key
-        ].get_world_pose()[0]
-        task_data["initial_layout"][key]["orientation"] = object_list[
-            key
-        ].get_world_pose()[1]
-        task_data["initial_layout"][key]["scale"] = object_list[key].get_local_scale()
-        if key in usd_path_list:
-            task_data["initial_layout"][key]["path"] = usd_path_list[key]
-        else:
-            task_data["initial_layout"][key]["path"] = ""
-        task_data["initial_layout"][key]["prim_path"] = object_list[key].prim_path
-    for franka in franka_list:
-        task_data["initial_layout"][franka.name] = {}
-        task_data["initial_layout"][franka.name]["position"] = franka.get_world_pose()[
-            0
-        ]
-        task_data["initial_layout"][franka.name][
-            "orientation"
-        ] = franka.get_world_pose()[1]
-        task_data["initial_layout"][franka.name][
-            "joint_positions"
-        ] = franka.get_joint_positions()
-    task_data["camera_data"] = camera_data
-    return task_data
 
 
 def clip_float_values(
@@ -72,7 +45,7 @@ def clip_float_values(
     return np.clip(float_array, min_value, max_value)
 
 
-def encode_seg_mask(seg_mask: np.ndarray):
+def encode_seg_mask(seg_mask: np.ndarray) -> np.ndarray:
     assert seg_mask.shape[0] % 2 == 0
     assert seg_mask.shape[1] % 2 == 0
     h, w = seg_mask.shape[0], seg_mask.shape[1]
@@ -86,7 +59,7 @@ def encode_seg_mask(seg_mask: np.ndarray):
     return encoded
 
 
-def decode_seg_mask(seg_mask: np.ndarray):
+def decode_seg_mask(seg_mask: np.ndarray) -> np.ndarray:
     assert seg_mask.shape[2] == 4
     h, w = seg_mask.shape[0], seg_mask.shape[1]
     decoded = np.zeros((h * 2, w * 2), dtype=np.uint8)
@@ -114,7 +87,9 @@ def float_array_to_rgb_image(
     return rgb_array
 
 
-def image_to_float_array(image: np.ndarray, scale_factor: float = None) -> np.ndarray:
+def image_to_float_array(
+    image: np.ndarray, scale_factor: float | None = None
+) -> np.ndarray:
     image_array = np.asarray(image)
     if scale_factor is None:
         scale_factor = DEFAULT_RGB_SCALE_FACTOR
@@ -138,14 +113,14 @@ def uint16_array_to_float_array(uint16_array: np.ndarray) -> np.ndarray:
 class Logger:
     def __init__(
         self,
-        cameras,
-        franka: Franka,
+        cameras: dict[str, Camera],
+        embodiment: BaseEmbodiment,
         instruction: str,
         log_dir: str = "logs",
         max_size: int = 1,  # Size in TB
-        name: str = None,
-        task_data: dict = None,
-        tcp_config: dict = None,
+        name: str | None = None,
+        task_data: dict | None = None,
+        tcp_config: dict | None = None,
     ):
         if name is None:
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
@@ -160,17 +135,19 @@ class Logger:
         self.depth_image_logger = {}
         self.obj_mask_logger = {}
         self.cameras = cameras
-        self.franka = franka
+        self.embodiment = embodiment
         self.log_num_steps = 0
         self.task_data = task_data
         self.tcp_config = tcp_config
-        self.tcp_xform_list = create_tcp_xform_list(franka, self.tcp_config)
+        self.tcp_xform_list = create_tcp_xform_list(
+            self.embodiment.robot, self.tcp_config
+        )
         self.frame_status = {}
         self.load_static_info()
-        self.joint_xform_list = create_joint_xform_list(franka)
+        self.joint_xform_list = create_joint_xform_list(self.embodiment.robot)
         self.panda = rtb.models.Panda()
 
-    def load_static_info(self):
+    def load_static_info(self) -> None:
         for camera_name, camera in self.cameras.items():
             intrinsics_matrix = get_intrinsic_matrix(camera)
             self.add_json_data(
@@ -182,17 +159,30 @@ class Logger:
             self.tcp_config,
         )
 
-    def load_dynamic_info(self, obj_info, action, qpos, qvel, gripper_close, name=None):
+    def load_dynamic_info(
+        self,
+        obj_info: dict[str, dict],
+        action: np.ndarray,
+        qpos: np.ndarray,
+        qvel: np.ndarray,
+        gripper_close: np.ndarray,
+        name: str | None = None,
+        pointcloud: dict[str, np.ndarray] | None = None,
+    ) -> None:
         self.add_name_frame(name)
         tcp_3d_trace = get_tcp_3d_trace(self.tcp_xform_list)
         self.add_scalar_data(f"tcp_3d_trace", tcp_3d_trace)
+        self.add_scalar_data(f"ee_pose_action", self.embodiment.fk_single(action))
         self.add_scalar_data(
-            f"ee_pose_action", joint_position_to_end_effector_pose(action, self.panda)
+            f"arm_action", action[: len(self.embodiment.default_arm_dof_indices)]
         )
-        self.add_scalar_data(f"arm_action", action[:7])
-        self.add_scalar_data(f"gripper_action", action[7:])
+        self.add_scalar_data(
+            f"gripper_action", action[len(self.embodiment.default_arm_dof_indices) :]
+        )
         self.add_scalar_data(f"gripper_close", gripper_close)
         self.add_scalar_data(f"name", name)
+        if pointcloud is not None:
+            self.add_scalar_data(f"observation/pointcloud", pointcloud)
         for camera_name, camera in self.cameras.items():
             camera_info = collect_camera_info(camera)
             self.add_color_image(
@@ -264,73 +254,109 @@ class Logger:
         self.add_scalar_data(f"observation/robot/joint_world_pose", joint_world_pose)
         self.add_scalar_data(f"observation/robot/qvel", qvel)
         self.add_scalar_data(
-            f"observation/robot/ee_pose_state",
-            joint_position_to_end_effector_pose(qpos, self.panda),
+            f"observation/robot/ee_pose_state", self.embodiment.fk_single(qpos)
         )
         self.add_scalar_data(
             f"observation/robot/robot2env_pose",
-            pose_to_transform(self.franka.get_world_pose()),
+            pose_to_transform(self.embodiment.robot.get_world_pose()),
         )
         self.log_num_steps += 1
 
-    def add_name_frame(self, name):
+    def add_name_frame(self, name: str) -> None:
         if name not in self.frame_status:
             self.frame_status[name] = self.log_num_steps
 
-    def add_scalar_data(self, key: str, value: Any):
+    def add_scalar_data(self, key: str, value: Any) -> None:
         if key not in self.scalar_data_logger:
             self.scalar_data_logger[key] = []
         self.scalar_data_logger[key].append(value)
 
-    def add_color_image(self, key: str, value: np.ndarray):
+    def add_color_image(self, key: str, value: np.ndarray) -> None:
         if key not in self.color_image_logger:
             self.color_image_logger[key] = []
         self.color_image_logger[key].append(value)
 
-    def add_obj_mask(self, key: str, value: np.ndarray):
+    def add_obj_mask(self, key: str, value: np.ndarray) -> None:
         if key not in self.obj_mask_logger:
             self.obj_mask_logger[key] = []
         self.obj_mask_logger[key].append(value)
 
-    def add_depth_image(self, key: str, value: np.ndarray):
+    def add_depth_image(self, key: str, value: np.ndarray) -> None:
         if key not in self.depth_image_logger:
             self.depth_image_logger[key] = []
         self.depth_image_logger[key].append(value)
 
-    def add_json_data(self, key, data):
+    def add_json_data(self, key: str, data: Any) -> None:
         self.json_data_logger[key] = data
 
-    def add_delta_info(self):
+    def add_delta_info(self) -> None:
         delta_arm_actions = []
         delta_arm_actions.append(
-            np.array(self.scalar_data_logger["arm_action"][0][:7])
-            - np.array(self.scalar_data_logger["observation/robot/qpos"][0][:7])
+            np.array(self.scalar_data_logger["arm_action"][0])
+            - np.array(
+                self.scalar_data_logger["observation/robot/qpos"][0][
+                    self.embodiment.default_dof_indices
+                ][self.embodiment.default_arm_dof_indices]
+            )
         )
         for i in range(1, len(self.scalar_data_logger["arm_action"])):
             delta_arm_actions.append(
-                np.array(self.scalar_data_logger["arm_action"][i][:7])
-                - np.array(self.scalar_data_logger["arm_action"][i - 1][:7])
+                np.array(self.scalar_data_logger["arm_action"][i])
+                - np.array(self.scalar_data_logger["arm_action"][i - 1])
             )
         for delta_arm_action in delta_arm_actions:
             self.add_scalar_data("delta_arm_action", delta_arm_action.tolist())
         delta_ee_pose_actions = []
-        delta_ee_pose_actions.append(
-            compute_delta_eepose(
-                self.scalar_data_logger["ee_pose_action"][0],
-                self.scalar_data_logger["observation/robot/ee_pose_state"][0],
-            )
-        )
-        for i in range(1, len(self.scalar_data_logger["arm_action"])):
+        if len(self.scalar_data_logger["ee_pose_action"][0][0]) == 3:
             delta_ee_pose_actions.append(
                 compute_delta_eepose(
-                    self.scalar_data_logger["ee_pose_action"][i],
-                    self.scalar_data_logger["ee_pose_action"][i - 1],
+                    self.scalar_data_logger["ee_pose_action"][0],
+                    self.scalar_data_logger["observation/robot/ee_pose_state"][0],
                 )
             )
-        for delta_ee_pose_action in delta_ee_pose_actions:
-            self.add_scalar_data("delta_ee_pose_action", delta_ee_pose_action)
+            for i in range(1, len(self.scalar_data_logger["arm_action"])):
+                delta_ee_pose_actions.append(
+                    compute_delta_eepose(
+                        self.scalar_data_logger["ee_pose_action"][i],
+                        self.scalar_data_logger["ee_pose_action"][i - 1],
+                    )
+                )
+            for delta_ee_pose_action in delta_ee_pose_actions:
+                self.add_scalar_data("delta_ee_pose_action", delta_ee_pose_action)
+        else:
+            delta_ee_pose_actions.append(
+                (
+                    compute_delta_eepose(
+                        self.scalar_data_logger["ee_pose_action"][0][0],
+                        self.scalar_data_logger["observation/robot/ee_pose_state"][0][
+                            0
+                        ],
+                    ),
+                    compute_delta_eepose(
+                        self.scalar_data_logger["ee_pose_action"][0][1],
+                        self.scalar_data_logger["observation/robot/ee_pose_state"][0][
+                            1
+                        ],
+                    ),
+                )
+            )
+            for i in range(1, len(self.scalar_data_logger["arm_action"])):
+                delta_ee_pose_actions.append(
+                    (
+                        compute_delta_eepose(
+                            self.scalar_data_logger["ee_pose_action"][i][0],
+                            self.scalar_data_logger["ee_pose_action"][i - 1][0],
+                        ),
+                        compute_delta_eepose(
+                            self.scalar_data_logger["ee_pose_action"][i][1],
+                            self.scalar_data_logger["ee_pose_action"][i - 1][1],
+                        ),
+                    )
+                )
+            for delta_ee_pose_action in delta_ee_pose_actions:
+                self.add_scalar_data("delta_ee_pose_action", delta_ee_pose_action)
 
-    def add_grasp_point_3d(self):
+    def add_grasp_point_3d(self) -> tuple[dict[str, dict], dict[str, np.ndarray]]:
         tcp_list1 = []
         tcp_list2 = []
         eepose_list = []
@@ -418,11 +444,25 @@ class Logger:
                 )
             for camera_name, camera in self.cameras.items():
                 camera.set_world_pose(*camera_pose[camera_name])
-            current_eepose = compute_pose2(
-                (current_object_p, current_object_q),
-                (object_p, object_q),
-                eepose,
-            )
+            if len(eepose[0]) == 3:
+                current_eepose = compute_pose2(
+                    (current_object_p, current_object_q),
+                    (object_p, object_q),
+                    eepose,
+                )
+            else:
+                current_eepose = (
+                    compute_pose2(
+                        (current_object_p, current_object_q),
+                        (object_p, object_q),
+                        eepose[0],
+                    ),
+                    compute_pose2(
+                        (current_object_p, current_object_q),
+                        (object_p, object_q),
+                        eepose[1],
+                    ),
+                )
             tcp["world"] = []
             tcp["world"].append(current_tcp1)
             tcp["world"].append(current_tcp2)
@@ -431,7 +471,12 @@ class Logger:
             last_frame = frame
         return current_tcp_list, current_eepose_list
 
-    def save(self, task_name=None, config_path=None, without_depth=False):
+    def save(
+        self,
+        task_name: str | None = None,
+        config_path: str | None = None,
+        without_depth: bool = False,
+    ) -> bool:
         # if os.path.exists(self.log_dir):
         #     return False
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -474,16 +519,20 @@ class Logger:
             txn.put(key.encode("utf-8"), pickle.dumps(value))
             meta_info["keys"]["scalar_data"].append(key.encode("utf-8"))
         from concurrent.futures import ThreadPoolExecutor
-        def encode_jpg(img): 
+
+        def encode_jpg(img):
             ok, buf = cv2.imencode(".jpg", img.astype(np.uint8))
             return pickle.dumps(buf)
+
         def encode_depth_png(img):
             img = fload_array_to_uint16_png(img)
             ok, buf = cv2.imencode(".png", img.astype(np.uint16))
             return pickle.dumps(buf)
+
         def encode_seg_png(img):
             ok, buf = cv2.imencode(".png", img.astype(np.uint8))
             return pickle.dumps(buf)
+
         for key, images in self.color_image_logger.items():
             with ThreadPoolExecutor() as ex:
                 buffers = list(ex.map(encode_jpg, images))
@@ -545,7 +594,7 @@ class Logger:
         self.set_permissions(self.log_dir)
         return True
 
-    def set_permissions(self, path):
+    def set_permissions(self, path: str) -> None:
         os.chmod(path, 0o777)
         for root, dirs, files in os.walk(path):
             for dir_name in dirs:

@@ -66,7 +66,7 @@ obs_camera_2:
   - 0.34536953
   - 0.41159539
   position:
-  - -0.60
+  - -0.6
   - -0.75
   - 1.85
   prim_path: /obs_camera_2

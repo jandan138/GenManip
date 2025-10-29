@@ -1,14 +1,23 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from genmanip.core.robot.franka import replay_skill, replay_skill_curobo
-from genmanip.thirdparty.mplib_planner import relate_planner_with_franka
-from genmanip.core.usd_utils.prim_utils import get_world_pose_by_prim_path
-from omni.isaac.core.prims import XFormPrim  # type: ignore
+
 from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
 from omni.isaac.core.utils.transformations import get_relative_transform  # type: ignore
 
+from genmanip.core.robot.franka import replay_skill, replay_skill_curobo
+from genmanip.core.usd_utils import get_world_pose_by_prim_path
+from genmanip.demogen.recoder.planning_recorder import Logger as PlanningLogger
+from genmanip.thirdparty.mplib_planner import relate_planner_with_franka
 
-def get_pose_matrix(pose):
+
+def get_pose_matrix(pose: np.ndarray) -> np.ndarray:
     translation = pose[0]
     rotation = R.from_quat(pose[1][[1, 2, 3, 0]]).as_matrix()
     prim_matrix = np.eye(4)
@@ -17,13 +26,21 @@ def get_pose_matrix(pose):
     return prim_matrix
 
 
-def get_relative_transform_matrix(object_pose, franka_pose):
+def get_relative_transform_matrix(
+    object_pose: np.ndarray, franka_pose: np.ndarray
+) -> np.ndarray:
     object_matrix = get_pose_matrix(object_pose)
     franka_matrix = get_pose_matrix(franka_pose)
     return np.linalg.inv(franka_matrix) @ object_matrix
 
 
-def replay_mimicgen_skill(scene, recorder, demogen_config, action_info, idx):
+def replay_mimicgen_skill(
+    scene: dict,
+    recorder: PlanningLogger,
+    demogen_config: dict,
+    action_info: dict,
+    idx: str,
+) -> bool:
     franka = scene["robot_info"]["robot_list"][0].robot
     franka_prim = franka.prim
     object_prim_path = scene["articulation_list"][action_info["obj1_uid"]].prim_path

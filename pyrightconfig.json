@@ -4,5 +4,6 @@
         "saved/**",
         "tmp/**",
         "configs/**",
+        "docs/**"
     ]
 }

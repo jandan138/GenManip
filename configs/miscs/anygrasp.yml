@@ -24,7 +24,7 @@ default:
   - 5022
   - 5023
   - 5024
-  ANYGRASP_ADDR: 10.254.30.31
+  ANYGRASP_ADDR: 10.150.85.105
 local:
   ANYGRASP_PORT:
   - 5001

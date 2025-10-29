@@ -1,27 +1,40 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 from datetime import datetime
 import os
 import json
-import pickle
-import numpy as np
-import lmdb
 from pathlib import Path
+import pickle
 from typing import Any
-from genmanip.core.sensor.camera import get_pixel_from_world_point, get_intrinsic_matrix
-from genmanip.core.robot.franka import create_joint_xform_list
-from omni.isaac.franka import Franka  # type: ignore
+
+import lmdb
+import numpy as np
 import shutil
-from genmanip.core.robot.franka import create_tcp_xform_list
-from genmanip.utils.transform_utils import (
-    compute_delta_eepose,
-    pose_to_transform,
-    transform_to_pose,
-    compute_pose2,
-)
+
+from omni.isaac.core.prims import XFormPrim  # type: ignore
+from omni.isaac.sensor import Camera  # type: ignore
+
+from genmanip.core.robot.embodiment import BaseEmbodiment
+from genmanip.core.robot.franka import create_joint_xform_list
+from genmanip.core.sensor.camera import get_intrinsic_matrix
+from genmanip.utils.transform_utils import pose_to_transform
 
 DEFAULT_RGB_SCALE_FACTOR = 256000.0
 
 
-def collect_task_data(object_list, franka_list, camera_data, task_data, usd_path_list):
+def collect_task_data(
+    object_list: dict[str, XFormPrim],
+    franka_list: list[BaseEmbodiment],
+    camera_data: dict[str, Camera],
+    task_data: dict,
+    usd_path_list: dict[str, str],
+    preload_object_meta_info: dict[str, dict],
+) -> dict:
     task_data["initial_scene_graph"] = None
     task_data["initial_layout"] = {}
     for key in object_list:
@@ -37,12 +50,22 @@ def collect_task_data(object_list, franka_list, camera_data, task_data, usd_path
             task_data["initial_layout"][key]["path"] = usd_path_list[key]
         else:
             task_data["initial_layout"][key]["path"] = ""
+        if key in preload_object_meta_info:
+            task_data["initial_layout"][key]["add_colliders"] = (
+                preload_object_meta_info[key]["add_colliders"]
+            )
+            task_data["initial_layout"][key]["add_rigid_body"] = (
+                preload_object_meta_info[key]["add_rigid_body"]
+            )
+        else:
+            task_data["initial_layout"][key]["add_colliders"] = True
+            task_data["initial_layout"][key]["add_rigid_body"] = True
         task_data["initial_layout"][key]["prim_path"] = object_list[key].prim_path
     for embodiment in franka_list:
         task_data["initial_layout"][embodiment.robot.name] = {}
-        task_data["initial_layout"][embodiment.robot.name]["position"] = embodiment.robot.get_world_pose()[
-            0
-        ]
+        task_data["initial_layout"][embodiment.robot.name][
+            "position"
+        ] = embodiment.robot.get_world_pose()[0]
         task_data["initial_layout"][embodiment.robot.name][
             "orientation"
         ] = embodiment.robot.get_world_pose()[1]
@@ -59,7 +82,7 @@ def clip_float_values(
     return np.clip(float_array, min_value, max_value)
 
 
-def encode_seg_mask(seg_mask: np.ndarray):
+def encode_seg_mask(seg_mask: np.ndarray) -> np.ndarray:
     assert seg_mask.shape[0] % 2 == 0
     assert seg_mask.shape[1] % 2 == 0
     h, w = seg_mask.shape[0], seg_mask.shape[1]
@@ -73,7 +96,7 @@ def encode_seg_mask(seg_mask: np.ndarray):
     return encoded
 
 
-def decode_seg_mask(seg_mask: np.ndarray):
+def decode_seg_mask(seg_mask: np.ndarray) -> np.ndarray:
     assert seg_mask.shape[2] == 4
     h, w = seg_mask.shape[0], seg_mask.shape[1]
     decoded = np.zeros((h * 2, w * 2), dtype=np.uint8)
@@ -101,7 +124,9 @@ def float_array_to_rgb_image(
     return rgb_array
 
 
-def image_to_float_array(image: np.ndarray, scale_factor: float = None) -> np.ndarray:
+def image_to_float_array(
+    image: np.ndarray, scale_factor: float | None = None
+) -> np.ndarray:
     image_array = np.asarray(image)
     if scale_factor is None:
         scale_factor = DEFAULT_RGB_SCALE_FACTOR
@@ -112,16 +137,16 @@ def image_to_float_array(image: np.ndarray, scale_factor: float = None) -> np.nd
 class Logger:
     def __init__(
         self,
-        cameras,
-        franka: Franka,
-        object_list,
+        cameras: dict[str, Camera],
+        embodiment: BaseEmbodiment,
+        object_list: dict[str, XFormPrim],
         instruction: str,
         log_dir: str = "logs",
         max_size: int = 1,  # Size in TB
-        name: str = None,
-        task_data: dict = None,
-        tcp_config: dict = None,
-    ):
+        name: str | None = None,
+        task_data: dict | None = None,
+        tcp_config: dict | None = None,
+    ) -> None:
         if name is None:
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         else:
@@ -136,17 +161,20 @@ class Logger:
         self.depth_image_logger = {}
         self.obj_mask_logger = {}
         self.cameras = cameras
-        self.franka = franka
+        if "camera1" in self.cameras:
+            self.cameras.pop("camera1")
+        self.embodiment = embodiment
         self.log_num_steps = 0
         self.task_data = task_data
         self.tcp_config = tcp_config
         # self.tcp_xform_list = create_tcp_xform_list(franka, self.tcp_config)
         self.frame_status = {}
         self.load_static_info()
-        # self.joint_xform_list = create_joint_xform_list(franka)
+        self.joint_xform_list = create_joint_xform_list(embodiment.robot)
         self.object_list = object_list
+        self.current_action = []
 
-    def load_static_info(self):
+    def load_static_info(self) -> None:
         for camera_name, camera in self.cameras.items():
             intrinsics_matrix = get_intrinsic_matrix(camera)
             self.add_json_data(
@@ -158,10 +186,30 @@ class Logger:
             self.tcp_config,
         )
 
-    def load_dynamic_info(self, action, gripper_close, name=None):
-        self.add_name_frame(name)
-        self.add_scalar_data(f"arm_action", action[:7])
-        self.add_scalar_data(f"gripper_action", action[7:])
+    def load_dynamic_info(
+        self,
+        action: np.ndarray,
+        gripper_close: np.ndarray,
+        arm: str = "default",
+        name: str | list[str] | None = None,
+    ) -> None:
+        action = np.array(action)
+        if arm == "default":
+            gripper_close = gripper_close
+        elif arm == "left":
+            gripper_close = [gripper_close, -1]
+        elif arm == "right":
+            gripper_close = [-1, gripper_close]
+        if isinstance(name, list):
+            self.add_action_name_frame(name)
+        elif isinstance(name, str):
+            self.add_name_frame(name)
+        self.add_scalar_data(
+            f"arm_action", action[self.embodiment.default_arm_dof_indices]
+        )
+        self.add_scalar_data(
+            f"gripper_action", action[self.embodiment.default_gripper_dof_indices]
+        )
         self.add_scalar_data(f"gripper_close", gripper_close)
         self.add_scalar_data(f"name", name)
         for key in self.object_list:
@@ -178,49 +226,60 @@ class Logger:
                 self.object_list[key].get_local_scale(),
             )
         self.add_scalar_data(
-            f"observation/robot/qpos", self.franka.get_joint_positions()
+            f"observation/robot/qpos", self.embodiment.robot.get_joint_positions()
         )
-        # joint_world_pose = {}
-        # for joint_name, joint_xform in self.joint_xform_list.items():
-        #     joint_world_pose[joint_name] = joint_xform.get_world_pose()
-        # self.add_scalar_data(f"observation/robot/joint_world_pose", joint_world_pose)
+        joint_world_pose = {}
+        for joint_name, joint_xform in self.joint_xform_list.items():
+            joint_world_pose[joint_name] = joint_xform.get_world_pose()
+        self.add_scalar_data(f"observation/robot/joint_world_pose", joint_world_pose)
         self.add_scalar_data(
-            f"observation/robot/qvel", self.franka.get_joint_velocities()
+            f"observation/robot/qvel", self.embodiment.robot.get_joint_velocities()
         )
         self.add_scalar_data(
             f"observation/robot/robot2env_pose",
-            pose_to_transform(self.franka.get_world_pose()),
+            pose_to_transform(self.embodiment.robot.get_world_pose()),
         )
         self.log_num_steps += 1
 
-    def add_name_frame(self, name):
+    def add_action_name_frame(self, name_list: list[str]) -> None:
+        for name in self.current_action:
+            if name not in name_list:
+                self.frame_status[name + "/end"] = self.log_num_steps
+        for name in name_list:
+            if name not in self.frame_status:
+                self.frame_status[name + "/start"] = self.log_num_steps
+        self.current_action = name_list
+
+    def add_name_frame(self, name: str) -> None:
         if name not in self.frame_status:
             self.frame_status[name] = self.log_num_steps
 
-    def add_scalar_data(self, key: str, value: Any):
+    def add_scalar_data(self, key: str, value: Any) -> None:
         if key not in self.scalar_data_logger:
             self.scalar_data_logger[key] = []
         self.scalar_data_logger[key].append(value)
 
-    def add_color_image(self, key: str, value: np.ndarray):
+    def add_color_image(self, key: str, value: np.ndarray) -> None:
         if key not in self.color_image_logger:
             self.color_image_logger[key] = []
         self.color_image_logger[key].append(value)
 
-    def add_obj_mask(self, key: str, value: np.ndarray):
+    def add_obj_mask(self, key: str, value: np.ndarray) -> None:
         if key not in self.obj_mask_logger:
             self.obj_mask_logger[key] = []
         self.obj_mask_logger[key].append(value)
 
-    def add_depth_image(self, key: str, value: np.ndarray):
+    def add_depth_image(self, key: str, value: np.ndarray) -> None:
         if key not in self.depth_image_logger:
             self.depth_image_logger[key] = []
         self.depth_image_logger[key].append(value)
 
-    def add_json_data(self, key, data):
+    def add_json_data(self, key: str, data: Any) -> None:
         self.json_data_logger[key] = data
 
-    def save(self, task_name=None, config_path=None):
+    def save(
+        self, task_name: str | None = None, config_path: str | None = None
+    ) -> bool:
         # if os.path.exists(self.log_dir):
         #     return False
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -228,7 +287,7 @@ class Logger:
         meta_info = {}
         meta_info["max_size"] = self.max_size
         meta_info["num_steps"] = self.log_num_steps
-        meta_info["language_instruction"] = self.instruction
+        meta_info["language_instruction"] = self.task_data["instruction"]
         meta_info["task_data"] = self.task_data
         meta_info["task_data"]["frame_status"] = self.frame_status
         meta_info["keys"] = {}
@@ -267,7 +326,7 @@ class Logger:
         print(f"save data with length {self.log_num_steps} to {self.log_dir}")
         return True
 
-    def set_permissions(self, path):
+    def set_permissions(self, path: str) -> None:
         os.chmod(path, 0o777)
         for root, dirs, files in os.walk(path):
             for dir_name in dirs:

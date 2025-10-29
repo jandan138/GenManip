@@ -1,60 +1,89 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import copy
-import numpy as np
 import os
 import random
+
+from mplib import Planner as MplibPlanner
+import numpy as np
 from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
+
+import omni.replicator.core as rep  # type: ignore
 import omni.usd  # type: ignore
 from omni.isaac.core import World  # type: ignore
 from omni.isaac.core.articulations import Articulation  # type: ignore
+from omni.isaac.core.materials.omni_pbr import OmniPBR  # type: ignore
 from omni.isaac.core.prims import XFormPrim  # type: ignore
-from omni.isaac.core.utils.prims import create_prim, delete_prim, is_prim_path_valid  # type: ignore
-from omni.isaac.franka import Franka  # type: ignore
+from omni.isaac.core.robots.robot import Robot  # type: ignore
+from omni.isaac.core.utils.prims import delete_prim, is_prim_path_valid  # type: ignore
 from omni.isaac.sensor import Camera  # type: ignore
 from pxr import UsdGeom  # type: ignore
 
 from genmanip.core.loading.preload_rules import (
     apply_rule,
-    generate_long_horizon_by_shape,
-    generate_long_horizon_by_materials,
-    generate_long_horizon_by_color,
-    generate_long_horizon_by_category,
     collect_all_colors,
-    collect_all_shapes,
     collect_all_materials,
+    collect_all_shapes,
+    generate_long_horizon_by_category,
+    generate_long_horizon_by_color,
+    generate_long_horizon_by_materials,
+    generate_long_horizon_by_shape,
 )
-from genmanip.core.pointcloud.pointcloud import objectList2meshList
+from genmanip.core.loading.robot import (
+    relate_aloha_split_from_data,
+    relate_franka_from_data,
+    relate_franka_robotiq_from_data,
+    relate_franka_robotiq_simbox_from_data,
+    relate_lift2_from_data,
+)
+from genmanip.core.loading.utils import reset_object_xyz, collect_world_pose_list
+from genmanip.core.pointcloud.pointcloud import (
+    objectList2meshList,
+    get_mesh_info_by_load,
+)
+from genmanip.core.robot.embodiment import (
+    FrankaNormalEmbodiment,
+    FrankaRobotiqEmbodiment,
+    AlohaSplitEmbodiment,
+    Lift2Embodiment,
+)
+from genmanip.core.robot.embodiment import BaseEmbodiment  # type: ignore
 from genmanip.core.robot.franka import get_franka_PD_controller
 from genmanip.core.sensor.camera import setup_camera, get_src
-from genmanip.core.usd_utils.material_utils import create_omni_pbr
-from genmanip.core.usd_utils.prim_utils import (
+from genmanip.core.usd_utils import (
+    add_physics_material,
     add_usd_to_world,
+    create_omni_pbr,
+    clean_prim_velocity,
+    has_collision_api,
+    remove_contact_offset,
+    remove_colliders,
     set_colliders,
+    set_contact_offset,
     set_gravity,
     set_mass,
+    set_rigid_body,
     set_rigid_body_CCD,
     set_semantic_label,
     setup_physics_scene,
-    remove_contact_offset,
-    add_contact_offset,
 )
-from genmanip.thirdparty.curobo_planner import get_curobo_planner
+from genmanip.thirdparty.curobo_planner import get_curobo_planner, CuroboPlanner
 from genmanip.thirdparty.mplib_planner import get_mplib_planner
 from genmanip.utils.utils import generate_hash
 from genmanip.utils.file_utils import load_yaml, load_json
+from genmanip_bench.evaluate.evaluator import Evaluator
 from object_utils.object_pool import ObjectPool
-from genmanip.demogen.planning.embodiment import (
-    FrankaNormalEmbodiment,
-    FrankaRobotiqEmbodiment,
-)
-from genmanip.core.usd_utils.prim_utils import get_world_pose_by_prim_path
-from omni.isaac.core.utils.prims import create_prim, delete_prim, is_prim_path_valid, get_prim_at_path  # type: ignore
-from omni.isaac.core.prims import XFormPrim  # type: ignore
-from omni.isaac.core.robots.robot import Robot  # type: ignore
-import omni.replicator.core as rep  # type: ignore
 
 
-def setup_walls_and_materials(uuid, world, object_list):
+def setup_walls_and_materials(
+    uuid: str, world: World, object_list: dict
+) -> tuple[list[XFormPrim], list[OmniPBR]]:
     walls = []
     wall_position_list = [[0, -25, 10], [25, 0, 10], [0, 25, 10], [-25, 0, 10]]
     wall_textures = []
@@ -85,16 +114,9 @@ def setup_walls_and_materials(uuid, world, object_list):
     return walls, wall_textures
 
 
-def collect_world_pose_list(object_list):
-    world_pose_list = {}
-    for key in object_list:
-        if key == "00000000000000000000000000000000" or key == "defaultGroundPlane":
-            continue
-        world_pose_list[key] = object_list[key].get_world_pose()
-    return world_pose_list
-
-
-def collect_articulation_list(scene, articulation_list):
+def collect_articulation_list(
+    scene: dict, articulation_list: dict[str, Articulation]
+) -> dict[str, np.ndarray]:
     init_positions_list = {}
     for articulation_id, articulation in articulation_list.items():
         if scene["articulation_data"][articulation_id]["is_articulated"]:
@@ -102,7 +124,12 @@ def collect_articulation_list(scene, articulation_list):
     return init_positions_list
 
 
-def create_camera_list(camera_data: dict, uuid, rendering_dt=1 / 60.0):
+def create_camera_list(
+    camera_data: dict[str, dict],
+    uuid: str,
+    rendering_dt: float = 1 / 60.0,
+    only_depth_rep_for_camera: bool = False,
+) -> dict[str, Camera]:
     camera_list = {}
     for key in camera_data:
         rp = rep.create.render_product(
@@ -144,22 +171,18 @@ def create_camera_list(camera_data: dict, uuid, rendering_dt=1 / 60.0):
             camera_data[key]["camera_params"] = None
         setup_camera(
             camera_list[key],
-            focal_length=camera_data[key]["focal_length"],
-            clipping_range_min=camera_data[key]["clipping_range_min"],
-            clipping_range_max=camera_data[key]["clipping_range_max"],
-            vertical_aperture=camera_data[key]["vertical_aperture"],
-            horizontal_aperture=camera_data[key]["horizontal_aperture"],
-            with_distance=camera_data[key]["with_distance"],
-            with_semantic=camera_data[key]["with_semantic"],
-            with_bbox2d=camera_data[key]["with_bbox2d"],
-            with_bbox3d=camera_data[key]["with_bbox3d"],
-            with_motion_vector=camera_data[key]["with_motion_vector"],
-            camera_params=camera_data[key]["camera_params"],
+            camera_cfg=camera_data[key],
+            only_depth_rep_for_camera=only_depth_rep_for_camera,
         )
     return camera_list
 
 
-def add_background_scene(scene, usd_path, position, scale=[0.01, 0.01, 0.01]):
+def add_background_scene(
+    scene: dict,
+    usd_path: str,
+    position: np.ndarray,
+    scale: list[float] = [0.01, 0.01, 0.01],
+) -> None:
     background_xform, background_uuid = load_world_xform_prim(
         os.path.join(usd_path),
         scene_prim_path=f"/World/background_{usd_path.split('/')[-1].split('.')[0]}",
@@ -173,7 +196,9 @@ def add_background_scene(scene, usd_path, position, scale=[0.01, 0.01, 0.01]):
         scene["object_list"]["defaultGroundPlane"].prim.SetActive(False)
 
 
-def get_object_list(uuid, scene_xform, table_uid):
+def get_object_list(
+    uuid: str, scene_xform: XFormPrim, table_uid: str
+) -> dict[str, XFormPrim]:
     object_list = {}
     for scene in scene_xform.prim.GetAllChildren():
         for object in scene.GetAllChildren():
@@ -205,7 +230,7 @@ def get_object_list(uuid, scene_xform, table_uid):
     return object_list
 
 
-def load_camera_from_data(camera_data: dict, uuid):
+def load_camera_from_data(camera_data: dict[str, dict], uuid: str) -> Camera:
     camera = Camera(
         prim_path=f"/World/{uuid}/" + camera_data["name"],
         name=camera_data["name"],
@@ -214,125 +239,74 @@ def load_camera_from_data(camera_data: dict, uuid):
         resolution=(camera_data["resolution_width"], camera_data["resolution_height"]),
         orientation=camera_data["orientation"],
     )
-    setup_camera(
-        camera,
-        focal_length=camera_data["focal_length"],
-        clipping_range_min=camera_data["clipping_range_min"],
-        clipping_range_max=camera_data["clipping_range_max"],
-        vertical_aperture=camera_data["vertical_aperture"],
-        horizontal_aperture=camera_data["horizontal_aperture"],
-        with_distance=camera_data["with_distance"],
-    )
+    setup_camera(camera, camera_cfg=camera_data)
     return camera
 
 
-def load_world_xform_prim(scene_path, scene_prim_path="/World"):
+def load_world_xform_prim(
+    scene_path: str, scene_prim_path: str = "/World"
+) -> tuple[XFormPrim, str]:
     scene_path = os.path.abspath(scene_path)
-    prim = create_prim(
-        prim_path=scene_prim_path,
-        prim_type="Xform",
-        usd_path=scene_path,
-    )
-    prim_path = str(prim.GetPath())
+    omni.usd.get_context().new_stage()
+    omni.usd.get_context().open_stage(scene_path)
     scene_xform = XFormPrim(
-        prim_path,
+        "/World",
         name="World",
     )
     uuid = str(scene_xform.prim.GetAllChildren()[0].GetPath()).split("/")[-1]
     return scene_xform, uuid
 
 
-def relate_franka_from_data(scene_uid):
-    robot = Franka(
-        prim_path=f"/World/{scene_uid}/franka",
-    )
-    robot.set_solver_position_iteration_count(32)
-    robot.set_enabled_self_collisions(True)
-    robot.set_stabilization_threshold(0.005)
-    robot.set_solver_velocity_iteration_count(16)
-    return robot
-
-
-def relate_franka_robotiq_from_data(scene_uid, scene, default_config):
-    position, orientation = get_world_pose_by_prim_path(f"/World/{scene_uid}/franka")
-    prim = get_prim_at_path(f"/World/{scene['uuid']}/franka")
-    if prim.IsActive():
-        prim.SetActive(False)
-    prim = create_prim(
-        prim_path=f"/World/{scene['uuid']}/robotiq",
-        prim_type="Xform",
-        usd_path=os.path.join(
-            default_config["ASSETS_DIR"], "robot_usds/robotiq/robot.usd"
-        ),
-    )
-    franka_robotiq = Robot(
-        prim_path=f"/World/{scene['uuid']}/robotiq",
-        name="franka_robotiq",
-    )
-    franka_robotiq.set_solver_position_iteration_count(124)
-    franka_robotiq.set_stabilization_threshold(0.005)
-    franka_robotiq.set_solver_velocity_iteration_count(4)
-    franka_robotiq.set_world_pose(position, orientation)
-    return franka_robotiq
-
-
-def relate_franka_from_mimicgen(scene_uid):
-    return Franka(
-        prim_path=f"/World/{scene_uid}/_base/franka",
-    )
-
-
-def relate_object_from_data(scene_uid, uid):
+def relate_object_from_data(scene_uid: str, uid: str) -> XFormPrim:
     return XFormPrim(f"/World/{scene_uid}/obj_{uid}")
 
 
-def reset_object_xyz(object_list, xyz):
-    for key in object_list:
-        if key == "00000000000000000000000000000000" or key == "defaultGroundPlane":
-            continue
-        if key in xyz:
-            object_list[key].set_world_pose(*xyz[key])
-
-
-def reset_articulation_positions(scene):
-    if (
-        "meta_infos" not in scene
-        or "articulation_pose_list" not in scene["meta_infos"]
-        or "articulation_list" not in scene
-        or "articulation_data" not in scene
-    ):
-        print("No articulation data found")
-        return
-    articulation_list = scene["articulation_list"]
-    articulation_pose_list = scene["meta_infos"]["articulation_pose_list"]
-    for articulation_id, articulation in articulation_list.items():
-        if scene["articulation_data"][articulation_id]["is_articulated"]:
-            articulation.set_joint_positions(articulation_pose_list[articulation_id])
-
-
-def get_embodiment(robot_config, robot):
+def get_embodiment(robot_config: dict, robot: Robot) -> BaseEmbodiment:
     if robot_config["type"] == "franka":
         if robot_config["config"]["gripper_type"] == "panda_hand":
             return FrankaNormalEmbodiment(robot)
         elif robot_config["config"]["gripper_type"] == "robotiq":
             return FrankaRobotiqEmbodiment(robot)
-    else:
-        raise ValueError(f"Unsupported robot type: {robot_config['type']}")
-
-
-def add_robot_to_scene(scene, robot_config, default_config):
-    if robot_config["type"] == "franka":
-        if robot_config["config"]["gripper_type"] == "panda_hand":
-            return relate_franka_from_data(scene["uuid"])
-        elif robot_config["config"]["gripper_type"] == "robotiq":
-            return relate_franka_robotiq_from_data(scene["uuid"], scene, default_config)
+    elif robot_config["type"] == "aloha_split":
+        if robot_config["config"]["gripper_type"] == "aloha_split":
+            return AlohaSplitEmbodiment(robot)
+        else:
+            raise ValueError(f"Unsupported robot config: {robot_config}")
+    elif robot_config["type"] == "lift2":
+        if robot_config["config"]["gripper_type"] == "lift2":
+            return Lift2Embodiment(robot)
         else:
             raise ValueError(f"Unsupported robot config: {robot_config}")
     else:
         raise ValueError(f"Unsupported robot type: {robot_config['type']}")
 
 
-def add_robot_view(robot_config, robot):
+def add_robot_to_scene(uuid: str, robot_config: dict, default_config: dict) -> Robot:
+    if robot_config["type"] == "franka":
+        if robot_config["config"]["gripper_type"] == "panda_hand":
+            return relate_franka_from_data(uuid)
+        elif robot_config["config"]["gripper_type"] == "robotiq":
+            return relate_franka_robotiq_from_data(uuid, default_config)
+        elif robot_config["config"]["gripper_type"] == "robotiq_simbox":
+            robot_config["config"]["gripper_type"] = "robotiq"
+            return relate_franka_robotiq_simbox_from_data(uuid, default_config)
+        else:
+            raise ValueError(f"Unsupported robot config: {robot_config}")
+    elif robot_config["type"] == "aloha_split":
+        if robot_config["config"]["gripper_type"] == "aloha_split":
+            return relate_aloha_split_from_data(uuid, default_config)
+        else:
+            raise ValueError(f"Unsupported robot config: {robot_config}")
+    elif robot_config["type"] == "lift2":
+        if robot_config["config"]["gripper_type"] == "lift2":
+            return relate_lift2_from_data(uuid, default_config)
+        else:
+            raise ValueError(f"Unsupported robot config: {robot_config}")
+    else:
+        raise ValueError(f"Unsupported robot type: {robot_config['type']}")
+
+
+def add_robot_view(robot_config: dict, robot: Robot) -> Robot:
     if robot_config["type"] == "franka":
         if robot_config["config"]["gripper_type"] == "panda_hand":
             return get_franka_PD_controller(robot, max_joint_velocities=[2.0] * 9)
@@ -345,10 +319,17 @@ def add_robot_view(robot_config, robot):
 
 
 def preload_object(
-    object_path, uuid, uid, world, add_rigid_body=True, add_colliders=True
-):
+    object_path: str,
+    uuid: str,
+    uid: str,
+    world: World,
+    add_rigid_body: bool = True,
+    add_colliders: bool = True,
+    remove_collider: bool = False,
+) -> XFormPrim:
     if not os.path.exists(object_path):
         raise ValueError(f"Object path {object_path} does not exist")
+    print(f"Object {uid} loading")
     obj_xform = add_usd_to_world(
         asset_path=object_path,
         prim_path=f"/World/{uuid}/obj_{uid}",
@@ -360,6 +341,8 @@ def preload_object(
         add_colliders=add_colliders,
         collision_approximation="convexDecomposition",
     )
+    if remove_collider:
+        remove_colliders(obj_xform.prim_path)
     if obj_xform is not None:
         world.step()
         if obj_xform.prim.IsActive():
@@ -370,7 +353,9 @@ def preload_object(
     return obj_xform
 
 
-def process_long_horizon_replacement(scene, default_config, demogen_config):
+def process_long_horizon_replacement(
+    scene: dict, default_config: dict, demogen_config: dict
+) -> tuple[dict, dict]:
     replacement_config = demogen_config["domain_randomization"]["replace_object"][
         "replacement"
     ]
@@ -433,7 +418,9 @@ def process_long_horizon_replacement(scene, default_config, demogen_config):
     return replacement_config, meta_info
 
 
-def preprocess_object_config(scene, default_config, demogen_config):
+def preprocess_object_config(
+    scene: dict, default_config: dict, demogen_config: dict
+) -> dict:
     object_config_backup = copy.deepcopy(demogen_config["object_config"])
     while True:
         object_config = copy.deepcopy(object_config_backup)
@@ -542,7 +529,12 @@ def preprocess_object_config(scene, default_config, demogen_config):
     return object_config
 
 
-def preload_objects(scene, default_config, demogen_config):
+def preload_objects(
+    scene: dict,
+    default_config: dict,
+    demogen_config: dict,
+    without_planning: bool = False,
+) -> None:
     demogen_config["object_config"] = preprocess_object_config(
         scene, default_config, demogen_config
     )
@@ -551,6 +543,7 @@ def preload_objects(scene, default_config, demogen_config):
     scene["cacheDict"]["preloaded_object_path_list"] = {}
     scene["cacheDict"]["preloaded_object_uid_list"] = {}
     scene["cacheDict"]["preload_hash_feature"] = {}
+    scene["cacheDict"]["preload_object_meta_info"] = {}
     object_config = demogen_config["object_config"]
     object_config_keys = list(object_config.keys())
     object_config_keys.sort()
@@ -575,14 +568,17 @@ def preload_objects(scene, default_config, demogen_config):
             scene["cacheDict"]["preload_hash_feature"][key] = generate_hash(
                 object_config[key]["path"]
             )
-            object_config[key]["max_cached_num"] = len(
-                os.listdir(
-                    os.path.join(
-                        default_config["ASSETS_DIR"],
-                        object_config[key]["path"],
+            if not object_config[key]["path"].endswith(".usd"):
+                object_config[key]["max_cached_num"] = len(
+                    os.listdir(
+                        os.path.join(
+                            default_config["ASSETS_DIR"],
+                            object_config[key]["path"],
+                        )
                     )
                 )
-            )
+            else:
+                object_config[key]["max_cached_num"] = 1
     max_cached_num_dict = {}
     for key in object_config_keys:
         if object_config[key]["type"] == "existed_object":
@@ -608,7 +604,101 @@ def preload_objects(scene, default_config, demogen_config):
         ):
             continue
         else:
-            if object_config[key]["type"] == "existed_object":
+            if object_config[key]["type"] == "add_additional_object_from_path":
+                folder_path = os.path.join(
+                    default_config["ASSETS_DIR"],
+                    object_config[key]["path"],
+                )
+                if folder_path.endswith(".usd"):
+                    usd_list = [folder_path.split("/")[-1]]
+                    folder_path = os.path.dirname(folder_path)
+                    object_config[key]["uid"] = (
+                        object_config[key]["path"].split("/")[-1].split(".")[0]
+                    )
+                    object_config[key]["path"] = os.path.dirname(
+                        object_config[key]["path"]
+                    )
+                else:
+                    usd_list = os.listdir(folder_path)
+                    usd_list = [
+                        usd
+                        for usd in usd_list
+                        if not os.path.isdir(os.path.join(folder_path, usd))
+                    ]
+                max_cached_num = np.clip(
+                    max_cached_num_dict[
+                        scene["cacheDict"]["preload_hash_feature"][key]
+                    ],
+                    0,
+                    len(usd_list),
+                )
+                usd_list = random.sample(usd_list, max_cached_num)
+                scene["cacheDict"]["preloaded_object_uid_list"][
+                    scene["cacheDict"]["preload_hash_feature"][key]
+                ] = []
+                for obj in tqdm(usd_list):
+                    uid = obj.split(".")[0]
+                    if (
+                        os.path.isdir(os.path.join(folder_path, obj))
+                        or uid not in scene["object_pool"].uids
+                    ):
+                        continue
+                    scene["cacheDict"]["preloaded_object_uid_list"][
+                        scene["cacheDict"]["preload_hash_feature"][key]
+                    ].append(uid)
+                    if (
+                        uid in scene["cacheDict"]["preloaded_object_list"]
+                        or uid in scene["object_list"]
+                    ):
+                        continue
+                    obj_xform = preload_object(
+                        os.path.join(folder_path, obj),
+                        scene["uuid"],
+                        uid,
+                        scene["world"],
+                        add_colliders=not without_planning
+                        and not object_config[key].get("without_colliders", False),
+                        add_rigid_body=not without_planning
+                        and not object_config[key].get("is_not_rigid", False),
+                    )
+                    scene["cacheDict"]["preload_object_meta_info"][uid] = {
+                        "add_colliders": not without_planning
+                        and not object_config[key].get("without_colliders", False),
+                        "add_rigid_body": not without_planning
+                        and not object_config[key].get("is_not_rigid", False),
+                    }
+                    joints_default_state = scene["robot_info"]["robot_list"][
+                        0
+                    ].robot.get_joints_default_state()
+                    scene["robot_info"]["robot_list"][0].robot.set_joint_positions(
+                        joints_default_state.positions
+                    )
+                    scene["robot_info"]["robot_list"][0].robot.set_joint_velocities(
+                        joints_default_state.velocities
+                    )
+                    scene["cacheDict"]["preloaded_object_list"][uid] = obj_xform
+                    scene["cacheDict"]["preloaded_object_path_list"][uid] = (
+                        os.path.join(
+                            object_config[key]["path"],
+                            obj,
+                        )
+                    )
+                    scene["object_list"][uid] = obj_xform
+                    if not scene["object_list"][uid].prim.IsActive():
+                        scene["object_list"][uid].prim.SetActive(True)
+                    scene["cacheDict"]["meshDict"][uid] = get_mesh_info_by_load(
+                        scene["object_list"][uid],
+                        os.path.join(
+                            default_config["ASSETS_DIR"],
+                            "mesh_data",
+                            demogen_config["task_name"],
+                            os.path.dirname(
+                                scene["cacheDict"]["preloaded_object_path_list"][uid]
+                            ),
+                            f"{uid}.obj",
+                        ),
+                    )
+            elif object_config[key]["type"] == "existed_object":
                 scene["cacheDict"]["preloaded_object_uid_list"][
                     scene["cacheDict"]["preload_hash_feature"][key]
                 ] = object_config[key]["uid_list"]
@@ -621,9 +711,103 @@ def preload_objects(scene, default_config, demogen_config):
                         scene["cacheDict"]["preloaded_object_list"][uid] = scene[
                             "articulation_list"
                         ][uid]
+            elif object_config[key]["type"] == "load_object_from_path":
+                folder_path = os.path.join(
+                    default_config["ASSETS_DIR"],
+                    object_config[key]["path"],
+                )
+                usd_list = os.listdir(folder_path)
+                usd_list = [
+                    usd
+                    for usd in usd_list
+                    if not os.path.isdir(os.path.join(folder_path, usd))
+                    and str(usd).endswith(".usd")
+                ]
+                for rule in object_config[key]["filter_rule"]:
+                    usd_list = apply_rule(rule, usd_list, scene["object_pool"])
+                max_cached_num = np.clip(
+                    max_cached_num_dict[
+                        scene["cacheDict"]["preload_hash_feature"][key]
+                    ],
+                    0,
+                    len(usd_list),
+                )
+                usd_list = random.sample(usd_list, max_cached_num)
+                scene["cacheDict"]["preloaded_object_uid_list"][
+                    scene["cacheDict"]["preload_hash_feature"][key]
+                ] = []
+                if "replace_existed_object" in object_config[key]:
+                    for uid in object_config[key]["replace_existed_object"]:
+                        # if not uid in scene["cacheDict"]["preloaded_object_list"]:
+                        scene["cacheDict"]["preloaded_object_list"][uid] = scene[
+                            "object_list"
+                        ][uid]
+                        if scene["object_list"][uid].prim.IsActive():
+                            scene["object_list"][uid].prim.SetActive(False)
+                        scene["cacheDict"]["meshDict"].pop(uid)
+                        scene["object_list"].pop(uid)
+                    if not (
+                        "option" in object_config[key]
+                        and "remove_existed_object" in object_config[key]["option"]
+                    ):
+                        scene["cacheDict"]["preloaded_object_uid_list"][
+                            scene["cacheDict"]["preload_hash_feature"][key]
+                        ].extend(object_config[key]["replace_existed_object"])
+                for obj in tqdm(usd_list):
+                    uid = obj.split(".")[0]
+                    if (
+                        os.path.isdir(os.path.join(folder_path, obj))
+                        or uid not in scene["object_pool"].uids
+                    ) and not (
+                        "option" in object_config[key]
+                        and "plain_replace" in object_config[key]["option"]
+                    ):
+                        continue
+                    scene["cacheDict"]["preloaded_object_uid_list"][
+                        scene["cacheDict"]["preload_hash_feature"][key]
+                    ].append(uid)
+                    if (
+                        uid in scene["cacheDict"]["preloaded_object_list"]
+                        or uid in scene["object_list"]
+                    ):
+                        continue
+                    obj_xform = preload_object(
+                        os.path.join(folder_path, obj),
+                        scene["uuid"],
+                        uid,
+                        scene["world"],
+                        add_colliders=not without_planning
+                        and not object_config[key].get("without_colliders", False),
+                        add_rigid_body=not without_planning
+                        and not object_config[key].get("is_not_rigid", False),
+                    )
+                    scene["cacheDict"]["preload_object_meta_info"][uid] = {
+                        "add_colliders": not without_planning
+                        and not object_config[key].get("without_colliders", False),
+                        "add_rigid_body": not without_planning
+                        and not object_config[key].get("is_not_rigid", False),
+                    }
+                    joints_default_state = scene["robot_info"]["robot_list"][
+                        0
+                    ].robot.get_joints_default_state()
+                    scene["robot_info"]["robot_list"][0].robot.set_joint_positions(
+                        joints_default_state.positions
+                    )
+                    scene["robot_info"]["robot_list"][0].robot.set_joint_velocities(
+                        joints_default_state.velocities
+                    )
+                    scene["cacheDict"]["preloaded_object_list"][uid] = obj_xform
+                    scene["cacheDict"]["preloaded_object_path_list"][uid] = (
+                        os.path.join(
+                            object_config[key]["path"],
+                            obj,
+                        )
+                    )
 
 
-def create_planner(scene, demogen_config, current_dir):
+def create_planner(
+    scene: dict, demogen_config: dict, current_dir: str
+) -> list[CuroboPlanner | MplibPlanner]:
     planner_name = demogen_config["generation_config"]["planner"]
     if planner_name == "mplib":
         return [
@@ -635,7 +819,9 @@ def create_planner(scene, demogen_config, current_dir):
         ]
     elif planner_name == "curobo":
         return [
-            get_curobo_planner(robot.robot, robot_config["type"], scene, current_dir)
+            get_curobo_planner(
+                robot.robot, robot_config["type"], scene["world"], current_dir
+            )
             for robot, robot_config in zip(
                 scene["robot_info"]["robot_list"],
                 demogen_config["robots"],
@@ -645,7 +831,7 @@ def create_planner(scene, demogen_config, current_dir):
         raise ValueError(f"Unsupported planner type: {planner_name}")
 
 
-def add_articulation_to_scene(uid, uuid, world):
+def add_articulation_to_scene(uid: str, uuid: str, world: World) -> Articulation:
     articulation = Articulation(
         prim_path=f"/World/{uuid}/obj_{uid}",
         name=f"obj_{uid}",
@@ -654,7 +840,7 @@ def add_articulation_to_scene(uid, uuid, world):
     return articulation
 
 
-def load_articulation_data(scene, demogen_config, current_dir):
+def load_articulation_data(scene: dict, demogen_config: dict, current_dir: str) -> None:
     if "articulation_data_path" in demogen_config["domain_randomization"]:
         scene["articulation_data"] = load_json(
             os.path.join(
@@ -669,7 +855,7 @@ def load_articulation_data(scene, demogen_config, current_dir):
         )
 
 
-def load_object_pool(scene, demogen_config, current_dir):
+def load_object_pool(scene: dict, demogen_config: dict, current_dir: str) -> None:
     if "object_data_path" in demogen_config["domain_randomization"]:
         scene["object_pool"] = ObjectPool(
             os.path.join(
@@ -684,7 +870,7 @@ def load_object_pool(scene, demogen_config, current_dir):
         )
 
 
-def set_articulation(scene, demogen_config, world):
+def set_articulation(scene: dict, demogen_config: dict, world: World) -> None:
     for key in demogen_config["generation_config"]["articulation"]:
         # todo: remove "pan" from "is_articulated", or change key to "have_joint"
         if scene["articulation_data"][key]["is_articulated"]:
@@ -716,7 +902,7 @@ def set_articulation(scene, demogen_config, world):
         world.step()
 
 
-def parse_articulation(scene, demogen_config):
+def parse_articulation(scene: dict, demogen_config: dict) -> None:
     for arti_id, articulation in scene["articulation_list"].items():
         arti_parts = scene["articulation_data"][arti_id]["part"]
         arti_prim = scene["object_list"][arti_id]
@@ -729,7 +915,7 @@ def parse_articulation(scene, demogen_config):
         scene["object_list"].pop(arti_id)
 
 
-def parse_articulation_from_object_config(demogen_config):
+def parse_articulation_from_object_config(demogen_config: dict) -> None:
     demogen_config["generation_config"]["articulation"] = {}
     for key in demogen_config["object_config"]:
         if demogen_config["object_config"][key][
@@ -749,25 +935,98 @@ def parse_articulation_from_object_config(demogen_config):
 
 
 def build_scene_from_config(
-    demogen_config,
-    default_config,
-    current_dir,
-    physics_dt=1 / 60.0,
+    demogen_config: dict,
+    default_config: dict,
+    current_dir: str,
+    physics_dt: float = 1 / 60.0,
     rendering_dt=1 / 60.0,
-    is_eval=False,
-    is_render=False,
-):
+    is_eval: bool = False,
+    is_render: bool = False,
+    only_depth_rep_for_camera: bool = False,
+    save_pointcloud: bool = False,
+) -> dict:
+    """
+    Build a complete 3D scene from configuration files for robotic manipulation tasks.
+
+    This function creates and initializes a comprehensive scene environment including:
+    - Physics world with configurable timesteps
+    - USD scene loading and object management
+    - Robot(s) with embodiment and joint configurations
+    - Camera system with rendering capabilities
+    - Articulated objects with joint positioning
+    - Background elements (walls, lighting, textures)
+    - Motion planning components (when not in evaluation mode)
+
+    Args:
+        demogen_config (dict): Main configuration dictionary containing scene generation
+            parameters, object configurations, robot settings, and domain randomization options.
+        default_config (dict): Default configuration containing asset directory paths and
+            global settings.
+        current_dir (str): Current working directory path used for resolving relative paths
+            in configuration files.
+        physics_dt (float, optional): Physics simulation timestep in seconds. Defaults to 1/60.0.
+        rendering_dt (float, optional): Rendering timestep in seconds. Defaults to 1/60.0.
+        is_eval (bool, optional): Whether running in evaluation mode. When True, planners
+            are not created. Defaults to False.
+        is_render (bool, optional): Whether rendering is enabled. When True, camera
+            resolution is adjusted for display. Defaults to False.
+
+    Returns:
+        dict: A comprehensive scene dictionary containing:
+            - 'world': Isaac Sim World instance with physics and rendering
+            - 'object_list': Dictionary of XFormPrim objects representing scene objects
+            - 'robot_info': Dictionary with robot instances and views
+            - 'camera_list': Dictionary of camera objects for observation
+            - 'articulation_list': Dictionary of articulated objects with joints
+            - 'articulation_part_list': Dictionary of articulated object parts
+            - 'background': Background elements (walls, textures)
+            - 'assets_list': Available assets for domain randomization
+            - 'planner_list': Motion planners (when not in evaluation mode)
+            - 'tcp_configs': Tool center point configurations
+            - 'cacheDict': Cached mesh data for collision detection
+            - 'meta_infos': Scene metadata and pose information
+    """
     scene = {}
-    world = World(physics_dt=physics_dt, rendering_dt=rendering_dt)
-    setup_physics_scene()
+
+    # Load the scene usd file
     usd_name = demogen_config["usd_name"]
-    scene["world"] = world
     scene["scene_xform"], scene["uuid"] = load_world_xform_prim(
         os.path.join(default_config["ASSETS_DIR"], f"{usd_name}.usda")
     )
+    world = World(physics_dt=physics_dt, rendering_dt=rendering_dt)
+
+    # Set physics parameters
+    setup_physics_scene()
+    scene["world"] = world
+
+    # Get object list
     scene["object_list"] = get_object_list(
         scene["uuid"], scene["scene_xform"], demogen_config["table_uid"]
     )
+    world_pose_list = collect_world_pose_list(scene["object_list"])
+
+    # Load articulation data
+    load_articulation_data(scene, demogen_config, current_dir)
+    scene["articulation_list"] = {}
+    scene["articulation_part_list"] = {}
+    parse_articulation_from_object_config(demogen_config)
+    if demogen_config["generation_config"]["articulation"]:
+        set_articulation(scene, demogen_config, world)
+        parse_articulation(scene, demogen_config)
+
+    # Create robot list
+    scene["robot_info"] = {}
+    scene["robot_info"]["robot_list"] = [
+        get_embodiment(
+            robot_config,
+            add_robot_to_scene(scene["uuid"], robot_config, default_config),
+        )
+        for robot_config in demogen_config["robots"]
+    ]
+    for robot in scene["robot_info"]["robot_list"]:
+        robot = world.scene.add(robot.robot)
+
+    # Load camera information
     camera_info = demogen_config["domain_randomization"]["cameras"]
     if camera_info["type"] == "fixed":
         camera_data = load_yaml(os.path.join(current_dir, camera_info["config_path"]))
@@ -776,36 +1035,25 @@ def build_scene_from_config(
     if is_render:
         if "camera1" in camera_data:
             camera_data["camera1"]["resolution"] = [640, 480]
-    scene["robot_info"] = {}
-    scene["robot_info"]["robot_list"] = [
-        get_embodiment(
-            robot_config, add_robot_to_scene(scene, robot_config, default_config)
-        )
-        for robot_config in demogen_config["robots"]
-    ]
-    scene["camera_list"] = create_camera_list(camera_data, scene["uuid"], rendering_dt)
-    for robot in scene["robot_info"]["robot_list"]:
-        robot = world.scene.add(robot.robot)
-    load_articulation_data(scene, demogen_config, current_dir)
-    scene["articulation_list"] = {}
-    scene["articulation_part_list"] = {}
-    parse_articulation_from_object_config(demogen_config)
-    if demogen_config["generation_config"]["articulation"]:
-        set_articulation(scene, demogen_config, world)
-        parse_articulation(scene, demogen_config)
+
+    # Create camera list
+    scene["camera_list"] = create_camera_list(
+        camera_data, scene["uuid"], rendering_dt, only_depth_rep_for_camera
+    )
+
     world.reset()
-    for robot in scene["robot_info"]["robot_list"]:
-        robot.robot.initialize()
-    for idx, robot_cfg in enumerate(demogen_config["robots"]):
-        if "default_joint_positions" in robot_cfg:
-            scene["robot_info"]["robot_list"][idx].robot.set_joint_positions(
-                np.array(robot_cfg["default_joint_positions"])
-            )
+
+    for robot, robot_cfg in zip(
+        scene["robot_info"]["robot_list"], demogen_config["robots"]
+    ):
+        robot.initialize(
+            default_joint_positions=robot_cfg.get("default_joint_positions", None)
+        )
     for key, articulation in scene["articulation_list"].items():
         if scene["articulation_data"][key]["is_articulated"]:
             articulation._articulation_view.initialize()
     scene["cacheDict"] = {}
-    if not is_render:
+    if not is_render or save_pointcloud:
         scene["cacheDict"]["meshDict"] = objectList2meshList(
             scene["object_list"],
             os.path.join(
@@ -814,17 +1062,6 @@ def build_scene_from_config(
                 demogen_config["task_name"],
             ),
         )
-    scene["robot_info"]["robot_view_list"] = [
-        add_robot_view(robot_config, robot.robot)
-        for robot_config, robot in zip(
-            demogen_config["robots"], scene["robot_info"]["robot_list"]
-        )
-    ]
-    for robot in scene["robot_info"]["robot_list"]:
-        if robot.robot.get_joints_default_state() is not None:
-            robot.robot.set_joint_positions(
-                robot.robot.get_joints_default_state().positions
-            )
     scene["background"] = {}
     if demogen_config["domain_randomization"]["random_environment"]["has_wall"]:
         scene["background"]["wall"], scene["background"]["wall_textures"] = (
@@ -833,58 +1070,75 @@ def build_scene_from_config(
     else:
         scene["background"]["wall"] = None
         scene["background"]["wall_textures"] = None
-    scene["assets_list"] = {}
-    if os.path.exists(os.path.join(default_config["ASSETS_DIR"], "miscs/hdrs")):
-        scene["assets_list"]["domelight"] = os.listdir(
-            f"{default_config['ASSETS_DIR']}/miscs/hdrs"
-        )
-    else:
-        scene["assets_list"]["domelight"] = []
-    if os.path.exists(os.path.join(default_config["ASSETS_DIR"], "miscs/textures")):
-        scene["assets_list"]["wall_texture"] = os.listdir(
-            f"{default_config['ASSETS_DIR']}/miscs/textures"
-        )
-    else:
-        scene["assets_list"]["wall_texture"] = []
-    if os.path.exists(
-        os.path.join(
-            default_config["ASSETS_DIR"], "object_usds/grutopia_usd/Table/Materials"
-        )
+    scene["assets_list"] = collect_assets(default_config["ASSETS_DIR"])
+    # if not is_eval:
+    for robot in scene["robot_info"]["robot_list"]:
+        robot.set_planner(scene["world"], current_dir)
+    scene["tcp_configs"] = {}
+    if (
+        scene["robot_info"]["robot_list"][0].embodiment_name == "franka"
+        and scene["robot_info"]["robot_list"][0].gripper_name == "robotiq"
     ):
-        scene["assets_list"]["table_mdl"] = os.listdir(
-            f"{default_config['ASSETS_DIR']}/object_usds/grutopia_usd/Table/Materials"
+        scene["tcp_configs"]["franka"] = load_yaml(
+            os.path.join(current_dir, "configs/robots/franka_robotiq_tcp.yaml")
         )
     else:
-        scene["assets_list"]["table_mdl"] = []
+        scene["tcp_configs"]["franka"] = load_yaml(
+            os.path.join(current_dir, "configs/robots/franka_tcp.yaml")
+        )
+    reset_object_xyz(scene["object_list"], world_pose_list)
+    for key in scene["object_list"]:
+        clean_prim_velocity(scene["object_list"][key].prim_path)
+    return scene
+
+
+def setup_robot_joint_positions(
+    embodiment: BaseEmbodiment, demogen_config: dict
+) -> BaseEmbodiment:
+    if "default_joint_positions" in demogen_config["robots"][0]:
+        embodiment.robot.set_joint_positions(
+            np.array(demogen_config["robots"][0]["default_joint_positions"])
+        )
+    return embodiment
+
+
+def collect_assets(assets_dir: str) -> dict:
+    assets_list = {}
+    if os.path.exists(os.path.join(assets_dir, "miscs/hdrs")):
+        assets_list["domelight"] = os.listdir(f"{assets_dir}/miscs/hdrs")
+    else:
+        assets_list["domelight"] = []
+    if os.path.exists(os.path.join(assets_dir, "miscs/textures")):
+        assets_list["wall_texture"] = os.listdir(f"{assets_dir}/miscs/textures")
+    else:
+        assets_list["wall_texture"] = []
     if os.path.exists(
-        os.path.join(
-            default_config["ASSETS_DIR"], "object_usds/grutopia_usd/Table/table"
-        )
+        os.path.join(assets_dir, "object_usds/grutopia_usd/Table/Materials")
     ):
-        scene["assets_list"]["table"] = os.listdir(
-            f"{default_config['ASSETS_DIR']}/object_usds/grutopia_usd/Table/table"
+        assets_list["table_mdl"] = os.listdir(
+            f"{assets_dir}/object_usds/grutopia_usd/Table/Materials"
         )
-        scene["assets_list"]["table"] = [
+    else:
+        assets_list["table_mdl"] = []
+    if os.path.exists(os.path.join(assets_dir, "object_usds/grutopia_usd/Table/table")):
+        assets_list["table"] = os.listdir(
+            f"{assets_dir}/object_usds/grutopia_usd/Table/table"
+        )
+        assets_list["table"] = [
             os.path.join(
-                default_config["ASSETS_DIR"],
+                assets_dir,
                 "object_usds/grutopia_usd/Table/table",
                 table_path,
                 "instance.usd",
             )
-            for table_path in scene["assets_list"]["table"]
+            for table_path in assets_list["table"]
         ]
     else:
-        scene["assets_list"]["table"] = []
-    if not is_eval:
-        scene["planner_list"] = create_planner(scene, demogen_config, current_dir)
-    scene["tcp_configs"] = {}
-    scene["tcp_configs"]["franka"] = load_yaml(
-        os.path.join(current_dir, "configs/robots/franka_tcp.yaml")
-    )
-    return scene
+        assets_list["table"] = []
+    return assets_list
 
 
-def preprocess_scene(scene, demogen_config):
+def preprocess_scene(scene: dict, demogen_config: dict) -> None:
     preprocess_config = demogen_config["preprocess_config"]
     for preprocess_info in preprocess_config:
         if preprocess_info["type"] == "disable_contact_offset":
@@ -892,7 +1146,7 @@ def preprocess_scene(scene, demogen_config):
                 remove_contact_offset(object.prim_path)
         if preprocess_info["type"] == "enable_contact_offset":
             for object in scene["object_list"].values():
-                add_contact_offset(object.prim_path, 0.1)
+                set_contact_offset(object.prim_path, 0.1)
         if preprocess_info["type"] == "disable_gravity":
             for name, object in scene["object_list"].items():
                 if (
@@ -945,9 +1199,30 @@ def preprocess_scene(scene, demogen_config):
                         and key in scene["cacheDict"]["meshDict"]
                     ):
                         scene["cacheDict"]["meshDict"].pop(key)
+        if preprocess_info["type"] == "apply_rigid_body_solution":
+            for name, object in scene["object_list"].items():
+                schema_list = object.prim.GetAppliedSchemas()
+                if (
+                    "PhysicsRigidBodyAPI" in schema_list
+                    and "PhysxRigidBodyAPI" in schema_list
+                ):
+                    set_rigid_body(object.prim_path)
+        if preprocess_info["type"] == "rigid_body":
+            for name, object in scene["object_list"].items():
+                if (
+                    name != "defaultGroundPlane"
+                    and name not in scene["articulation_part_list"].keys()
+                    and name not in scene["articulation_list"]
+                    and name != "00000000000000000000000000000000"
+                ):
+                    set_rigid_body(object.prim_path)
+        if preprocess_info["type"] == "apply_default_physics_material":
+            for name, object in scene["object_list"].items():
+                if has_collision_api(object.prim):
+                    add_physics_material(object.prim_path)
 
 
-def cleanup_camera(camera_data, camera):
+def cleanup_camera(camera_data: dict, camera: Camera) -> None:
     if camera_data["with_bbox2d"]:
         camera.remove_bounding_box_2d_tight_from_frame()
         camera.remove_bounding_box_2d_loose_from_frame()
@@ -965,7 +1240,7 @@ def cleanup_camera(camera_data, camera):
     # delete_prim(camera.prim_path)
 
 
-def clear_scene(scene, demogen_config, current_dir):
+def clear_scene(scene: dict, demogen_config: dict, current_dir: str) -> None:
     camera_info = demogen_config["domain_randomization"]["cameras"]
     if camera_info["type"] == "fixed":
         camera_data = load_yaml(os.path.join(current_dir, camera_info["config_path"]))
@@ -985,17 +1260,23 @@ def clear_scene(scene, demogen_config, current_dir):
     # action.execute()
 
 
-def warmup_world(scene, physics_steps=100, without_depth=False):
+def warmup_world(
+    scene: dict,
+    physics_steps: int = 100,
+    without_depth: bool = False,
+) -> None:
     if not without_depth:
         while any(
-            get_src(camera, "depth") is None for camera in scene["camera_list"].values()
+            camera._custom_annotators["distance_to_image_plane"] is not None
+            and get_src(camera, "depth") is None
+            for camera in scene["camera_list"].values()
         ):
             scene["world"].step()
     for _ in range(physics_steps):
         scene["world"].step(render=False)
 
 
-def collect_meta_infos(scene):
+def collect_meta_infos(scene: dict) -> None:
     scene["meta_infos"] = {}
     scene["meta_infos"]["world_pose_list"] = collect_world_pose_list(
         scene["object_list"]
@@ -1006,6 +1287,10 @@ def collect_meta_infos(scene):
     scene["meta_infos"]["robot_pose_list"] = [
         robot.robot.get_world_pose() for robot in scene["robot_info"]["robot_list"]
     ]
+    scene["meta_infos"]["robot_tcp_list"] = [
+        robot.fk_single(robot.robot.get_joint_positions())
+        for robot in scene["robot_info"]["robot_list"]
+    ]
     scene["meta_infos"]["joint_positions"] = [
         robot.robot.get_joint_positions() for robot in scene["robot_info"]["robot_list"]
     ]
@@ -1015,13 +1300,19 @@ def collect_meta_infos(scene):
     ]
 
 
-def update_meta_infos(scene):
+def update_meta_infos(scene: dict) -> None:
     articulation_part_list = scene["articulation_part_list"]
     for part_id, part_xform in articulation_part_list.items():
         scene["meta_infos"]["world_pose_list"][part_id] = part_xform.get_world_pose()
 
 
-def recovery_scene(scene, evaluator, task_data, eval_config, default_config):
+def recovery_scene(
+    scene: dict,
+    evaluator: Evaluator,
+    task_data: dict,
+    eval_config: dict,
+    default_config: dict,
+) -> dict:
     layout = copy.deepcopy(task_data["initial_layout"])
     if scene["robot_info"]["robot_list"][0].robot.name in layout:
         layout.pop(scene["robot_info"]["robot_list"][0].robot.name)
@@ -1041,6 +1332,8 @@ def recovery_scene(scene, evaluator, task_data, eval_config, default_config):
                 scene["uuid"],
                 layout[key]["prim_path"].split("/")[-1][4:],
                 scene["world"],
+                add_colliders=layout[key].get("add_colliders", True),
+                add_rigid_body=layout[key].get("add_rigid_body", True),
             )
             if not scene["object_list"][key].prim.IsActive():
                 scene["object_list"][key].prim.SetActive(True)
@@ -1050,6 +1343,7 @@ def recovery_scene(scene, evaluator, task_data, eval_config, default_config):
                 object_info["position"], object_info["orientation"]
             )
             scene["object_list"][key].set_local_scale(object_info["scale"])
+            clean_prim_velocity(scene["object_list"][key].prim_path)
     scene["cacheDict"]["meshDict"] = objectList2meshList(
         scene["object_list"],
         os.path.join(
@@ -1080,10 +1374,35 @@ def recovery_scene(scene, evaluator, task_data, eval_config, default_config):
         scene["robot_info"]["robot_list"][0].robot.set_joint_positions(
             np.array([0.012, -0.57, 0.0, -2.81, 0.0, 3.37, 0.741, 0.04, 0.04])
         )
-    evaluator.instruction = task_data["instruction"]
+    if evaluator is not None:
+        evaluator.instruction = task_data["instruction"]
+    return layout
 
 
-def recovery_scene_render(scene, task_data, eval_config, default_config):
+def is_valid_object_path(path: str) -> bool:
+    return (
+        os.path.exists(path)
+        and not os.path.isdir(path)
+        and str(path).endswith(".usd")
+        and str(path) != ""
+    )
+
+
+def is_valid_object_path(path: str) -> bool:
+    return (
+        os.path.exists(path)
+        and not os.path.isdir(path)
+        and str(path).endswith(".usd")
+        and str(path) != ""
+    )
+
+
+def recovery_scene_render(
+    scene: dict,
+    task_data: dict,
+    eval_config: dict,
+    default_config: dict,
+) -> dict:
     layout = copy.deepcopy(task_data["initial_layout"])
     scene["robot_info"]["robot_list"][0].robot.set_world_pose(
         layout[scene["robot_info"]["robot_list"][0].robot.name]["position"],
@@ -1110,16 +1429,20 @@ def recovery_scene_render(scene, task_data, eval_config, default_config):
                 scene["object_list"][key].prim.SetActive(True)
     for key in layout:
         if key not in scene["object_list"]:
-            scene["object_list"][key] = preload_object(
-                os.path.join(default_config["ASSETS_DIR"], layout[key]["path"]),
-                scene["uuid"],
-                layout[key]["prim_path"].split("/")[-1][4:],
-                scene["world"],
-                add_colliders=False,
-                add_rigid_body=False,
-            )
-            if not scene["object_list"][key].prim.IsActive():
-                scene["object_list"][key].prim.SetActive(True)
+            if is_valid_object_path(
+                os.path.join(default_config["ASSETS_DIR"], layout[key]["path"])
+            ):
+                scene["object_list"][key] = preload_object(
+                    os.path.join(default_config["ASSETS_DIR"], layout[key]["path"]),
+                    scene["uuid"],
+                    layout[key]["prim_path"].split("/")[-1][4:],
+                    scene["world"],
+                    add_colliders=False,
+                    add_rigid_body=False,
+                    remove_collider=True,
+                )
+                if not scene["object_list"][key].prim.IsActive():
+                    scene["object_list"][key].prim.SetActive(True)
     for key, object_info in layout.items():
         if is_prim_path_valid(object_info["prim_path"]):
             scene["object_list"][key].set_world_pose(

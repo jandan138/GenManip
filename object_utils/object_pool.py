@@ -1,16 +1,20 @@
-import os
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import pickle
 from typing import Dict, List, Optional
-import random
-import json
 import uuid
 
 
-def generate_hash():
+def generate_hash() -> str:
     return uuid.uuid4().hex
 
 
-def check_hash_valid(new_hash: str, previous_hash_list: list) -> bool:
+def check_hash_valid(new_hash: str, previous_hash_list: list[str]) -> bool:
     return not (new_hash in set(previous_hash_list))
 
 
@@ -59,11 +63,11 @@ class ObjectPool:
                 object_list[uid] = self.get_object_info(uid)
         return object_list
 
-    def save(self):
+    def save(self) -> None:
         with open(self.path, "wb") as f:
             pickle.dump(self.object_info, f)
 
-    def update_pickle(self, update_object_info, is_cover=False):
+    def update_pickle(self, update_object_info: dict, is_cover: bool = False) -> None:
         attributes_list = [
             "general_category",
             "category",
@@ -125,5 +129,37 @@ class ObjectPool:
 if __name__ == "__main__":
     object_pool = ObjectPool("assets/objects/object_v7.pickle")
     previous_uids = object_pool.uids
-    for uid in previous_uids:
-        print(object_pool.get_object_info(uid))
+    # print(object_pool.sample_object_info_by_keywords(["apple"]))
+
+    update_object_info = {}
+    uid = generate_hash()
+    while not check_hash_valid(
+        uid, previous_uids
+    ):  # remember to update previous_uids(previous_hash_list)
+        uid = generate_hash()
+    print(f"obejct_uid: {uid}")
+    update_object_info[uid] = {
+        "general_category": "",
+        "category": "",
+        "mass": [1.0, 2.0],
+        "scale": [0.15, 0.18],
+        "is_container": False,
+        "caption": "",
+        "category_path": [],
+        "description": "",
+        "short_description": "",
+        "raw_data_path": "",
+        "can_grasp": False,
+        "materials": [],
+        "color": [],
+        "shape": [],
+        "width": 0.2,
+        "length": 0.2,
+        "height": 0.2,
+        "volume": 0.008,
+        "is_articulated": False,
+        "is_valid": True,
+    }
+    object_pool.update_pickle(
+        update_object_info, is_cover=False
+    )  # remember to change is_cover to True, if you need to save

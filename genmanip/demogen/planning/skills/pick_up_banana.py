@@ -1,8 +1,24 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import numpy as np
-from genmanip.core.usd_utils.prim_utils import get_world_pose_by_prim_path
+
+from genmanip.core.usd_utils import get_world_pose_by_prim_path
+from genmanip.demogen.recoder.planning_recorder import Logger as PlanningLogger
 
 
-def reach_target_and_record(scene, recorder, translation, orientation, grasp, idx):
+def reach_target_and_record(
+    scene: dict,
+    recorder: PlanningLogger,
+    translation: np.ndarray,
+    orientation: np.ndarray,
+    grasp: bool,
+    idx: str,
+) -> bool:
     franka_pose = scene["robot_info"]["robot_list"][0].robot.get_world_pose()
     franka = scene["robot_info"]["robot_list"][0].robot
     position = translation - franka_pose[0]
@@ -37,7 +53,13 @@ def reach_target_and_record(scene, recorder, translation, orientation, grasp, id
     return True
 
 
-def pick_up_banana(scene, recorder, demogen_config, action_info, idx):
+def pick_up_banana(
+    scene: dict,
+    recorder: PlanningLogger,
+    demogen_config: dict,
+    action_info: dict,
+    idx: str,
+) -> bool:
     if (
         "fb1b6fc41f7e49adbf467e5e5988d190" in scene["object_list"]
         and demogen_config["generation_config"]["planner"] == "curobo"

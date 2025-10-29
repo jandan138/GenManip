@@ -1,10 +1,26 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import hashlib
 import logging
-import random
 import os
+import random
+from typing import Any
 
 
-def generate_hash(text, algorithm="sha256"):
+def tuple_to_list(data: Any) -> list:
+    if isinstance(data, tuple):
+        data = list(data)
+        for i in range(len(data)):
+            data[i] = tuple_to_list(data[i])
+    return data
+
+
+def generate_hash(text: str, algorithm: str = "sha256") -> str:
     if not isinstance(text, str):
         raise ValueError("Input text must be a string")
     hash_object = hashlib.sha256()
@@ -12,13 +28,13 @@ def generate_hash(text, algorithm="sha256"):
     return hash_object.hexdigest()
 
 
-def get_nth_item_from_dict(d: dict, n: int):
+def get_nth_item_from_dict(d: dict, n: int) -> tuple[Any, Any]:
     if n < 0 or n >= len(d):
         raise IndexError("Index out of range")
     return list(d.items())[n]
 
 
-def process_check_finished(result):
+def process_check_finished(result: Any) -> Any:
     while isinstance(result, dict):
         if "finished" in result:
             result = result["finished"]
@@ -29,7 +45,7 @@ def process_check_finished(result):
     return result
 
 
-def setup_logger():
+def setup_logger() -> logging.Logger:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     console_handler = logging.StreamHandler()
@@ -42,14 +58,14 @@ def setup_logger():
     return logger
 
 
-def to_list(data):
+def to_list(data: Any) -> list:
     res = []
     if data is not None:
         res = [_ for _ in data]
     return res
 
 
-def process_subgoal(goal_list, instruction):
+def process_subgoal(goal_list: dict, instruction: str) -> tuple[dict, str]:
     obj1_uid_list = goal_list["obj1_uid"]
     obj1_list = goal_list["obj1"]
     obj2_uid_list = goal_list["obj2_uid"]
@@ -84,7 +100,7 @@ def process_subgoal(goal_list, instruction):
     return random_goal, instruction
 
 
-def process_goal_list_to_random_goal(task_data):
+def process_goal_list_to_random_goal(task_data: dict) -> dict:
     instruction = task_data["instruction"]
     single_task_path = random.choice(task_data["goal"])
     task_data["goal"] = [single_task_path]
@@ -119,22 +135,22 @@ def process_goal_list_to_random_goal(task_data):
     return task_data
 
 
-def parse_demogen_config(config):
+def parse_demogen_config(config: dict) -> list:
     demogen_config_list = config["demonstration_configs"]
     return demogen_config_list
 
 
-def parse_eval_config(config):
+def parse_eval_config(config: dict) -> list:
     eval_config_list = config["evaluation_configs"]
     return eval_config_list
 
 
-def parse_evalgen_config(config):
+def parse_evalgen_config(config: dict) -> list:
     evalgen_config_list = config["evaluation_configs"]
     return evalgen_config_list
 
 
-def compare_articulation_status(status1, status2):
+def compare_articulation_status(status1: Any, status2: Any) -> bool:
     if type(status1) == list:
         for s1, s2 in zip(status1, status2):
             if not compare_articulation_status(s1, s2):
@@ -147,7 +163,7 @@ def compare_articulation_status(status1, status2):
             return status2[0] <= status1 <= status2[1]
 
 
-def parse_usda(usda_path):
+def parse_usda(usda_path: str) -> str:
     with open(usda_path, "r") as f:
         usda_content = f.read()
     usda_content = usda_content.split("\n")
@@ -158,7 +174,7 @@ def parse_usda(usda_path):
     return usda_path
 
 
-def check_usda_exist(default_config, demogen_config):
+def check_usda_exist(default_config: dict, demogen_config: dict) -> bool:
     usd_path = parse_usda(
         os.path.join(
             default_config["ASSETS_DIR"],
@@ -166,7 +182,9 @@ def check_usda_exist(default_config, demogen_config):
         )
     )
     usd_path = os.path.join(
-        default_config["ASSETS_DIR"], *demogen_config["usd_name"].split("/")[:-1], usd_path
+        default_config["ASSETS_DIR"],
+        *demogen_config["usd_name"].split("/")[:-1],
+        usd_path,
     )
     if not os.path.exists(usd_path):
         return False
@@ -174,7 +192,7 @@ def check_usda_exist(default_config, demogen_config):
         return True
 
 
-def check_proxy_exist():
+def check_proxy_exist() -> bool:
     if (
         os.environ.get("http_proxy") is not None
         or os.environ.get("https_proxy") is not None
@@ -186,3 +204,21 @@ def check_proxy_exist():
         return True
     else:
         return False
+
+
+def parse_restart_per_success(demogen_config: dict) -> int:
+    if "restart_per_success" in demogen_config:
+        return demogen_config["restart_per_success"]
+    elif "num_episode" in demogen_config:
+        return demogen_config["num_episode"]
+    elif "num_test" in demogen_config:
+        return demogen_config["num_test"]
+    else:
+        assert False, "demogen config is out of date, please update it."
+
+
+def parse_restart_per_failed(demogen_config: dict) -> int:
+    if "restart_per_failed" in demogen_config:
+        return demogen_config["restart_per_failed"]
+    else:
+        return float("inf")

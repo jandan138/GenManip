@@ -1,10 +1,19 @@
-import pickle
-import lmdb
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import os
+import pickle
+from typing import Any
+
+import lmdb
 import numpy as np
 
 
-def get_scalar_data_from_lmdb(data_path, key):
+def get_scalar_data_from_lmdb(data_path: str, key: bytes) -> list[Any]:
     meta_info = pickle.load(open(f"{data_path}/meta_info.pkl", "rb"))
     lmdb_env = lmdb.open(
         f"{data_path}/lmdb", readonly=True, lock=False, readahead=False, meminit=False
@@ -16,7 +25,12 @@ def get_scalar_data_from_lmdb(data_path, key):
     return data
 
 
-def parse_planning_result(dir, default_config, demogen_config, scene):
+def parse_planning_result(
+    dir: str,
+    default_config: dict,
+    demogen_config: dict,
+    scene: dict,
+) -> list[dict]:
     data_list = []
     data_dir = os.path.join(
         default_config["DEMONSTRATION_DIR"],
@@ -30,13 +44,32 @@ def parse_planning_result(dir, default_config, demogen_config, scene):
     gripper_action_data = get_scalar_data_from_lmdb(data_dir, b"gripper_action")
     gripper_close_data = get_scalar_data_from_lmdb(data_dir, b"gripper_close")
     name_data = get_scalar_data_from_lmdb(data_dir, b"name")
-    for qpos, qvel, arm_action, gripper_action, gripper_close, name in zip(
+    try:
+        joint_world_pose_data = get_scalar_data_from_lmdb(
+            data_dir, b"observation/robot/joint_world_pose"
+        )
+    except:
+        joint_world_pose_data = None
+    for (
+        qpos,
+        qvel,
+        arm_action,
+        gripper_action,
+        gripper_close,
+        name,
+        joint_world_pose,
+    ) in zip(
         qpos_data,
         qvel_data,
         arm_action_data,
         gripper_action_data,
         gripper_close_data,
         name_data,
+        (
+            joint_world_pose_data
+            if joint_world_pose_data is not None
+            else [None] * len(qpos_data)
+        ),
     ):
         data = {}
         data["qpos"] = qpos
@@ -45,6 +78,8 @@ def parse_planning_result(dir, default_config, demogen_config, scene):
         data["gripper_close"] = gripper_close
         data["name"] = name
         data["obj_info"] = {}
+        if joint_world_pose is not None:
+            data["joint_world_pose"] = joint_world_pose
         data_list.append(data)
     for key in scene["object_list"]:
         position_data = get_scalar_data_from_lmdb(

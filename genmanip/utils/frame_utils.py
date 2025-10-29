@@ -1,20 +1,29 @@
-import cv2
-import io
-import numpy as np
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import os
 from pathlib import Path
-from PIL import Image
 import re
 
+import cv2
+import numpy as np
+
 try:
-    import mediapy as media # type: ignore
+    import mediapy as media  # type: ignore
 except ImportError:
     print("mediapy is not installed, please install it with 'pip install mediapy'")
 
 
 def create_video_from_image_folder_with_mediapy(
-    image_folder, output_video_path, fps=30, frame_ending=".png"
-):
+    image_folder: str,
+    output_video_path: str,
+    fps: float = 30,
+    frame_ending: str = ".png",
+) -> None:
     # images: list of numpy arrays
     images = [img for img in os.listdir(image_folder) if img.endswith(frame_ending)]
     images.sort(key=lambda x: int(re.findall(r"\d+", x)[0]))
@@ -28,7 +37,22 @@ def create_video_from_image_folder_with_mediapy(
     media.write_video(output_video_path, images_npy, fps=fps)
 
 
-def save_image_with_description(image, uuid, text, folder_path):
+def create_video_from_image_list_with_mediapy(
+    image_list: list[np.ndarray],
+    output_video_path: str,
+    fps: float = 30,
+    frame_ending: str = ".png",
+) -> None:
+    # images: list of numpy arrays
+    media.write_video(output_video_path, image_list, fps=fps)
+
+
+def save_image_with_description(
+    image: np.ndarray,
+    uuid: str,
+    text: str,
+    folder_path: str,
+) -> None:
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.6
@@ -46,15 +70,18 @@ def save_image_with_description(image, uuid, text, folder_path):
     cv2.imwrite(filepath, image)
 
 
-def compress_to_jpeg_array(image_array):
+def compress_to_jpeg_array(image_array: np.ndarray) -> np.ndarray:
     _, jpeg_array = cv2.imencode(".jpg", image_array)
     decoded_image = cv2.imdecode(jpeg_array, cv2.IMREAD_COLOR)
     return decoded_image
 
 
 def create_video_from_image_folder(
-    image_folder, output_video_path, fps=30, frame_ending=".png"
-):
+    image_folder: str,
+    output_video_path: str,
+    fps: float = 30,
+    frame_ending: str = ".png",
+) -> None:
     images = [img for img in os.listdir(image_folder) if img.endswith(frame_ending)]
     images.sort(key=lambda x: int(re.findall(r"\d+", x)[0]))
     first_image_path = os.path.join(image_folder, images[0])
@@ -69,7 +96,22 @@ def create_video_from_image_folder(
     video.release()
 
 
-def create_video_from_image_array(image_array, output_video_path, fps=30):
+def create_video_from_image_list(
+    image_list: list[np.ndarray],
+    output_video_path: str,
+    fps: float = 30,
+) -> None:
+    height, width, _ = image_list[0].shape
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+    for image in image_list:
+        video.write(image)
+    video.release()
+
+
+def create_video_from_image_array(
+    image_array: np.ndarray, output_video_path: str, fps: float = 30
+) -> None:
     height, width, _ = image_array[0].shape
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
@@ -79,21 +121,21 @@ def create_video_from_image_array(image_array, output_video_path, fps=30):
     video.release()
 
 
-def save_image(image, filepath):
+def save_image(image: np.ndarray, filepath: str) -> None:
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     cv2.imwrite(filepath, image_bgr)
 
 
 def visualize_3d_bbox(
-    img,
-    pixel_coordinates,
-    point_color=(0, 0, 255),
-    point_size=5,
-    edge_color=(0, 255, 0),
-    edge_thickness=2,
-    draw_planes=False,
-    plane_alpha=0.3,
-):
+    img: np.ndarray,
+    pixel_coordinates: list[tuple[int, int]],
+    point_color: tuple[int, int, int] = (0, 0, 255),
+    point_size: int = 5,
+    edge_color: tuple[int, int, int] = (0, 255, 0),
+    edge_thickness: int = 2,
+    draw_planes: bool = False,
+    plane_alpha: float = 0.3,
+) -> np.ndarray:
     """
     Visualize 3D bounding box by drawing points and edges on the image.
 
