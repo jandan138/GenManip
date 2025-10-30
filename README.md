@@ -21,27 +21,27 @@
 
 ## 🧠 Overview
 
-**GenManip** is a simulation platform designed for large-scale evaluation of **generalist robotic manipulation policies** under diverse, realistic instruction-following scenarios.
+**GenManip** is a large-scale simulation and evaluation platform for **generalist robotic manipulation policies** under diverse and realistic **instruction-following scenarios**.
 
-Built on [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim), **GenManip** provides:
-
-- 🧠 **LLM-driven task generation** via a novel **Task-oriented Scene Graph (ToSG)**
-- 🔬 **200 curated scenarios** for both modular and end-to-end policy benchmarking
-- 🧱 **10,000+ rigid** and **100+ articulated** objects with vision-language annotations
-- 🧭 Evaluation of **spatial**, **appearance**, **commonsense**, and **long-horizon reasoning**
+Built on [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim), **GenManip** enables:
+- 🧠 **LLM-driven task generation** via a novel **Task-oriented Scene Graph (ToSG)**  
+- 🔬 **200 curated evaluation scenarios** for both modular and end-to-end policy benchmarking  
+- 🧱 A scalable asset pool with **10,000+ rigid** and **100+ articulated** objects with multimodal annotations  
+- 🧭 Evaluation of **spatial**, **appearance**, **commonsense**, and **long-horizon reasoning** abilities  
 
 ---
 
-## 🗞️ News & Updates
+## 🚀 Recent Highlights
 
-### 🔹 30 Oct 2025  
-The **data synthesis process** and **evaluation code** for generalizable pick-and-place tasks have been released.
+### 🔹 Oct 2025 — Data & Evaluation Release
+The **data synthesis pipeline** and **evaluation toolkit** for generalizable pick-and-place tasks are now available.
 
-### 🔹 5 Aug 2025  
-We’re thrilled to announce:
-- **10 new post-training tasks** for dual-arm manipulation  
-- **55K+ generalizable pick-and-place tasks** across ~14K objects on the **ALOHA platform**  
-- Part of the **IROS 2025 Challenge: Vision-Language Manipulation in Open Tabletop Environments**
+### 🔹 Aug 2025 — IROS 2025 Challenge Integration  
+GenManip serves as the **core simulation backbone** for the **IROS 2025 Challenge: Vision-Language Manipulation in Open Tabletop Environments**.
+
+- Generated **55K+ generalizable pick-and-place tasks** across ~14K objects using the ALOHA platform  
+- Released **10 expert-designed post-training tasks** for dual-arm manipulation  
+- Provided diverse **pre-training data** with randomized objects, scenes, and language instructions to promote **cross-domain generalization**
 
 📌 **Challenge Registration:**  
 [https://eval.ai/web/challenges/challenge-page/2626/overview](https://eval.ai/web/challenges/challenge-page/2626/overview)
@@ -52,26 +52,20 @@ We’re thrilled to announce:
 
 ---
 
-## 📂 Data Access
+## 📂 Dataset Access
 
-- **Pre-training Data (Dual-arm Generalizable Pick-and-Place)**  
-  [Hugging Face Dataset](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main)
-
-- **Post-training Data (Dual-arm Manipulation, 10 Tasks)**  
-  [Hugging Face Dataset](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main)
+| Type | Description | Link |
+|------|--------------|------|
+| **Pre-training Data** | Dual-arm generalizable pick-and-place (55K+ samples) | [Hugging Face](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main) |
+| **Post-training Data** | Dual-arm manipulation, 10 benchmark tasks | [Hugging Face](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main) |
 
 <video src="readme_assets/scaling_data.mp4" controls width="600"></video>
 
-Additional resources:
-- **GenManip Benchmark** will merge into [InternManip](https://github.com/InternRobotics/InternManip)
-- **InternData-M1** dataset: [Hugging Face Link](https://huggingface.co/datasets/InternRobotics/InternData-M1)  
-  Includes ~250K simulation demonstrations with:
-  - 2D/3D bounding boxes  
-  - Object trajectories  
-  - Grasp points  
-  - Semantic masks  
-
-> ⚙️ Conversion from GenManip to LeRobot format is in progress. All data is generated and will be available soon, along with **long-horizon scaling data**.
+**Additional Resources**
+- The **GenManip Benchmark** will be merged into [InternManip](https://github.com/InternRobotics/InternManip)  
+- Datasets are also included in **[InternData-M1](https://huggingface.co/datasets/InternRobotics/InternData-M1)** — a large-scale embodied robotics dataset with ~250K demonstrations and rich annotations (2D/3D boxes, trajectories, grasps, masks)  
+- Conversion to **LeRobot** format is ongoing; all data has been generated and will be fully available soon  
+- Scaling data for **long-horizon, multi-stage manipulation** is in progress 🚀  
 
 ---
 
@@ -79,32 +73,26 @@ Additional resources:
 
 | Feature | Description |
 | -------- | ------------ |
-| 🎯 **ToSG-based Task Synthesis** | Graph-based semantic representation for complex task generation |
-| 🖼️ **Photorealistic Simulation** | RTX ray-traced rendering with physics-accurate realism |
-| 📊 **Benchmark Suite** | 200+ high-diversity tasks with human-in-the-loop refinement |
-| 🧪 **Evaluation Tools** | Supports SR, SPL, ablation studies, and generalization diagnostics |
-
----
-
-## 🚀 Getting Started
-
-Visit the **[official website](https://genmanip.axi404.top)** for setup guides, documentation, and usage examples.
+| 🎯 **ToSG-based Task Synthesis** | Graph-based semantic representation for generating compositional tasks |
+| 🖼️ **Photorealistic Simulation** | RTX ray-traced rendering with physically accurate dynamics |
+| 📊 **Benchmark Suite** | 200+ diverse tasks with human-in-the-loop annotation refinement |
+| 🧪 **Evaluation Toolkit** | Supports SR, SPL, ablation studies, and generalization diagnostics |
 
 ---
 
 ## 🧩 TODO List
 
-- [x] Website for setup, VLM Agents, and leaderboard  
-- [x] Code for demo generation, rendering, and evaluation  
-- [ ] Release of full asset pack (10K+ objects)  
-- [ ] Baseline models (ACT, Seer, InternVLA-M1, etc.)  
-- [ ] Objaverse scaling pipeline integration  
+- [x] Website, documentation, and leaderboard  
+- [x] Code release for task synthesis, rendering, and evaluation  
+- [ ] Full GenManip asset pack (10K+ objects)  
+- [ ] Baseline model implementations (ACT, Seer, InternVLA-M1, etc.)  
+- [ ] Objaverse scaling pipeline  
 
 ---
 
 ## 📚 Citation
 
-If you find this work useful, please cite:
+If you find our work useful, please cite:
 
 ```bibtex
 @inproceedings{gao2025genmanip,
