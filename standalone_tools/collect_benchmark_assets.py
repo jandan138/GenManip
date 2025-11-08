@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--asset_path", type=str, required=True)
     parser.add_argument("--dataset_id", type=str, required=True)
-    parser.add_argument("--copy_back", action="store_true", default=False)
+    parser.add_argument("--no_copy_back", action="store_true", default=False)
     parser.add_argument("--upload_to_huggingface", action="store_true", default=False)
     parser.add_argument("--huggingface_username", type=str, required=False)
     return parser.parse_args()
@@ -36,6 +36,26 @@ def collect_pickle_files(asset_path: str) -> list[str]:
             if file.endswith("meta_info.pkl"):
                 pickle_files.append(os.path.join(root, file))
     return pickle_files
+
+
+def check_task_rename(pickle_path: str) -> bool:
+    folder_name = str(os.path.dirname(pickle_path)).split("/")[-1]
+    if folder_name.isdigit() and len(folder_name) == 3:
+        return True
+    else:
+        return False
+
+
+def rename_task_folder(pickle_path: str) -> None:
+    folder_name = os.path.dirname(os.path.dirname(pickle_path))
+    cnt = 0
+    for log_dir in os.listdir(folder_name):
+        if os.path.isdir(os.path.join(folder_name, log_dir)):
+            os.rename(
+                os.path.join(folder_name, log_dir),
+                os.path.join(folder_name, f"{str(cnt).zfill(3)}"),
+            )
+            cnt += 1
 
 
 def parse_pickle_file(pickle_file: str) -> dict:
@@ -232,7 +252,7 @@ def collect_assets(
             str(os.path.join(base_path, base_usd_path))
             .replace(
                 "saved/assets",
-                f"saved/assets/collected_packages/{dataset_id}/scenes",
+                f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/scenes",
             )
             .replace(".usd", "")
         )
@@ -253,7 +273,7 @@ def collect_assets(
             str(os.path.join(base_path, asset_raw_path))
             .replace(
                 "saved/assets",
-                f"saved/assets/collected_packages/{dataset_id}/assets",
+                f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/assets",
             )
             .replace(".usd", "")
         )
@@ -281,7 +301,7 @@ def rewrite_pickle_info(
     base_path: str,
     dataset_id: str,
 ) -> None:
-
+    total_config_list = []
     pbar = tqdm(pickle_infos.items(), desc="Rewriting pickle info")
     for pickle_file, pickle_info in pbar:
         pbar.set_description(f"Rewriting pickle info: {pickle_file.split('/')[-1]}")
@@ -294,7 +314,7 @@ def rewrite_pickle_info(
         )
         target_case_dir = str(case_dir).replace(
             "saved/tasks",
-            f"saved/assets/collected_packages/{dataset_id}/tasks",
+            f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/tasks",
         )
         Path(os.path.dirname(target_case_dir)).mkdir(parents=True, exist_ok=True)
         shutil.copytree(case_dir, target_case_dir, dirs_exist_ok=True)
@@ -309,36 +329,92 @@ def rewrite_pickle_info(
                         file_projection[os.path.join(base_path, f"{v['usd_name']}.usd")]
                     ).replace(base_path + "/", "")
                 ) + "/instance"
+            if config_data not in total_config_list:
+                total_config_list.append(config_data)
             with open(os.path.join(target_case_dir, "config.yaml"), "w") as f:
                 yaml.dump(config_data, f)
+    total_config = {"evaluation_configs": [], "demonstration_configs": []}
+    for cfg in total_config_list:
+        total_config["evaluation_configs"].extend(cfg["evaluation_configs"])
+    with open(
+        os.path.join(
+            base_path,
+            "collected_packages",
+            f"GenManip-Benchmark-Assets-{dataset_id}",
+            "tasks",
+            "config.yaml",
+        ),
+        "w",
+    ) as f:
+        yaml.dump(total_config, f)
 
 
 def copy_back(base_path: str, dataset_id: str) -> list[str]:
     cb_dir_list = []
 
     for dir in os.listdir(
-        os.path.join(base_path, "collected_packages", dataset_id, "tasks")
+        os.path.join(
+            base_path,
+            "collected_packages",
+            f"GenManip-Benchmark-Assets-{dataset_id}",
+            "tasks",
+        )
     ):
         raw_path = os.path.join(os.path.dirname(base_path), "tasks", dir)
         if os.path.exists(raw_path):
-            print(
-                f"Find existing dir: {dir} and remove it to backup folder:",
-                os.path.join(os.path.dirname(base_path), "tasks", "backup", dir),
-            )
             Path(os.path.join(os.path.dirname(base_path), "tasks", "backup")).mkdir(
                 parents=True, exist_ok=True
             )
-            shutil.copytree(
+            cnt = 0
+            while os.path.exists(
+                os.path.join(
+                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
+                )
+            ):
+                cnt += 1
+            shutil.move(
                 raw_path,
-                os.path.join(os.path.dirname(base_path), "tasks", "backup", dir),
+                os.path.join(
+                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
+                ),
             )
-            shutil.rmtree(raw_path)
-        shutil.copytree(
-            os.path.join(base_path, "collected_packages", dataset_id, "tasks", dir),
-            raw_path,
-        )
-        cb_dir_list.append(raw_path)
+            print(
+                f"Find existing dir: {dir} and remove it to backup folder:",
+                os.path.join(
+                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
+                ),
+            )
+        if os.path.isdir(
+            os.path.join(
+                base_path,
+                "collected_packages",
+                f"GenManip-Benchmark-Assets-{dataset_id}",
+                "tasks",
+                dir,
+            )
+        ):
+            shutil.copytree(
+                os.path.join(
+                    base_path,
+                    "collected_packages",
+                    f"GenManip-Benchmark-Assets-{dataset_id}",
+                    "tasks",
+                    dir,
+                ),
+                raw_path,
+            )
+            cb_dir_list.append(raw_path)
 
+    shutil.copyfile(
+        os.path.join(
+            base_path,
+            "collected_packages",
+            f"GenManip-Benchmark-Assets-{dataset_id}",
+            "tasks",
+            "config.yaml",
+        ),
+        f"configs/tasks/GenManip-Benchmark-Assets-{dataset_id}.yml",
+    )
     return cb_dir_list
 
 
@@ -367,7 +443,11 @@ def upload_to_huggingface(
 
         huggingface_hub.upload_large_folder(
             repo_id=repo_id,
-            folder_path=os.path.join(base_path, "collected_packages", dataset_id),
+            folder_path=os.path.join(
+                base_path,
+                "collected_packages",
+                f"GenManip-Benchmark-Assets-{dataset_id}",
+            ),
             repo_type="dataset",
         )
         return repo_id
@@ -385,9 +465,20 @@ def main() -> None:
     )
     asset_path = args.asset_path
     dataset_id = args.dataset_id
-    collect_path = os.path.join(base_path, "collected_packages", dataset_id)
+    collect_path = os.path.join(
+        base_path, "collected_packages", f"GenManip-Benchmark-Assets-{dataset_id}"
+    )
     Path(collect_path).mkdir(parents=True, exist_ok=True)
     pickle_files = collect_pickle_files(asset_path)
+    pickle_files_available = [
+        check_task_rename(pickle_path=pickle_file) for pickle_file in pickle_files
+    ]
+    while not all(pickle_files_available):
+        rename_task_folder(pickle_files[pickle_files_available.index(False)])
+        pickle_files = collect_pickle_files(asset_path)
+        pickle_files_available = [
+            check_task_rename(pickle_path=pickle_file) for pickle_file in pickle_files
+        ]
     pickle_infos = {
         pickle_file: parse_pickle_file(pickle_file) for pickle_file in pickle_files
     }
@@ -409,10 +500,17 @@ def main() -> None:
     )
 
     # Generate USDA file
-    usda_gen(os.path.join(base_path, "collected_packages", dataset_id, "scenes"))
+    usda_gen(
+        os.path.join(
+            base_path,
+            "collected_packages",
+            f"GenManip-Benchmark-Assets-{dataset_id}",
+            "scenes",
+        )
+    )
 
     # Copy dir back to task folder
-    if args.copy_back:
+    if not args.no_copy_back:
         cb_dir_list = copy_back(base_path=base_path, dataset_id=dataset_id)
 
     if args.upload_to_huggingface:
@@ -427,8 +525,8 @@ def main() -> None:
         pickle_infos=pickle_infos,
         upload_to_huggingface=args.upload_to_huggingface,
         repo_id=repo_id if args.upload_to_huggingface else None,
-        copy_back=args.copy_back,
-        cb_dir_list=cb_dir_list if args.copy_back else None,
+        copy_back=not args.no_copy_back,
+        cb_dir_list=cb_dir_list if not args.no_copy_back else None,
     )
 
     kit.close()
