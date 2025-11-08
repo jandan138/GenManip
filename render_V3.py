@@ -79,6 +79,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Save pointcloud",
     )
+    parser.add_argument(
+        "--high_quality", action="store_true", help="High quality rendering"
+    )
     return parser.parse_args()
 
 
@@ -100,6 +103,7 @@ from genmanip.core.loading.loading import (
 from genmanip.core.pointcloud.pointcloud import (
     meshDict2pointCloudDict,
     get_current_pointCloutList,
+    objectList2meshList,
 )
 from genmanip.core.robot.franka import create_joint_xform_list
 from genmanip.core.sensor.camera import set_camera_look_at
@@ -339,7 +343,12 @@ for demogen_config in demogen_config_list:
                 )
 
                 if args.save_pointcloud:
+                    scene["cacheDict"]["meshDict"] = objectList2meshList(
+                        scene["object_list"]
+                    )
                     pointDict = meshDict2pointCloudDict(scene["cacheDict"]["meshDict"])
+                    if has_joint_world_pose:
+                        pointJointDict = meshDict2pointCloudDict
                 for data in tqdm(data_list):
                     # 3-1. set robot state
                     if has_joint_world_pose:
@@ -370,7 +379,26 @@ for demogen_config in demogen_config_list:
                     else:
                         scene["world"].step()
 
+                    if args.high_quality:
+                        for _ in range(50):
+                            scene["world"].render()
+                            scene["world"].get_observations()
+
                     # 3-4. load dynamic info
+                    if args.save_pointcloud:
+                        pointcloud = get_current_pointCloutList(
+                            scene["object_list"], pointDict
+                        )
+                        if has_joint_world_pose:
+                            pointcloud.update(
+                                {
+                                    "robot": get_current_pointCloutList(
+                                        joint_xform_list, pointJointDict
+                                    )
+                                }
+                            )
+                    else:
+                        pointcloud = None
                     recorder.load_dynamic_info(
                         data["obj_info"],
                         data["action"],
@@ -378,11 +406,7 @@ for demogen_config in demogen_config_list:
                         data["qvel"],
                         data["gripper_close"],
                         data["name"],
-                        pointcloud=(
-                            get_current_pointCloutList(scene["object_list"], pointDict)
-                            if args.save_pointcloud
-                            else None
-                        ),
+                        pointcloud=pointcloud,
                     )
 
                     # if render first frame, then break
