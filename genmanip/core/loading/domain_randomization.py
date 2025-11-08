@@ -11,12 +11,14 @@ import random
 import cv2
 from mplib import Pose
 import numpy as np
+import random
 from scipy.spatial.transform import Rotation as R
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.robots.robot import Robot  # type: ignore
 from omni.isaac.core.utils.prims import get_prim_at_path, delete_prim  # type: ignore
 from omni.isaac.sensor import Camera  # type: ignore
+from pxr import Usd  # type: ignore
 
 from genmanip.core.loading.hardcode_rule import verify_cup_and_plate
 from genmanip.core.loading.utils import (
@@ -296,6 +298,86 @@ def replace_table_for_eval(
         object_list["00000000000000000000000000000000"].prim.GetAttribute(
             "visibility"
         ).Set("invisible")
+
+
+def load_scene_as_background(
+    scene_info: dict,
+    assets_dir: str,
+    uuid: str,
+    table_uid: str,
+) -> tuple[XFormPrim, XFormPrim]:
+    def deactivate_selected_prims(
+        prim: Usd.Prim, selected_names: list[str], random_names: list[str]
+    ):
+
+        for child_prim in prim.GetAllChildren():
+            prim_name = child_prim.GetName().lower()
+            for name in selected_names:
+                if name.lower() in prim_name:
+                    child_prim.SetActive(False)
+
+            for name in random_names:
+                if name.lower() in prim_name:
+                    flag = True if random.random() > 0.5 else False
+                    child_prim.SetActive(flag)
+
+            deactivate_selected_prims(child_prim, selected_names, random_names)
+
+    FIXED_HEIGHT = 0.99931
+
+    original_table_prim = get_prim_at_path(f"/World/{uuid}/obj_{table_uid}")
+    if original_table_prim.IsActive():
+        original_table_prim.SetActive(False)
+
+    ground_plane_prim = get_prim_at_path(f"/World/{uuid}/obj_defaultGroundPlane")
+    deactivate_selected_prims(ground_plane_prim, ["collision"], [])
+
+    room = add_usd_to_world(
+        asset_path=os.path.join(
+            assets_dir,
+            "miscs",
+            scene_info["scene"]["path"],
+        ),
+        prim_path=f"/World/{uuid}/room",
+        name="room",
+        translation=[
+            scene_info["scene"]["translation"][1],
+            -scene_info["scene"]["translation"][0],
+            FIXED_HEIGHT
+            - scene_info["scene"]["translation"][2]
+            - 2 * scene_info["table"]["translation"][2],
+        ],
+        orientation=R.from_euler(
+            "xyz", [0, 0, scene_info["scene"]["euler"][2] - 90], degrees=True
+        ).as_quat()[[3, 0, 1, 2]],
+        scale=scene_info["scene"]["scale"],
+    )
+    deactivate_selected_prims(
+        room.prim,
+        ["pan", "hearth", "ceiling", "__default_setting", "other", "microwave"],
+        ["light"],
+    )
+    table = add_usd_to_world(
+        asset_path=os.path.join(
+            assets_dir,
+            "miscs",
+            scene_info["table"]["path"],
+        ),
+        prim_path=f"/World/{uuid}/table",
+        name="table",
+        translation=[
+            0,
+            0,
+            FIXED_HEIGHT
+            - scene_info["scene"]["translation"][2]
+            - scene_info["table"]["translation"][2],
+        ],
+        orientation=R.from_euler("xyz", [0, 0, -90], degrees=True).as_quat()[
+            [3, 0, 1, 2]
+        ],
+        scale=scene_info["table"]["scale"],
+    )
+    return room, table
 
 
 def random_objaverse_table_texture(scene: dict, default_config: dict) -> None:
