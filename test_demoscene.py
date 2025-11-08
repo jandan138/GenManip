@@ -66,13 +66,13 @@ while any(
     world.step()
 
 # 6. save image
+print("rendering before save image...")
 for _ in range(10):
-    for key, camera in camera_list.items():
-        print(key, camera.get_local_pose(camera_axes="usd"))
     world.step()
 Path("tmp").mkdir(parents=True, exist_ok=True)
 image = Image.fromarray(get_src(camera_list["obs_camera"], "rgb"))
 image.save("tmp/test.png")
+print("image saved to tmp/test.png")
 
 # 7. close simulation app
 simulation_app.close()
