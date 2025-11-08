@@ -1,12 +1,18 @@
-import os
-from tqdm import tqdm
-import sys
-from isaacsim import SimulationApp
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
 
-current_dir = os.path.abspath(os.path.dirname(__file__))
-sys.path.append(current_dir)
+Licensed under the MIT License.
+"""
 
 from argparse import ArgumentParser
+from isaacsim import SimulationApp
+import os
+import sys
+
+current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.append(current_dir)
+
 from genmanip.utils.file_utils import load_yaml
 
 parser = ArgumentParser()

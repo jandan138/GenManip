@@ -5,16 +5,18 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+from isaacsim import SimulationApp
 import os
 from pathlib import Path
-
-from isaacsim import SimulationApp
 from PIL import Image
+import sys
+
+current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.append(current_dir)
 
 from genmanip.utils.file_utils import load_default_config, load_yaml
 from genmanip.utils.utils import setup_logger
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
 simulation_app = SimulationApp({"headless": True})
 
 from omni.isaac.core import World  # type: ignore
