@@ -1402,6 +1402,7 @@ def recovery_scene_render(
     task_data: dict,
     eval_config: dict,
     default_config: dict,
+    remove_table: bool = False,
 ) -> dict:
     layout = copy.deepcopy(task_data["initial_layout"])
     scene["robot_info"]["robot_list"][0].robot.set_world_pose(
@@ -1469,3 +1470,6 @@ def recovery_scene_render(
                 set_mass(scene["object_list"][subgoal["obj1_uid"]].prim_path, 0.1)
             if "obj2_uid" in subgoal:
                 set_mass(scene["object_list"][subgoal["obj2_uid"]].prim_path, 10.0)
+    if remove_table:
+        if scene["object_list"]["00000000000000000000000000000000"].prim.IsActive():
+            scene["object_list"]["00000000000000000000000000000000"].prim.SetActive(False)
