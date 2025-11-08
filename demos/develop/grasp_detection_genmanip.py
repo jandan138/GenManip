@@ -300,7 +300,6 @@ for usd_path in usd_list:
                     camera_list["camera1"],
                     meshlist[uid],
                     address=default_config["ANYGRASP_ADDR"],
-                    port=default_config["ANYGRASP_PORT"],
                 )
             except Exception as e:
                 print(e)

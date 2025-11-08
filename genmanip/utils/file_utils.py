@@ -62,13 +62,10 @@ def load_default_config(
     else:
         with open(config_path, "r") as file:
             config = json.load(file)
-    if "ANYGRASP_PORT" not in config or "ANYGRASP_ADDR" not in config:
-        config["ANYGRASP_PORT"] = load_yaml(
-            os.path.join(current_dir, "configs/miscs/anygrasp.yml")
-        )[anygrasp_mode]["ANYGRASP_PORT"]
+    if "ANYGRASP_ADDR" not in config:
         config["ANYGRASP_ADDR"] = load_yaml(
             os.path.join(current_dir, "configs/miscs/anygrasp.yml")
-        )[anygrasp_mode]["ANYGRASP_ADDR"]
+        )[anygrasp_mode]
     if "ASSETS_DIR" not in config:
         config["ASSETS_DIR"] = os.path.join(current_dir, "saved/assets")
     if "DEMONSTRATION_DIR" not in config:

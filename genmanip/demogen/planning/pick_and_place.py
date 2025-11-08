@@ -59,7 +59,6 @@ def get_action_init_grasp(
         scene["camera_list"]["camera1"],
         mesh,
         address=default_config["ANYGRASP_ADDR"],
-        port=default_config["ANYGRASP_PORT"],
         allow_fixed_grasp=action_info.options.allow_fixed_grasp,
         force_fixed_grasp=action_info.options.force_fixed_grasp,
     )

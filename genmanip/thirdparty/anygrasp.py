@@ -180,10 +180,11 @@ def get_grasp_pose(
 
 
 def request_anygrasp(
-    camera: Camera, address: str = "127.0.0.1", port: str = "5001"
+    camera: Camera,
+    address: dict[str, list[str]] = "127.0.0.1",
 ) -> list[dict] | None:
-    if isinstance(port, list):
-        port = port[random.randint(0, len(port) - 1)]
+    address_list = [(key, port) for key, value in address.items() for port in value]
+    addr, port = random.choice(address_list)
     colors = get_src(camera, "rgb")
     depth = get_src(camera, "depth")
     intrinsics = get_intrinsic_matrix(camera)
@@ -198,7 +199,7 @@ def request_anygrasp(
         fy=fy,
         cx=cx,
         cy=cy,
-        address=address,
+        address=addr,
         port=port,
     )
     world_grasp_list = []
@@ -227,7 +228,6 @@ def get_init_grasp(
     camera: Camera,
     mesh: o3d.geometry.TriangleMesh,
     address: str = "127.0.0.1",
-    port: str = "5001",
     allow_fixed_grasp: bool = False,
     force_fixed_grasp: bool = False,
 ) -> dict:
@@ -238,7 +238,7 @@ def get_init_grasp(
             "orientation": np.array([0.0, 1.0, 0.0, 0.0]),
         }
         return init_grasp
-    world_grasp_list = request_anygrasp(camera, address, port)
+    world_grasp_list = request_anygrasp(camera, address)
     if world_grasp_list is None or len(world_grasp_list) == 0:
         raise Exception("server return empty grasp list")
     init_grasp, _ = find_closest_grasp_to_mesh(
