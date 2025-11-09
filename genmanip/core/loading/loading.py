@@ -1338,7 +1338,12 @@ def recovery_scene(
             if not scene["object_list"][key].prim.IsActive():
                 scene["object_list"][key].prim.SetActive(True)
     for key, object_info in layout.items():
-        if is_prim_path_valid(object_info["prim_path"]):
+        original_prim_path = object_info["prim_path"]
+        original_uuid = original_prim_path.split("/")[2]
+        current_prim_path = original_prim_path.replace(
+            f"/World/{original_uuid}", f"/World/{scene['uuid']}"
+        )
+        if is_prim_path_valid(current_prim_path):
             scene["object_list"][key].set_world_pose(
                 object_info["position"], object_info["orientation"]
             )
@@ -1472,4 +1477,6 @@ def recovery_scene_render(
                 set_mass(scene["object_list"][subgoal["obj2_uid"]].prim_path, 10.0)
     if remove_table:
         if scene["object_list"]["00000000000000000000000000000000"].prim.IsActive():
-            scene["object_list"]["00000000000000000000000000000000"].prim.SetActive(False)
+            scene["object_list"]["00000000000000000000000000000000"].prim.SetActive(
+                False
+            )
