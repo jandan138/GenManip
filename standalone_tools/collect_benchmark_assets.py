@@ -21,7 +21,7 @@ from omni.kit.usd.collect import Collector, CollectorStatus  # type: ignore
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--asset_path", type=str, required=True)
+    parser.add_argument("--asset_path", type=str, nargs="+", required=True)
     parser.add_argument("--dataset_id", type=str, required=True)
     parser.add_argument("--no_copy_back", action="store_true", default=False)
     parser.add_argument("--upload_to_huggingface", action="store_true", default=False)
@@ -252,7 +252,7 @@ def collect_assets(
             str(os.path.join(base_path, base_usd_path))
             .replace(
                 "saved/assets",
-                f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/scenes",
+                f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/scenes",
             )
             .replace(".usd", "")
         )
@@ -273,7 +273,7 @@ def collect_assets(
             str(os.path.join(base_path, asset_raw_path))
             .replace(
                 "saved/assets",
-                f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/assets",
+                f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/assets",
             )
             .replace(".usd", "")
         )
@@ -314,7 +314,7 @@ def rewrite_pickle_info(
         )
         target_case_dir = str(case_dir).replace(
             "saved/tasks",
-            f"saved/assets/collected_packages/GenManip-Benchmark-Assets-{dataset_id}/tasks",
+            f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/tasks",
         )
         Path(os.path.dirname(target_case_dir)).mkdir(parents=True, exist_ok=True)
         shutil.copytree(case_dir, target_case_dir, dirs_exist_ok=True)
@@ -340,7 +340,7 @@ def rewrite_pickle_info(
         os.path.join(
             base_path,
             "collected_packages",
-            f"GenManip-Benchmark-Assets-{dataset_id}",
+            f"GenManip-Package-{dataset_id}",
             "tasks",
             "config.yaml",
         ),
@@ -356,7 +356,7 @@ def copy_back(base_path: str, dataset_id: str) -> list[str]:
         os.path.join(
             base_path,
             "collected_packages",
-            f"GenManip-Benchmark-Assets-{dataset_id}",
+            f"GenManip-Package-{dataset_id}",
             "tasks",
         )
     ):
@@ -388,7 +388,7 @@ def copy_back(base_path: str, dataset_id: str) -> list[str]:
             os.path.join(
                 base_path,
                 "collected_packages",
-                f"GenManip-Benchmark-Assets-{dataset_id}",
+                f"GenManip-Package-{dataset_id}",
                 "tasks",
                 dir,
             )
@@ -397,7 +397,7 @@ def copy_back(base_path: str, dataset_id: str) -> list[str]:
                 os.path.join(
                     base_path,
                     "collected_packages",
-                    f"GenManip-Benchmark-Assets-{dataset_id}",
+                    f"GenManip-Package-{dataset_id}",
                     "tasks",
                     dir,
                 ),
@@ -409,11 +409,11 @@ def copy_back(base_path: str, dataset_id: str) -> list[str]:
         os.path.join(
             base_path,
             "collected_packages",
-            f"GenManip-Benchmark-Assets-{dataset_id}",
+            f"GenManip-Package-{dataset_id}",
             "tasks",
             "config.yaml",
         ),
-        f"configs/tasks/GenManip-Benchmark-Assets-{dataset_id}.yml",
+        f"configs/tasks/GenManip-Package-{dataset_id}.yml",
     )
     return cb_dir_list
 
@@ -427,7 +427,7 @@ def upload_to_huggingface(
         whoami = args.huggingface_username
     else:
         whoami = api.whoami()["name"]
-    repo_id = f"{whoami}/GenManip-Benchmark-Assets-{dataset_id}"
+    repo_id = f"{whoami}/GenManip-Package-{dataset_id}"
     ans = input(f"Upload to Hugging Face {repo_id} ? (y/n): ")
 
     if ans == "y":
@@ -446,7 +446,7 @@ def upload_to_huggingface(
             folder_path=os.path.join(
                 base_path,
                 "collected_packages",
-                f"GenManip-Benchmark-Assets-{dataset_id}",
+                f"GenManip-Package-{dataset_id}",
             ),
             repo_type="dataset",
         )
@@ -456,17 +456,42 @@ def upload_to_huggingface(
         return None
 
 
+def preprocess_asset_path(asset_path: list[str], dataset_id) -> list[str]:
+    task_path = "saved/tasks"
+    for path in asset_path:
+        rel_path = os.path.relpath(path, task_path)
+        Path(os.path.join(task_path, f"GenManip-Package-{dataset_id}")).mkdir(
+            parents=True, exist_ok=True
+        )
+        shutil.copytree(
+            path, os.path.join(task_path, f"GenManip-Package-{dataset_id}", rel_path)
+        )
+        for root, dirs, files in os.walk(
+            os.path.join(task_path, f"GenManip-Package-{dataset_id}", rel_path)
+        ):
+            if "config.yaml" in files:
+                with open(os.path.join(root, "config.yaml"), "r") as f:
+                    config_data = yaml.load(f, yaml.FullLoader)
+                config_data["demonstration_configs"] = []
+                for v in config_data["evaluation_configs"]:
+                    v["task_name"] = f"GenManip-Package-{dataset_id}/" + v["task_name"]
+                with open(os.path.join(root, "config.yaml"), "w") as f:
+                    yaml.dump(config_data, f)
+    return str(os.path.join(task_path, f"GenManip-Package-{dataset_id}"))
+
+
 def main() -> None:
     args = parse_args()
 
     # Create meta info for collected assets
     base_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../..", "saved", "assets")
+        os.path.join(os.path.dirname(__file__), "..", "saved", "assets")
     )
     asset_path = args.asset_path
     dataset_id = args.dataset_id
+    asset_path = preprocess_asset_path(asset_path, dataset_id)
     collect_path = os.path.join(
-        base_path, "collected_packages", f"GenManip-Benchmark-Assets-{dataset_id}"
+        base_path, "collected_packages", f"GenManip-Package-{dataset_id}"
     )
     Path(collect_path).mkdir(parents=True, exist_ok=True)
     pickle_files = collect_pickle_files(asset_path)
@@ -504,7 +529,7 @@ def main() -> None:
         os.path.join(
             base_path,
             "collected_packages",
-            f"GenManip-Benchmark-Assets-{dataset_id}",
+            f"GenManip-Package-{dataset_id}",
             "scenes",
         )
     )
