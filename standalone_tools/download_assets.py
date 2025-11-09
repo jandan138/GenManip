@@ -79,6 +79,12 @@ def download_custom_benchmark_dataset(repo_id: str):
         os.path.join("configs/tasks", f"{repo_id.split('/')[-1]}.yml"),
     )
 
+    camera_src = f"saved/assets/collected_packages/{repo_id.split('/')[-1]}/cameras"
+    camera_dst = f"configs/cameras/{repo_id.split('/')[-1]}"
+    pathlib.Path(camera_dst).mkdir(parents=True, exist_ok=True)
+    for item in os.listdir(camera_src):
+        shutil.copyfile(os.path.join(camera_src, item), os.path.join(camera_dst, item))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

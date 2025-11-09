@@ -415,6 +415,28 @@ def copy_back(base_path: str, dataset_id: str) -> list[str]:
         ),
         f"configs/tasks/GenManip-Package-{dataset_id}.yml",
     )
+
+    Path(f"configs/cameras/GenManip-Package-{dataset_id}").mkdir(
+        parents=True, exist_ok=True
+    )
+    for camera_path in os.listdir(
+        os.path.join(
+            base_path,
+            "collected_packages",
+            f"GenManip-Package-{dataset_id}",
+            "cameras",
+        )
+    ):
+        shutil.copyfile(
+            os.path.join(
+                base_path,
+                "collected_packages",
+                f"GenManip-Package-{dataset_id}",
+                "cameras",
+                camera_path,
+            ),
+            f"configs/cameras/GenManip-Package-{dataset_id}/{camera_path}",
+        )
     return cb_dir_list
 
 
@@ -457,6 +479,10 @@ def upload_to_huggingface(
 
 
 def preprocess_asset_path(asset_path: list[str], dataset_id) -> list[str]:
+    camera_config_path = (
+        f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/cameras"
+    )
+    Path(camera_config_path).mkdir(parents=True, exist_ok=True)
     task_path = "saved/tasks"
     for path in asset_path:
         rel_path = os.path.relpath(path, task_path)
@@ -475,6 +501,23 @@ def preprocess_asset_path(asset_path: list[str], dataset_id) -> list[str]:
                 config_data["demonstration_configs"] = []
                 for v in config_data["evaluation_configs"]:
                     v["task_name"] = f"GenManip-Package-{dataset_id}/" + v["task_name"]
+                    camera_dst_path = os.path.join(
+                        camera_config_path,
+                        v["domain_randomization"]["cameras"]["config_path"].replace(
+                            "configs/cameras/", ""
+                        ),
+                    )
+                    if not os.path.exists(camera_dst_path):
+                        shutil.copyfile(
+                            v["domain_randomization"]["cameras"]["config_path"],
+                            camera_dst_path,
+                        )
+                    v["domain_randomization"]["cameras"]["config_path"] = v[
+                        "domain_randomization"
+                    ]["cameras"]["config_path"].replace(
+                        "configs/cameras/",
+                        f"configs/cameras/GenManip-Package-{dataset_id}/",
+                    )
                 with open(os.path.join(root, "config.yaml"), "w") as f:
                     yaml.dump(config_data, f)
     return str(os.path.join(task_path, f"GenManip-Package-{dataset_id}"))
