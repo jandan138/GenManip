@@ -56,6 +56,42 @@ def download_banana_layout_dataset():
     remove_huggingface_info("saved/tasks/Minimal_Banana")
 
 
+def download_robot_franka_robotiq_dataset():
+    repo_id = "Axi404/GenManip-Robot-FrankaRobotiq-Assets"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/robot_usds/robotiq",
+    )
+    remove_huggingface_info("saved/assets/robot_usds/robotiq")
+
+
+def download_robot_split_aloha_mid_360_dataset():
+    repo_id = "Axi404/GenManip-Robot-AlohaSplit-Assets"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/robot_usds/split_aloha_mid_360",
+    )
+    remove_huggingface_info("saved/assets/robot_usds/split_aloha_mid_360")
+
+
+def download_robot_lift2_dataset():
+    repo_id = "Axi404/GenManip-Robot-Lift2-Assets"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/robot_usds/lift2",
+    )
+    remove_huggingface_info("saved/assets/robot_usds/lift2")
+
+
+def download_all_robot_datasets():
+    download_robot_franka_robotiq_dataset()
+    download_robot_split_aloha_mid_360_dataset()
+    download_robot_lift2_dataset()
+
+
 def download_custom_benchmark_dataset(repo_id: str):
     pathlib.Path("saved/assets/collected_packages").mkdir(parents=True, exist_ok=True)
     pathlib.Path("saved/tasks").mkdir(parents=True, exist_ok=True)
@@ -100,5 +136,13 @@ if __name__ == "__main__":
         download_banana_dataset()
     elif args.dataset == "banana-layout":
         download_banana_layout_dataset()
+    elif args.dataset == "all-robot":
+        download_all_robot_datasets()
+    elif args.dataset == "franka-robotiq":
+        download_robot_franka_robotiq_dataset()
+    elif args.dataset == "split-aloha-mid-360":
+        download_robot_split_aloha_mid_360_dataset()
+    elif args.dataset == "lift2":
+        download_robot_lift2_dataset()
     else:
         download_custom_benchmark_dataset(args.dataset)
