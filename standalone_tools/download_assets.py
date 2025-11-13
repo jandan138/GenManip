@@ -67,13 +67,20 @@ def download_robot_franka_robotiq_dataset():
 
 
 def download_robot_split_aloha_mid_360_dataset():
-    repo_id = "Axi404/GenManip-Robot-AlohaSplit-Assets"
+    repo_id = "Axi404/GenManip-Robot-SplitAlohaMid360-Assets"
     snapshot_download(
         repo_id=repo_id,
         repo_type="dataset",
         local_dir="saved/assets/robot_usds/split_aloha_mid_360",
     )
     remove_huggingface_info("saved/assets/robot_usds/split_aloha_mid_360")
+    repo_id = "Axi404/GenManip-Piper-cuRobo-Assets"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/miscs/curobo/piper100",
+    )
+    remove_huggingface_info("saved/assets/miscs/curobo/piper100")
 
 
 def download_robot_lift2_dataset():
@@ -84,6 +91,13 @@ def download_robot_lift2_dataset():
         local_dir="saved/assets/robot_usds/lift2",
     )
     remove_huggingface_info("saved/assets/robot_usds/lift2")
+    repo_id = "Axi404/GenManip-R5a-cuRobo-Assets"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/miscs/curobo/R5a",
+    )
+    remove_huggingface_info("saved/assets/miscs/curobo/R5a")
 
 
 def download_all_robot_datasets():
