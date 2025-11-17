@@ -64,16 +64,16 @@ def get_current_pcList_by_meshList(
 
 
 def get_current_pointCloud(
-    object: XFormPrim, point_dict: dict
+    object: XFormPrim, point_dict: PointCloudInfo
 ) -> o3d.geometry.PointCloud:
     scale = np.array([1, 1, 1])
     trans, quat = object.get_world_pose()
     quat = quat[[1, 2, 3, 0]]
     return transform_between_point_clouds(
-        point_dict["points"],
-        point_dict["scale"],
-        point_dict["quat"],
-        point_dict["trans"],
+        point_dict.points,
+        point_dict.scale,
+        point_dict.quat,
+        point_dict.trans,
         scale,
         quat,
         trans,
@@ -81,7 +81,7 @@ def get_current_pointCloud(
 
 
 def get_current_pointCloutList(
-    object_list: dict[str, XFormPrim], point_dict: dict
+    object_list: dict[str, XFormPrim], point_dict: dict[str, PointCloudInfo]
 ) -> dict[str, o3d.geometry.PointCloud]:
     updatedPointCloudList = {}
     for key in point_dict:
