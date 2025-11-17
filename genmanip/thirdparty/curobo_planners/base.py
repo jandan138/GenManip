@@ -8,6 +8,7 @@ Licensed under the MIT License.
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.types.base import TensorDeviceType
+from curobo.rollout.cost.pose_cost import PoseCostMetric
 from curobo.types.math import Pose
 from curobo.types.state import JointState
 from curobo.util.usd_helper import UsdHelper
@@ -16,12 +17,12 @@ from curobo.wrap.reacher.motion_gen import (
     MotionGen,
     MotionGenConfig,
     MotionGenPlanConfig,
-    PoseCostMetric,
 )
 import numpy as np
 import torch
 
 from omni.isaac.core import World  # type: ignore
+from omni.isaac.core.utils.types import JointsState as SimJointState  # type: ignore
 
 
 class CuroboPlanner:
@@ -95,7 +96,7 @@ class CuroboPlanner:
         self,
         ee_translation_goal: np.ndarray,
         ee_orientation_goal: np.ndarray,
-        sim_js: JointState,
+        sim_js: SimJointState,
         dof_names: list | None = None,
         grasp: bool = False,
     ) -> list[np.ndarray] | None:
@@ -119,12 +120,12 @@ class CuroboPlanner:
         else:
             plan_config.pose_cost_metric = None
         result = self.motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, plan_config)
-        if result.success.item():
+        if result.success is not None and result.success.item():
             cmd_plan = result.get_interpolated_plan()
             cmd_plan = cmd_plan.get_ordered_joint_state(self.raw_js_names)
             position_list = []
             for idx in range(len(cmd_plan.position)):
-                joint_positions = cmd_plan.position[idx].cpu().numpy()
+                joint_positions = cmd_plan.position[idx].cpu().numpy() # type: ignore
                 position_list.append(joint_positions[: self.dof_len])
             return position_list
         else:
@@ -144,7 +145,7 @@ class CuroboPlanner:
         )
         if not ik_result.success.item():
             return None
-        return ik_result.js_solution.position.cpu().numpy().squeeze()
+        return ik_result.js_solution.position.cpu().numpy().squeeze() # type: ignore
 
     def fk_single(self, joint_positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         joint_positions_tensor = torch.from_numpy(

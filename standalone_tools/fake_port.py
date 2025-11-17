@@ -109,6 +109,8 @@ if __name__ == "__main__":
                             [0.04, 0.04],
                         )
                     }
+                else:
+                    raise ValueError("Invalid control type")
             elif args.gripper_type == "robotiq":
                 if args.control_type == "joint_position":
                     actions = {"action": [0] * 13}
@@ -120,6 +122,8 @@ if __name__ == "__main__":
                             [0.7853, 0.7853, -0.7853, -0.7853, -0.7853, -0.7853],
                         )
                     }
+                else:
+                    raise ValueError("Invalid control type")
             else:
                 raise ValueError("Invalid gripper type")
         elif args.arm_type == "aloha":
@@ -141,6 +145,8 @@ if __name__ == "__main__":
                             ),
                         )
                     }
+                else:
+                    raise ValueError("Invalid control type")
             else:
                 raise ValueError("Invalid gripper type")
         else:

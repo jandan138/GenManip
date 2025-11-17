@@ -23,19 +23,22 @@ from genmanip.core.pointcloud.transform import (
     transform_between_meshes,
     transform_between_point_clouds,
 )
+from genmanip.core.pointcloud.utils import MeshInfo, PointCloudInfo
 from genmanip.core.usd_utils import get_mesh_from_prim
 from genmanip.utils.pc_utils import get_pcd_from_mesh
 
 
-def get_current_mesh(object: XFormPrim, mesh_dict: dict) -> o3d.geometry.TriangleMesh:
+def get_current_mesh(
+    object: XFormPrim, mesh_dict: MeshInfo
+) -> o3d.geometry.TriangleMesh:
     scale = np.array([1, 1, 1])
     trans, quat = object.get_world_pose()
     quat = quat[[1, 2, 3, 0]]
     return transform_between_meshes(
-        mesh_dict["mesh"],
-        mesh_dict["scale"],
-        mesh_dict["quat"],
-        mesh_dict["trans"],
+        mesh_dict.mesh,
+        mesh_dict.scale,
+        mesh_dict.quat,
+        mesh_dict.trans,
         scale,
         quat,
         trans,
@@ -43,7 +46,7 @@ def get_current_mesh(object: XFormPrim, mesh_dict: dict) -> o3d.geometry.Triangl
 
 
 def get_current_meshList(
-    object_list: dict[str, XFormPrim], mesh_dict: dict
+    object_list: dict[str, XFormPrim], mesh_dict: dict[str, MeshInfo]
 ) -> dict[str, o3d.geometry.TriangleMesh]:
     updatedMeshList = {}
     for key in mesh_dict:
@@ -88,8 +91,9 @@ def get_current_pointCloutList(
     return updatedPointCloudList
 
 
-def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> dict | None:
+def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> MeshInfo | None:
     lock = SoftFileLock(mesh_path + "_soft.lock", timeout=600.0)
+    mesh = None
     try:
         with lock:
             if os.path.exists(mesh_path):
@@ -136,15 +140,17 @@ def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> dict | None:
             raise Exception(
                 f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
             )
-    mesh_info = {}
-    mesh_info["mesh"] = get_world_mesh(mesh, object.prim_path)
-    mesh_info["trans"], mesh_info["quat"] = object.get_world_pose()
-    mesh_info["quat"] = mesh_info["quat"][[1, 2, 3, 0]]
-    mesh_info["scale"] = np.array([1, 1, 1])
+    if mesh is None:
+        raise Exception(f"Failed to load mesh from {mesh_path}")
+    mesh_info = MeshInfo()
+    mesh_info.mesh = get_world_mesh(mesh, object.prim_path)
+    mesh_info.trans, mesh_info.quat = object.get_world_pose()
+    mesh_info.quat = mesh_info.quat[[1, 2, 3, 0]]
+    mesh_info.scale = np.array([1, 1, 1])
     return mesh_info
 
 
-def get_mesh_info(object: XFormPrim) -> dict | None:
+def get_mesh_info(object: XFormPrim) -> MeshInfo | None:
     try:
         mesh = get_mesh_from_prim(object.prim)
     except:
@@ -153,11 +159,11 @@ def get_mesh_info(object: XFormPrim) -> dict | None:
     trans, quat = object.get_local_pose()
     quat = quat[[1, 2, 3, 0]]
     mesh = inverse_transform_mesh(mesh, scale, quat, trans)
-    mesh_info = {}
-    mesh_info["mesh"] = get_world_mesh(mesh, object.prim_path)
-    mesh_info["trans"], mesh_info["quat"] = object.get_world_pose()
-    mesh_info["quat"] = mesh_info["quat"][[1, 2, 3, 0]]
-    mesh_info["scale"] = np.array([1, 1, 1])
+    mesh_info = MeshInfo()
+    mesh_info.mesh = get_world_mesh(mesh, object.prim_path)
+    mesh_info.trans, mesh_info.quat = object.get_world_pose()
+    mesh_info.quat = mesh_info.quat[[1, 2, 3, 0]]
+    mesh_info.scale = np.array([1, 1, 1])
     return mesh_info
 
 
@@ -181,7 +187,9 @@ def get_world_mesh(
     return mesh
 
 
-def meshDict2pointCloudDict(mesh_dict: dict) -> dict[str, dict]:
+def meshDict2pointCloudDict(
+    mesh_dict: dict[str, MeshInfo],
+) -> dict[str, PointCloudInfo]:
     pointcloud_dict = {}
     for key in mesh_dict:
         pointCloud_info = mesh_info2pointCloud_info(mesh_dict[key])
@@ -209,25 +217,25 @@ def meshlist_to_pclist(
     return pointcloudlist
 
 
-def mesh_info2pointCloud_info(mesh_info: dict) -> dict | None:
+def mesh_info2pointCloud_info(mesh_info: MeshInfo) -> PointCloudInfo | None:
     try:
-        points = np.asarray(get_pcd_from_mesh(mesh_info["mesh"]).points)
-        scale = mesh_info["scale"]
-        trans = mesh_info["trans"]
-        quat = mesh_info["quat"]
-        return {
-            "points": points,
-            "scale": scale,
-            "trans": trans,
-            "quat": quat,
-        }
+        points = np.asarray(get_pcd_from_mesh(mesh_info.mesh).points)
+        scale = mesh_info.scale
+        trans = mesh_info.trans
+        quat = mesh_info.quat
+        return PointCloudInfo(
+            points=points,
+            scale=scale,
+            trans=trans,
+            quat=quat,
+        )
     except:
         return None
 
 
 def objectList2meshList(
     object_list: dict[str, XFormPrim], mesh_folder_path: str | None = None
-) -> dict[str, dict]:
+) -> dict[str, MeshInfo]:
     mesh_dict = {}
     for key in tqdm(object_list):
         if key == "defaultGroundPlane":
@@ -245,15 +253,15 @@ def objectList2meshList(
 
 def objectList2pointCloudList(
     object_list: dict[str, XFormPrim], visualize: bool = False
-) -> dict[str, dict]:
+) -> dict[str, PointCloudInfo]:
     mesh_dict = objectList2meshList(object_list)
     point_dict = meshDict2pointCloudDict(mesh_dict)
     if visualize:
         all_points = []
         for key in point_dict:
-            all_points.append(point_dict[key]["points"])
+            all_points.append(point_dict[key].points)
         all_points = np.vstack(all_points)
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(all_points)
-        o3d.visualization.draw_geometries([pcd])
+        o3d.visualization.draw_geometries([pcd])  # type: ignore
     return point_dict

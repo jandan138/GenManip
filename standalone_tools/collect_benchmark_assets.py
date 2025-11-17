@@ -9,7 +9,7 @@ import huggingface_hub
 
 import yaml
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp # type: ignore[import-untyped]
 
 kit = SimulationApp({"headless": True})
 from omni.isaac.core.utils.extensions import enable_extension  # type: ignore
@@ -191,7 +191,7 @@ def usda_gen(root_path: str) -> None:
 
 
 def print_info(
-    file_projection: dict[str],
+    file_projection: dict[str, str],
     scene_raw_path_list: list[str],
     asset_raw_path_list: list[str],
     pickle_infos: dict[str, dict],
@@ -217,7 +217,7 @@ def print_info(
         else:
             print("Upload to Hugging Face cancelled")
         print("-" * 50)
-    if copy_back:
+    if copy_back and cb_dir_list is not None:
         for cb_dir in cb_dir_list:
             print(f"Copy task folder to {cb_dir}")
         print("-" * 50)
@@ -478,7 +478,7 @@ def upload_to_huggingface(
         return None
 
 
-def preprocess_asset_path(asset_path: list[str], dataset_id) -> list[str]:
+def preprocess_asset_path(asset_path: list[str], dataset_id) -> str:
     camera_config_path = (
         f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/cameras"
     )
@@ -592,9 +592,9 @@ def main() -> None:
         asset_raw_path_list=asset_raw_path_list,
         pickle_infos=pickle_infos,
         upload_to_huggingface=args.upload_to_huggingface,
-        repo_id=repo_id if args.upload_to_huggingface else None,
+        repo_id=repo_id if args.upload_to_huggingface else None, # type: ignore
         copy_back=not args.no_copy_back,
-        cb_dir_list=cb_dir_list if not args.no_copy_back else None,
+        cb_dir_list=cb_dir_list if not args.no_copy_back else None, # type: ignore
     )
 
     kit.close()

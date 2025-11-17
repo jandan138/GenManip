@@ -6,26 +6,29 @@ Licensed under the MIT License.
 """
 
 import random
+import ssl
 import requests
+from requests.adapters import HTTPAdapter
 
 import numpy as np
 import open3d as o3d
-from requests.packages.urllib3.util.ssl_ import create_urllib3_context  # type: ignore
+import urllib3
 from scipy.spatial.transform import Rotation as R
 from urllib3.exceptions import InsecureRequestWarning
+from urllib3.util.ssl_ import create_urllib3_context
 
 from omni.isaac.sensor import Camera  # type: ignore
 
 from genmanip.core.sensor.camera import get_src, get_intrinsic_matrix
 
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+urllib3.disable_warnings(InsecureRequestWarning)
 
 
-class HostnameIgnoringAdapter(requests.adapters.HTTPAdapter):
+class HostnameIgnoringAdapter(HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs) -> None:
         context = create_urllib3_context()
         context.check_hostname = False
-        context.verify_mode = False
+        context.verify_mode = ssl.CERT_NONE
         kwargs["ssl_context"] = context
         return super().init_poolmanager(*args, **kwargs)
 
@@ -67,7 +70,7 @@ def find_closest_grasp_to_mesh(
     distance_threshold: float = 0.09,
     angle_threshold: float | None = None,
     distance_only: bool = False,
-) -> tuple[dict | None, float | None]:
+) -> tuple[dict | None, np.ndarray | None]:
     grasp_points = np.array([grasp["translation"] for grasp in grasp_list])
     nearest_points, distances = compute_distance_list_from_point_list_to_mesh(
         mesh, grasp_points
@@ -181,12 +184,14 @@ def get_grasp_pose(
 
 def request_anygrasp(
     camera: Camera,
-    address: dict[str, list[str]] = "127.0.0.1",
+    address: dict[str, list[str]] = {"127.0.0.1": ["5001"]},
 ) -> list[dict] | None:
     address_list = [(key, port) for key, value in address.items() for port in value]
     addr, port = random.choice(address_list)
     colors = get_src(camera, "rgb")
+    colors = np.asarray(colors)
     depth = get_src(camera, "depth")
+    depth = np.asarray(depth)
     intrinsics = get_intrinsic_matrix(camera)
     fx = float(intrinsics[0, 0])
     fy = float(intrinsics[1, 1])
@@ -227,7 +232,7 @@ def request_anygrasp(
 def get_init_grasp(
     camera: Camera,
     mesh: o3d.geometry.TriangleMesh,
-    address: str = "127.0.0.1",
+    address: dict[str, list[str]] = {"127.0.0.1": ["5001"]},
     allow_fixed_grasp: bool = False,
     force_fixed_grasp: bool = False,
 ) -> dict:

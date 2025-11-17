@@ -313,7 +313,7 @@ def collect_all_colors(object_pool: ObjectPool) -> list[str]:
 
 def generate_long_horizon_by_shape(
     scene: dict, usd_list: list[str], folder_path: str
-) -> tuple[dict, dict] | None:
+) -> tuple[dict, dict] | tuple[None, None]:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -390,7 +390,7 @@ def generate_long_horizon_by_shape(
 
 def generate_long_horizon_by_materials(
     scene: dict, usd_list: list[str], folder_path: str
-) -> tuple[dict, dict] | None:
+) -> tuple[dict, dict] | tuple[None, None]:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -401,7 +401,7 @@ def generate_long_horizon_by_materials(
         scene["object_pool"],
     )
     if len(material_list) == 0:
-        return None
+        return None, None
     choose_material = random.choice(material_list)
     container_category_list = collect_all_categories(
         apply_rule("is_container", usd_list, scene["object_pool"]), scene["object_pool"]
@@ -467,7 +467,7 @@ def generate_long_horizon_by_materials(
 
 def generate_long_horizon_by_color(
     scene: dict, usd_list: list[str], folder_path: str
-) -> tuple[dict, dict] | None:
+) -> tuple[dict, dict] | tuple[None, None]:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -478,7 +478,7 @@ def generate_long_horizon_by_color(
         scene["object_pool"],
     )
     if len(color_list) == 0:
-        return None
+        return None, None
     choose_color = random.choice(color_list)
     container_category_list = collect_all_categories(
         apply_rule("is_container", usd_list, scene["object_pool"]), scene["object_pool"]
@@ -544,7 +544,7 @@ def generate_long_horizon_by_color(
 
 def generate_long_horizon_by_category(
     scene: dict, usd_list: list[str], folder_path: str
-) -> tuple[dict, dict] | None:
+) -> tuple[dict, dict] | tuple[None, None]:
     category_list = collect_all_categories(
         apply_rule("can_grasp", usd_list, scene["object_pool"]), scene["object_pool"]
     )
@@ -553,7 +553,7 @@ def generate_long_horizon_by_category(
         usd_list, choose_category, scene["object_pool"]
     )
     if len(parent_category_list) == 0:
-        return None
+        return None, None
     parent_choose_category = random.choice(parent_category_list)
     container_category_list = collect_all_categories(
         apply_rule("is_container", usd_list, scene["object_pool"]), scene["object_pool"]

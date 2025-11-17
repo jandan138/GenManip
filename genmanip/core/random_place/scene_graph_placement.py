@@ -37,7 +37,7 @@ def process_scene_graph(demogen_config: dict, object_list_key: list[str]) -> lis
     return sorted_scene_graph
 
 
-def topo_sort_by_on(scene_graph: list[dict]) -> list[dict]:
+def topo_sort_by_on(scene_graph: list[dict]) -> list[str]:
     graph = defaultdict(list)
     in_degree = defaultdict(int)
     all_nodes = set()
@@ -86,7 +86,7 @@ def collect_on_table_uids(scene_graph: list[dict]) -> list[str]:
 
 
 def sort_scene_graph_by_topo_sort(
-    scene_graph: list[dict], sorted_uids: list[str]
+    scene_graph: list[dict[str, str]], sorted_uids: list[str]
 ) -> list[dict]:
     sorted_scene_graph = []
     seen_edges = set()

@@ -117,12 +117,12 @@ class Logger:
         embodiment: BaseEmbodiment,
         instruction: str,
         log_dir: str = "logs",
-        max_size: int = 1,  # Size in TB
-        name: str | None = None,
-        task_data: dict | None = None,
-        tcp_config: dict | None = None,
+        max_size: int = 10,  # Size in TB
+        name: str = "",
+        task_data: dict = {},
+        tcp_config: list[dict] = [],
     ):
-        if name is None:
+        if name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         else:
             self.name = name
@@ -262,7 +262,9 @@ class Logger:
         )
         self.log_num_steps += 1
 
-    def add_name_frame(self, name: str) -> None:
+    def add_name_frame(self, name: str | None) -> None:
+        if name is None:
+            return
         if name not in self.frame_status:
             self.frame_status[name] = self.log_num_steps
 
@@ -502,9 +504,16 @@ class Logger:
             )
             if config_path is not None:
                 shutil.copy(config_path, self.log_dir / "config.yaml")
-            self.set_permissions(self.log_dir)
+            self.set_permissions(str(self.log_dir))
             return True
-        self.env = lmdb.open(str(log_dir_lmdb), map_size=self.max_size)
+        self.env = lmdb.open(
+                str(log_dir_lmdb),
+                map_size=self.max_size,
+                writemap=True,
+                map_async=True,
+                sync=False,
+                metasync=False,
+            )
         txn = self.env.begin(write=True)
         with open(log_dir_lmdb / "info.json", "w") as f:
             json.dump(self.json_data_logger, f)
@@ -587,11 +596,12 @@ class Logger:
         #         )
         #         meta_info["keys"][key].append(f"{key}/{step_id}".encode("utf-8"))
         txn.commit()
+        self.env.sync()
         self.env.close()
         pickle.dump(meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb"))
         if config_path is not None:
             shutil.copy(config_path, self.log_dir / "config.yaml")
-        self.set_permissions(self.log_dir)
+        self.set_permissions(str(self.log_dir))
         return True
 
     def set_permissions(self, path: str) -> None:

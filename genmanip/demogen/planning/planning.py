@@ -6,8 +6,7 @@ Licensed under the MIT License.
 """
 
 import os
-
-import numpy as np
+from typing import cast
 
 from genmanip.core.pointcloud.pointcloud import get_current_pcList_by_meshList
 from genmanip.core.usd_utils import set_mass
@@ -32,9 +31,11 @@ def planning(
     scene: dict,
     default_config: dict,
     demogen_config: dict,
-    action_info_dict: dict[str, list[ActionInfo]] = {},
+    action_info_dict: dict[
+        str, list[WaitActionInfo | ExecutableActionInfo | SyncActionInfo]
+    ] = {},
     action_dict: dict[str, list[dict]] = {},
-) -> list[dict] | None:
+) -> list[dict] | dict[str, list[str]] | None:
     # 1. if all arm has action to execute
     if all(len(action_list) != 0 for action_list in action_dict.values()):
         return [action_dict[key].pop(0) for key in action_dict.keys()]
@@ -63,7 +64,9 @@ def planning(
                     }
                 )
             elif isinstance(action_info_dict[arm_name][0], WaitActionInfo):
-                for _ in range(int(action_info_dict[arm_name][0].wait_step)):
+                for _ in range(
+                    int(cast(WaitActionInfo, action_info_dict[arm_name][0]).wait_step)
+                ):
                     action_dict[arm_name].append(
                         {
                             "joint_action": scene["robot_list"][
@@ -78,7 +81,7 @@ def planning(
                 action_dict[arm_name].extend(
                     plan_executable_action(
                         scene,
-                        action_info_dict[arm_name][0],
+                        cast(ExecutableActionInfo, action_info_dict[arm_name][0]),
                         default_config,
                         demogen_config,
                     )
@@ -126,23 +129,24 @@ def plan_executable_action(
     default_config: dict,
     demogen_config: dict,
 ) -> list[dict]:
-    if action_info.action_type == "pick_and_place":
+    if isinstance(action_info, PnPActionInfo):
         return plan_pick_and_place_action(
             scene, action_info, default_config, demogen_config
         )
     else:
-        raise ValueError(f"Unsupported action type: {action_info.action_type}")
+        raise ValueError(f"Unsupported action type: {action_info.type}")
 
 
 def plan_pick_and_place_action(
     scene: dict,
-    action_info: ExecutableActionInfo,
+    action_info: PnPActionInfo,
     default_config: dict,
     demogen_config: dict,
 ) -> list[dict]:
     set_mass(scene["object_list"][action_info.obj1_uid].prim_path, 0.1)
-    set_mass(scene["object_list"][action_info["obj2_uid"]].prim_path, 10.0)
-    action_meta_info = get_action_meta_info(scene, action_info, default_config)
+    set_mass(scene["object_list"][action_info.obj2_uid].prim_path, 10.0)
+    # action_meta_info = get_action_meta_info(scene, action_info, default_config)
+    return [{}]
 
 
 def execute_action(
@@ -168,7 +172,7 @@ def check_action_finished(
     demogen_config: dict,
     recorder: PlanningLogger,
 ) -> bool:
-    pass
+    return False
 
 
 def apply_action_by_config(

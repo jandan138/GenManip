@@ -181,7 +181,6 @@ def adjust_object_scale_by_thickness(
     uid: str,
     default_config: dict,
     demogen_config: dict,
-    object_scale: float,
     min_thickness: float,
 ) -> None:
     meshlist = get_current_meshList(
@@ -220,7 +219,7 @@ def get_object_scale(
     key: str,
     replaced_uid: str,
     object_pool: ObjectPool,
-) -> float:
+) -> float | None:
     if (
         "option" in replace_object_config[key]
         and "plain_replace" in replace_object_config[key]["option"]
@@ -240,12 +239,14 @@ def get_object_scale(
                 object_info["scale"][0],
                 object_info["scale"][1],
             )
-    if "clip_range" in replace_object_config[key]:
-        scale = np.clip(
-            scale,
-            replace_object_config[key]["clip_range"]["min"],
-            replace_object_config[key]["clip_range"]["max"],
-        )
+    if "clip_range" in replace_object_config[key] and scale is not None:
+        clip_range_min = replace_object_config[key]["clip_range"]["min"]
+        clip_range_max = replace_object_config[key]["clip_range"]["max"]
+        if not isinstance(clip_range_min, float):
+            raise ValueError(f"Clip range min {clip_range_min} is not a float")
+        if not isinstance(clip_range_max, float):
+            raise ValueError(f"Clip range max {clip_range_max} is not a float")
+        scale = np.clip(float(scale), clip_range_min, clip_range_max)
     if "fixed_size" in replace_object_config[key]:
         scale = replace_object_config[key]["fixed_size"]
     return scale

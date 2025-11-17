@@ -221,4 +221,4 @@ def parse_restart_per_failed(demogen_config: dict) -> int:
     if "restart_per_failed" in demogen_config:
         return demogen_config["restart_per_failed"]
     else:
-        return float("inf")
+        return 10**9

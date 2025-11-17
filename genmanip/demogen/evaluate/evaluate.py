@@ -370,8 +370,8 @@ def iou_2d_via_boundaries(
     else:
         iou = inter_area / float(box_a_area + box_b_area - inter_area)
     if box_a_area == 0 or box_b_area == 0:
-        i_ratios = [0, 0]
-        a_ratios = [0, 0]
+        i_ratios = [0.0, 0.0]
+        a_ratios = [0.0, 0.0]
     else:
         i_ratios = [inter_area / float(box_a_area), inter_area / float(box_b_area)]
         a_ratios = [box_a_area / box_b_area, box_b_area / box_a_area]

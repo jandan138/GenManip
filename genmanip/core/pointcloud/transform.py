@@ -14,12 +14,12 @@ from scipy.spatial.transform import Rotation as R
 
 def forward_transform_mesh(
     mesh: o3d.geometry.TriangleMesh,
-    scale_factors: list[float],
+    scale_factors: np.ndarray,
     quaternion: np.ndarray,
     translation_vector: np.ndarray,
 ) -> o3d.geometry.TriangleMesh:
     vertices = mesh.vertices
-    vertices = vertices * np.array(scale_factors)
+    vertices = vertices * scale_factors
     rotation = R.from_quat(quaternion)
     vertices = rotation.apply(vertices)
     vertices = vertices + translation_vector
@@ -30,11 +30,11 @@ def forward_transform_mesh(
 
 def forward_transform_point_cloud(
     points: np.ndarray,
-    scale_factors: list[float],
+    scale_factors: np.ndarray,
     quaternion: np.ndarray,
     translation_vector: np.ndarray,
 ) -> np.ndarray:
-    points = points * np.array(scale_factors)
+    points = points * scale_factors
     rotation = R.from_quat(quaternion)
     points = rotation.apply(points)
     points = points + translation_vector
@@ -43,7 +43,7 @@ def forward_transform_point_cloud(
 
 def inverse_transform_mesh(
     mesh: o3d.geometry.TriangleMesh,
-    scale_factors: list[float],
+    scale_factors: np.ndarray,
     quaternion: np.ndarray,
     translation_vector: np.ndarray,
 ) -> o3d.geometry.TriangleMesh:
@@ -51,7 +51,7 @@ def inverse_transform_mesh(
     vertices = vertices - translation_vector
     rotation = R.from_quat(quaternion)
     vertices = rotation.inv().apply(vertices)
-    vertices = vertices / np.array(scale_factors)
+    vertices = vertices / scale_factors
     transformed_mesh = copy.deepcopy(mesh)
     transformed_mesh.vertices = o3d.utility.Vector3dVector(vertices)
     return transformed_mesh
@@ -59,23 +59,23 @@ def inverse_transform_mesh(
 
 def inverse_transform_point_cloud(
     points: np.ndarray,
-    scale_factors: list[float],
+    scale_factors: np.ndarray,
     quaternion: np.ndarray,
     translation_vector: np.ndarray,
 ) -> np.ndarray:
     points = points - translation_vector
     rotation = R.from_quat(quaternion)
     points = rotation.inv().apply(points)
-    points = points / np.array(scale_factors)
+    points = points / scale_factors
     return points
 
 
 def transform_between_meshes(
     mesh_A: o3d.geometry.TriangleMesh,
-    scale_A: list[float],
+    scale_A: np.ndarray,
     quat_A: np.ndarray,
     trans_A: np.ndarray,
-    scale_B: list[float],
+    scale_B: np.ndarray,
     quat_B: np.ndarray,
     trans_B: np.ndarray,
 ) -> o3d.geometry.TriangleMesh:
@@ -88,10 +88,10 @@ def transform_between_meshes(
 
 def transform_between_point_clouds(
     points_A: np.ndarray,
-    scale_A: list[float],
+    scale_A: np.ndarray,
     quat_A: np.ndarray,
     trans_A: np.ndarray,
-    scale_B: list[float],
+    scale_B: np.ndarray,
     quat_B: np.ndarray,
     trans_B: np.ndarray,
 ) -> np.ndarray:

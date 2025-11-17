@@ -7,7 +7,8 @@ Licensed under the MIT License.
 
 from typing import Optional, Sequence  # type: ignore
 
-from mplib import Planner, Pose
+from mplib.planner import Planner
+from mplib.pymp import Pose
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -18,6 +19,7 @@ from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
 from omni.isaac.franka import Franka  # type: ignore
 
 from genmanip.core.usd_utils import get_robot_all_links
+from genmanip.thirdparty.curobo_planners.base import CuroboPlanner
 from genmanip.thirdparty.mplib_planner import relate_planner_with_franka
 
 
@@ -59,9 +61,11 @@ def replay_skill(
     paths = planner.plan_pose(
         pose_data[0], franka.get_joint_positions(), time_step=1 / 30.0, rrt_range=0.01
     )
+
+    position_array = np.array(paths["position"])
     actions = [
-        np.array(paths["position"][i].tolist() + [0.04, 0.04])
-        for i in range(paths["position"].shape[0])
+        np.array(position_array[i].tolist() + [0.04, 0.04])
+        for i in range(position_array.shape[0])
     ]
 
     start_joint_positions = actions[-1]
@@ -72,12 +76,13 @@ def replay_skill(
     for pose, gripper in zip(pose_data, gripper_data):
         ik_result = planner.IK(
             pose,
-            start_joint_positions,
+            np.array(start_joint_positions),
             return_closest=True,
         )
         if ik_result[0] != "Success":
             continue
         start_joint_positions = ik_result[1]
+        start_joint_positions = np.array(start_joint_positions)
         gripper_positions = [0.04, 0.04] if gripper else [0.0, 0.0]
         actions.append(np.array(start_joint_positions.tolist()[:7] + gripper_positions))
     # set planner back to robot pose in world frame
@@ -88,7 +93,7 @@ def replay_skill(
 def replay_skill_curobo(
     object_to_franka: np.ndarray,
     franka: Franka,
-    curobo_planner: Planner,
+    curobo_planner: CuroboPlanner,
     skill_data: list[dict],
 ) -> list[np.ndarray]:
     pose_data = []

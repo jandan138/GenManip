@@ -9,8 +9,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 
-def adjust_orientation(ori: np.ndarray) -> np.ndarray:
-    ori = R.from_quat(ori[[1, 2, 3, 0]])
+def adjust_orientation(origin_ori: np.ndarray) -> np.ndarray:
+    ori = R.from_quat(origin_ori[[1, 2, 3, 0]])
     if ori.apply(np.array([1, 0, 0]))[0] < 0:
         ori = ori * R.from_euler("z", 180, degrees=True)
     return ori.as_quat()[[3, 0, 1, 2]]
@@ -20,8 +20,8 @@ def rot_orientation_by_z_axis(ori: np.ndarray, angle: float) -> np.ndarray:
     return rot_orientation_by_axis(ori, "z", angle)
 
 
-def rot_orientation_by_axis(ori: np.ndarray, axis: str, angle: float) -> np.ndarray:
-    ori = R.from_quat(ori[[1, 2, 3, 0]])
+def rot_orientation_by_axis(origin_ori: np.ndarray, axis: str, angle: float) -> np.ndarray:
+    ori = R.from_quat(origin_ori[[1, 2, 3, 0]])
     ori = ori * R.from_euler(axis, angle, degrees=True)
     return ori.as_quat()[[3, 0, 1, 2]]
 
@@ -67,7 +67,7 @@ def compute_final_pose(
     return P_B1, Q_B1
 
 
-def compute_delta_eepose(pose1: np.ndarray, pose2: np.ndarray) -> np.ndarray:
+def compute_delta_eepose(pose1: tuple[np.ndarray, np.ndarray], pose2: tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """
     return the delta eepose between two poses: pose1 - pose2
     """

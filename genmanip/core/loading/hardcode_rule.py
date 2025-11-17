@@ -12,7 +12,7 @@ def verify_cup_and_plate(
     key_index: int,
     replaced_uid: str,
     added_uid_list: list[str],
-) -> bool:
+) -> bool | None:
     key_index = object_config_key_list.index(key)
     if key == "cup1":
         if (

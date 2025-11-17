@@ -37,14 +37,14 @@ except:
         create_video_from_image_list as create_video_from_image_list,
     )
 
-from mplib import Pose
 import json
 import lmdb
 import pickle
 import shutil
+import socket
 
 
-def get_scalar_data_from_lmdb(data_path: str, key: str) -> dict:
+def get_scalar_data_from_lmdb(data_path: str, key: str | bytes) -> dict:
     meta_info = pickle.load(open(f"{data_path}/meta_info.pkl", "rb"))
     lmdb_env = lmdb.open(
         f"{data_path}/lmdb", readonly=True, lock=False, readahead=False, meminit=False
@@ -118,8 +118,8 @@ class Evaluator:
         log_dir: str,
         current_dir: str,
         is_relative_action: bool = False,
-        send_port: str | None = None,
-        receive_port: str | None = None,
+        send_port: socket.socket | None = None,
+        receive_port: socket.socket | None = None,
     ) -> None:
         self.scene = scene
         camera_list = scene["camera_list"].copy()
@@ -152,49 +152,49 @@ class Evaluator:
         self.instruction = task_data["instruction"]
         self.planning_data = planning_data
 
-    def update_oracle_camera_data(self) -> None:
-        is_grasped = self.grasp_cnt != 0
-        self.oracle_camera_data = {}
-        if is_grasped:
-            world_pose_list = collect_world_pose_list(self.scene["object_list"])
-            place_object_to_object_by_relation(
-                self.task_data["goal"][0][0]["obj1_uid"],
-                self.task_data["goal"][0][0]["obj2_uid"],
-                self.scene["object_list"],
-                self.scene["cacheDict"]["meshDict"],
-                self.task_data["goal"][0][0]["position"],
-                platform_uid="00000000000000000000000000000000",
-            )
-            for _ in range(10):
-                self.scene["world"].render()
-        for camera_name, camera in self.camera_list.items():
-            self.oracle_camera_data[camera_name] = {}
-            camera_info = collect_camera_info(camera)
-            self.oracle_camera_data[camera_name]["bbox2d"] = np.zeros(4)
-            self.oracle_camera_data[camera_name]["obj_mask"] = np.zeros_like(
-                camera_info["obj_mask"]
-            )
-            for key, value in camera_info["obj_mask_id2labels"].items():
-                if value["class"] == self.task_data["goal"][0][0]["obj1_uid"]:
-                    wanted_mask = camera_info["obj_mask"] == int(key)
-                    self.oracle_camera_data[camera_name]["obj_mask"][wanted_mask] = 1
-                    break
-            for key, value in camera_info["bbox2d_tight_id2labels"].items():
-                if value["class"] == self.task_data["goal"][0][0]["obj1_uid"]:
-                    for bbox in camera_info["bbox2d_tight"]:
-                        if bbox[0] == int(key):
-                            self.oracle_camera_data[camera_name]["bbox2d"] = [
-                                bbox[1],
-                                bbox[2],
-                                bbox[3],
-                                bbox[4],
-                            ]
-                            break
-                    break
-        if is_grasped:
-            for _ in range(5):
-                self.scene["world"].step()
-                reset_object_xyz(self.scene["object_list"], world_pose_list)
+    # def update_oracle_camera_data(self) -> None:
+    #     is_grasped = self.grasp_cnt != 0
+    #     self.oracle_camera_data = {}
+    #     if is_grasped:
+    #         world_pose_list = collect_world_pose_list(self.scene["object_list"])
+    #         place_object_to_object_by_relation(
+    #             self.task_data["goal"][0][0]["obj1_uid"],
+    #             self.task_data["goal"][0][0]["obj2_uid"],
+    #             self.scene["object_list"],
+    #             self.scene["cacheDict"]["meshDict"],
+    #             self.task_data["goal"][0][0]["position"],
+    #             platform_uid="00000000000000000000000000000000",
+    #         )
+    #         for _ in range(10):
+    #             self.scene["world"].render()
+    #     for camera_name, camera in self.camera_list.items():
+    #         self.oracle_camera_data[camera_name] = {}
+    #         camera_info = collect_camera_info(camera)
+    #         self.oracle_camera_data[camera_name]["bbox2d"] = np.zeros(4)
+    #         self.oracle_camera_data[camera_name]["obj_mask"] = np.zeros_like(
+    #             camera_info["obj_mask"]
+    #         )
+    #         for key, value in camera_info["obj_mask_id2labels"].items():
+    #             if value["class"] == self.task_data["goal"][0][0]["obj1_uid"]:
+    #                 wanted_mask = camera_info["obj_mask"] == int(key)
+    #                 self.oracle_camera_data[camera_name]["obj_mask"][wanted_mask] = 1
+    #                 break
+    #         for key, value in camera_info["bbox2d_tight_id2labels"].items():
+    #             if value["class"] == self.task_data["goal"][0][0]["obj1_uid"]:
+    #                 for bbox in camera_info["bbox2d_tight"]:
+    #                     if bbox[0] == int(key):
+    #                         self.oracle_camera_data[camera_name]["bbox2d"] = [
+    #                             bbox[1],
+    #                             bbox[2],
+    #                             bbox[3],
+    #                             bbox[4],
+    #                         ]
+    #                         break
+    #                 break
+    #     if is_grasped:
+    #         for _ in range(5):
+    #             self.scene["world"].step()
+    #             reset_object_xyz(self.scene["object_list"], world_pose_list)
 
     def finish(self, success: int, success_rate: float) -> None:
         for camera_name in self.camera_list.keys():
@@ -216,7 +216,7 @@ class Evaluator:
             self.success_cnt += 1
         self.total_cnt += 1
 
-    def initialize(self, seed: int) -> None:
+    def initialize(self, seed: str) -> None:
         self.grasp_cnt = 0
         self.steps = 0
         self.oracle_camera_data = {}
@@ -258,7 +258,7 @@ class Evaluator:
                 f,
             )
 
-    def record(self, is_save_image: bool = True) -> None:
+    def record(self, is_save_image: bool = True) -> int:
         if is_save_image:
             for camera_name, camera in self.camera_list.items():
                 self.image_list[camera_name].append(get_src(camera, "rgb"))
@@ -332,6 +332,8 @@ class Evaluator:
             #     camera_data[key]["obj_mask"] = self.oracle_camera_data[key]["obj_mask"]
             #     camera_data[key]["bbox2d"] = self.oracle_camera_data[key]["bbox2d"]
         ee_pose = self.embodiment.fk_single(self.embodiment.robot.get_joint_positions())
+        if self.send_port is None or self.receive_port is None:
+            raise ValueError("Send port or receive port is not set")
         action = request_action(
             camera_data,
             self.instruction,
@@ -341,10 +343,10 @@ class Evaluator:
             send_port=self.send_port,
             receive_port=self.receive_port,
             # archived
-            franka_hand_pose=franka_hand_pose,
-            franka_pose=franka_pose,
-            key_action=self.planning_data["key_action"][0],
-            obj_is_grasped=self.grasp_cnt != 0,
+            # franka_hand_pose=franka_hand_pose,
+            # franka_pose=franka_pose,
+            # key_action=self.planning_data["key_action"][0],
+            # obj_is_grasped=self.grasp_cnt != 0,
         )
         self.meta_record["model_output"].append(action)
         # if isinstance(action, list):
@@ -422,12 +424,12 @@ class Evaluator:
                 gripper_width = act[2]
                 if self.is_relative_action:
                     delta_pose = (position, orientation)
-                    abs_pose = self.apply_delta_pose(delta_pose, self.last_ee_pose[i])
+                    abs_pose = self.apply_delta_pose(delta_pose, self.last_ee_pose[i])  # type: ignore
                     position = abs_pose[0].tolist()
                     orientation = abs_pose[1].tolist()
-                    self.last_ee_pose[i] = abs_pose
+                    self.last_ee_pose[i] = abs_pose  # type: ignore
                 else:
-                    self.last_ee_pose[i] = (position, orientation)
+                    self.last_ee_pose[i] = (position, orientation)  # type: ignore
                 if len(actions) == 1:
                     ik_result = self.embodiment.planner.ik_single(
                         position + orientation,

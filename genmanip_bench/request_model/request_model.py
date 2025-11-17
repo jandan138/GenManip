@@ -6,6 +6,7 @@ Licensed under the MIT License.
 """
 
 import numpy as np
+import socket
 
 from genmanip_bench.request_model.socket_utils import send_message, wait_message
 
@@ -16,8 +17,8 @@ def request_action(
     joint_position_state: list,
     ee_pose_state: list,
     step: int,
-    send_port: str,
-    receive_port: str,
+    send_port: socket.socket,
+    receive_port: socket.socket,
     # archived
     obj_is_grasped: bool | None = None,
     franka_hand_pose: tuple[np.ndarray, np.ndarray] | None = None,

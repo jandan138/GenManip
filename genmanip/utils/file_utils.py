@@ -142,16 +142,16 @@ def load_dict_from_pkl(path: str) -> dict:
         return pickle.load(f)
 
 
-def check_glb_properties(file_path: str) -> tuple[bool, int]:
+def check_glb_properties(file_path: str) -> tuple[bool, int] | tuple[None, None]:
     try:
         scene = trimesh.load(file_path)
         total_vertex_count = 0
         has_normal_map = False
-        for name, mesh in scene.geometry.items():
+        for name, mesh in scene.geometry.items(): # type: ignore[attr-defined]
             total_vertex_count += len(mesh.vertices)
             if isinstance(mesh, trimesh.Trimesh):
                 if hasattr(mesh.visual, "material"):
-                    material = mesh.visual.material
+                    material = mesh.visual.material # type: ignore[attr-defined]
                     if material and getattr(material, "normalTexture", None):
                         has_normal_map = True
         return has_normal_map, total_vertex_count
@@ -166,6 +166,8 @@ def is_glb_vaild(
     if not os.path.exists(file_path):
         return False
     has_normal_map, total_vertex_count = check_glb_properties(file_path)
+    if total_vertex_count is None:
+        return False
     if debug:
         if not has_normal_map and total_vertex_count < min_vertex_count:
             print(

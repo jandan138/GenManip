@@ -6,7 +6,7 @@ Licensed under the MIT License.
 """
 
 import pickle
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 
 
@@ -35,10 +35,10 @@ class ObjectPool:
         self.object_info = data
         self.uids = list(self.object_info.keys())
 
-    def get_object_info(self, uid: str) -> Dict[str, any]:
+    def get_object_info(self, uid: str) -> dict[str, Any] | None:
         return self.object_info.get(uid, None)
 
-    def get_object_infos(self, uids: List[str]) -> Dict[str, any]:
+    def get_object_infos(self, uids: List[str]) -> dict[str, Any]:
         return {uid: self.get_object_info(uid) for uid in uids}
 
     def get_uids(self) -> List[str]:
@@ -50,7 +50,7 @@ class ObjectPool:
     def get_valid_uids(self) -> List[str]:
         return [uid for uid in self.uids if self.is_valid(uid)]
 
-    def sample_object_info_by_keywords_(self, keywords: List[str]) -> Dict[str, any]:
+    def sample_object_info_by_keywords_(self, keywords: List[str]) -> dict[str, Any]:
         object_list = {}
         for uid, info in self.object_info.items():
             if not any(
@@ -64,6 +64,8 @@ class ObjectPool:
         return object_list
 
     def save(self) -> None:
+        if self.path is None:
+            raise ValueError("Path is not set")
         with open(self.path, "wb") as f:
             pickle.dump(self.object_info, f)
 
@@ -106,7 +108,7 @@ class ObjectPool:
         if is_cover:
             self.save()
 
-    def sample_object_info_by_keywords(self, keywords: List[str]) -> Dict[str, any]:
+    def sample_object_info_by_keywords(self, keywords: List[str]) -> dict[str, Any]:
         object_list = {}
         for uid, info in self.object_info.items():
             if (

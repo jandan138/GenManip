@@ -8,7 +8,8 @@ Licensed under the MIT License.
 import os
 from typing import Sequence
 
-from mplib import Planner, Pose
+from mplib.planner import Planner
+from mplib.pymp import Pose
 import numpy as np
 
 from omni.isaac.core.robots.robot import Robot  # type: ignore
@@ -28,8 +29,8 @@ def add_panda_planner(
 
 def get_target(
     robot: Robot,
-    target_p: Sequence[float],
-    target_q: Sequence[float],
+    target_p: np.ndarray,
+    target_q: np.ndarray,
     planner: Planner,
     combined_cloud=[],
     grasp: bool = False,
@@ -46,6 +47,7 @@ def get_target(
     if "position" not in paths:
         return []
     grasp_action = robot.gripper_close if grasp else robot.gripper_open
+    paths["position"] = np.asarray(paths["position"])
     actions = [
         paths["position"][i].tolist() + grasp_action
         for i in range(paths["position"].shape[0])

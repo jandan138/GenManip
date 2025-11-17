@@ -1,5 +1,6 @@
 import os
 import copy
+from typing import cast
 
 from curobo.util.trajectory import get_smooth_trajectory
 import numpy as np
@@ -25,16 +26,21 @@ from genmanip.utils.transform_utils import (
 )
 from genmanip.demogen.planning.action_info import (
     ExecutableActionInfo,
+    PnPOptions,
+    PnPActionInfo,
     action_dict_to_action_info,
 )
 
 
 def get_action_init_grasp(
     scene: dict,
-    action_info: dict | ExecutableActionInfo,
+    action_info: PnPActionInfo,
     default_config: dict,
     action_meta_info: dict,
 ) -> dict:
+    current_joint_positions = None
+    robot_world_pose = None
+    current_pose_list = None
     if not action_info.options.force_fixed_grasp:
         set_camera_look_at(
             scene["camera_list"]["camera1"],
@@ -64,6 +70,14 @@ def get_action_init_grasp(
     )
     if not action_info.options.force_fixed_grasp:
         for _ in range(5):
+            if (
+                current_pose_list is None
+                or robot_world_pose is None
+                or current_joint_positions is None
+            ):
+                raise ValueError(
+                    "Current pose list, robot world pose, or current joint positions is not provided when force fixed grasp is not set"
+                )
             reset_object_xyz(scene["object_list"], current_pose_list)
             scene["robot_info"]["robot_list"][0].robot.set_joint_positions(
                 current_joint_positions
@@ -90,7 +104,7 @@ def get_action_init_grasp(
 
 def compute_final_grasp(
     object_list: dict[str, XFormPrim],
-    action: ExecutableActionInfo,
+    action: PnPActionInfo,
     meshDict: dict,
     extra_erosion: float = 0.05,
 ) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
@@ -275,10 +289,10 @@ def record_planning_result_curobo(
     idx_name: str,
     scene: dict,
     aug_distance: float = 0.0,
-    reset_tcp: tuple[np.ndarray, np.ndarray] | bool | None = None,
+    reset_tcp: tuple[np.ndarray, np.ndarray] | float | bool | None = None,
     smooth: bool = False,
     motion_config: dict = {},
-) -> bool:
+) -> tuple[bool, str]:
     action_list = prepare_motion_planning_payload(
         init_grasp,
         grasp_tar_t,
@@ -304,6 +318,7 @@ def record_planning_result_curobo(
             ).numpy()
         if results is not None:
             for res in results:
+                res = np.asarray(res).tolist()
                 data_list.append(
                     {
                         "action": embodiment.convert_curobo_result_to_action(
@@ -335,6 +350,8 @@ def record_planning_result_curobo(
         reset_tcp = 0.0
     if reset_tcp != -1:
         original_final_joint_position = np.array(data_list[-1]["action"])
+        if not isinstance(reset_tcp, float):
+            raise ValueError("reset_tcp must be a float")
         reset_tcp_ratio = np.random.uniform(0.0, reset_tcp)
         target_reset_joint_position = (
             np.array(data_list[0]["action"]) * (1 - reset_tcp_ratio)
@@ -360,7 +377,7 @@ def record_planning_result_curobo(
         )
         recorder.load_dynamic_info(
             action["action"],
-            1 if action["grasp"] else -1,
+            1.0 if action["grasp"] else -1.0,
             arm=arm,
             name=f"{idx_name}/{action['name']}",
         )
@@ -420,22 +437,21 @@ def adjust_grasp_by_embodiment(
 
 def get_action_meta_info(
     scene: dict,
-    action_info: ExecutableActionInfo | dict,
+    action_dict: dict,
     default_config: dict,
 ) -> dict:
-    if isinstance(action_info, dict):
-        action_info = action_dict_to_action_info(action_info)
+    action_info = action_dict_to_action_info(action_dict)
     action_meta_info = {}
     action_meta_info["obj_tar_t"], action_meta_info["obj_tar_o"] = compute_final_grasp(
         scene["object_list"],
-        action_info,
+        cast(PnPActionInfo, action_info),
         scene["cacheDict"]["meshDict"],
     )
     if action_meta_info["obj_tar_t"] is None or action_meta_info["obj_tar_o"] is None:
         raise Exception("can't create target position, retry......")
     action_meta_info = get_action_init_grasp(
         scene,
-        action_info,
+        cast(PnPActionInfo, action_info),
         default_config,
         action_meta_info,
     )

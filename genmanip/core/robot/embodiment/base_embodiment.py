@@ -7,7 +7,7 @@ Licensed under the MIT License.
 
 from abc import abstractmethod
 
-from mplib import Planner
+from mplib.planner import Planner as MplibPlanner
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -15,6 +15,7 @@ from omni.isaac.core import World  # type: ignore
 from omni.isaac.core.robots.robot import Robot  # type: ignore
 
 from genmanip.core.robot.embodiment.utils import get_all_joints, get_all_body_from_joint
+from genmanip.thirdparty.curobo_planner import CuroboPlanner
 
 
 class BaseEmbodiment:
@@ -27,7 +28,7 @@ class BaseEmbodiment:
         self.gripper_close = [0.0, 0.0]
         self.robot = robot
         self.robot_view = robot._articulation_view
-        self.planner = None
+        self.planner: CuroboPlanner | None = None
         self.default_arm_dof_indices = [0, 1, 2, 3, 4, 5, 6]
         self.default_gripper_dof_indices = [7, 8]
 
@@ -82,7 +83,7 @@ class BaseEmbodiment:
         dof_name: list[str],
         grasp: bool = False,
         arm: str = "default",
-    ) -> list[float]:
+    ) -> list[float] | None:
         raise NotImplementedError
 
     def _transform_goal_pose(
@@ -107,9 +108,9 @@ class BaseEmbodiment:
         joint_position: list[float],
         grasp: bool = False,
         arm: str = "default",
-    ) -> list[float]:
+    ) -> list[float] | None:
         assert not isinstance(
-            self.planner, Planner
+            self.planner, MplibPlanner
         ), "mplib planner is not supported anymore"
         dof_name = self.robot.dof_names
         goal_pose = self._transform_goal_pose(goal_pose)
@@ -119,7 +120,7 @@ class BaseEmbodiment:
 
     def convert_curobo_result_to_action(
         self, result: list[float], grasp: bool, arm: str = "default"
-    ) -> list[float]:
+    ) -> np.ndarray:
         return np.concatenate(
             [
                 result[: self.arm_dof_num],
@@ -134,10 +135,12 @@ class BaseEmbodiment:
         joint_positions[self.default_dof_indices] = action
         return joint_positions
 
-    def _fk_single(self, joint_positions: list[float]) -> list[float]:
+    def _fk_single(self, joint_positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        if self.planner is None:
+            raise ValueError("Planner is not initialized")
         return self.planner.fk_single(joint_positions[: self.arm_dof_num])
 
-    def fk_single(self, joint_positions: list[float]) -> list[float]:
+    def fk_single(self, joint_positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         if len(joint_positions) == len(self.robot.get_joint_positions()):
             return self._fk_single(joint_positions[self.default_dof_indices])
         elif (
@@ -150,18 +153,23 @@ class BaseEmbodiment:
             raise ValueError(f"Invalid joint positions length: {len(joint_positions)}")
 
     def _ik_single(
-        self, pose: tuple[np.ndarray, np.ndarray], cur_joint_positions: list[float]
-    ) -> list[float]:
+        self, pose: np.ndarray, cur_joint_positions: np.ndarray
+    ) -> np.ndarray | None:
+        if self.planner is None:
+            raise ValueError("Planner is not initialized")
         return self.planner.ik_single(pose, cur_joint_positions)
 
     def ik_single(
         self,
-        pose: tuple[np.ndarray, np.ndarray],
-        cur_joint_positions: list[float],
+        pose: np.ndarray,
+        cur_joint_positions: np.ndarray,
         in_world_frame: bool = False,
-    ) -> list[float]:
+    ) -> np.ndarray | None:
         if in_world_frame:
-            pose = self._transform_goal_pose(pose)
+            p = pose[:3]
+            q = pose[3:]
+            transformed_pose = self._transform_goal_pose((p, q))
+            pose = np.concatenate([transformed_pose[0], transformed_pose[1]])
         return self._ik_single(pose, cur_joint_positions)
 
     def reference_arm_type(self, target: np.ndarray) -> str:

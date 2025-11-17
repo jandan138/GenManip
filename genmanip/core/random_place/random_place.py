@@ -19,6 +19,7 @@ import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 from shapely.geometry import Polygon, Point
+from shapely.geometry.base import BaseGeometry
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.articulations import Articulation  # type: ignore
@@ -29,6 +30,7 @@ from genmanip.core.pointcloud.pointcloud import (
     get_current_pcList_by_meshList,
     meshlist_to_pclist,
 )
+from genmanip.core.pointcloud.utils import PointCloudInfo, MeshInfo
 from genmanip.core.random_place.scene_graph_placement import process_scene_graph
 from genmanip.demogen.evaluate.evaluate import (
     check_subgoal_finished_rigid,
@@ -66,7 +68,7 @@ def rotate_object_around_z(object: XFormPrim, angle_range: tuple[float, float]) 
 
 def place_object_between_object1_and_object2(
     object_list: dict[str, XFormPrim],
-    meshDict: dict,
+    meshDict: dict[str, MeshInfo],
     object_uid: str,
     object1_uid: str,
     object2_uid: str,
@@ -136,7 +138,7 @@ def place_object_to_object_by_relation(
     object1_uid: str,
     object2_uid: str,
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     relation: str,
     platform_uid: str | None = None,
     extra_erosion: float = 0.00,
@@ -182,6 +184,8 @@ def place_object_to_object_by_relation(
             mesh_top_only=mesh_top_only,
         )
     elif relation == "near":
+        if platform_uid is None:
+            raise ValueError("platform_uid is required for near relation")
         near_area = compute_near_area(mesh_list[object1_uid], mesh_list[object2_uid])
         if debug:
             visualize_polygons(
@@ -211,6 +215,8 @@ def place_object_to_object_by_relation(
         or relation == "front"
         or relation == "back"
     ):
+        if platform_uid is None:
+            raise ValueError("platform_uid is required for near relation")
         place_area = compute_lrfb_area(
             relation, mesh_list[object1_uid], mesh_list[object2_uid]
         )
@@ -242,6 +248,10 @@ def place_object_to_object_by_relation(
     elif relation == "in":
         IS_OK = place_object_in_object(object_list, meshDict, object1_uid, object2_uid)
     elif relation == "between":
+        if platform_uid is None:
+            raise ValueError("platform_uid is required for between relation")
+        if another_object2_uid is None:
+            raise ValueError("another_object2_uid is required for between relation")
         IS_OK = place_object_between_object1_and_object2(
             object_list,
             meshDict,
@@ -265,6 +275,8 @@ def place_object_to_object_by_relation(
             subgoal, pclist[object1_uid], pclist[object2_uid]
         )
     else:
+        if another_object2_uid is None:
+            raise ValueError("another_object2_uid is required for between relation")
         subgoal = {
             "obj1_uid": object1_uid,
             "obj2_uid": object2_uid,
@@ -283,9 +295,6 @@ def place_object_to_object_by_relation(
         return -1
 
 
-from scipy.spatial.transform import Rotation as R
-
-
 def rotate_quaternion_z(quat: np.ndarray, angle_rad: float) -> np.ndarray:
     r = R.from_quat(quat[[1, 2, 3, 0]])
     r_z = R.from_euler("z", angle_rad)
@@ -296,8 +305,12 @@ def randomly_place_object_on_object(
     object1_pc: np.ndarray,
     object2_pc: np.ndarray,
     object1: XFormPrim,
-    available_polygon: Polygon = Polygon([(-10, -10), (10, -10), (10, 10), (-10, 10)]),
-    collider_polygon: Polygon = Polygon([(-10, -10), (10, -10), (10, 10), (-10, 10)]),
+    available_polygon: BaseGeometry = Polygon(
+        [(-10, -10), (10, -10), (10, 10), (-10, 10)]
+    ),
+    collider_polygon: BaseGeometry = Polygon(
+        [(-10, -10), (10, -10), (10, 10), (-10, 10)]
+    ),
     fixed_position: bool = False,
     mesh_top_only: bool = False,
 ) -> int:
@@ -370,7 +383,7 @@ def randomly_place_object_on_object(
 
 def setup_random_tableset_by_centric_range(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     centric_random_range: dict,
     background_objects: list[str],
     partial_ignore: dict[str, list[str]] = {},
@@ -426,7 +439,7 @@ def setup_random_tableset_by_centric_range(
 def setup_random_custom_tableset(
     object_list: dict[str, XFormPrim],
     articulation_list: dict[str, Articulation],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     custom_tableset_config: dict,
     in_order: bool = False,
 ) -> int:
@@ -657,6 +670,7 @@ def setup_random_custom_tableset(
                     -global_range["random_range_h"], global_range["random_range_h"]
                 )
                 articulation_prim.set_world_pose(current_pose[0])
+    return 0
 
 
 def setup_random_all_range(
@@ -710,11 +724,12 @@ def setup_random_all_range(
         )
         if IS_OK == -1:
             return -1
+    return 0
 
 
 def setup_scene_graph_placement(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     demogen_config: dict,
 ) -> int:
     object_list_key = list(object_list.keys())
@@ -728,6 +743,8 @@ def setup_scene_graph_placement(
             continue
         meshlist = get_current_meshList(object_list, meshDict)
         pclist = meshlist_to_pclist(meshlist)
+        platform_uid = "00000000000000000000000000000000"
+        key_uid = None
         for edge in edge_list:
             if edge["position"] == "on" or edge["position"] == "top":
                 platform_uid = edge["obj2_uid"]
@@ -746,6 +763,8 @@ def setup_scene_graph_placement(
                 available_polygon = available_polygon.intersection(
                     scene_graph_available_area
                 )
+        if key_uid is None:
+            raise ValueError("key_uid is required for scene graph placement")
         collison_area = get_platform_available_area(
             pclist[platform_uid],
             pclist,
@@ -919,6 +938,7 @@ def setup_random_all_range_buffered(
         )
         if IS_OK == -1:
             return -1
+    return 0
 
 
 def setup_random_tableset(

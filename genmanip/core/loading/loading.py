@@ -9,7 +9,7 @@ import copy
 import os
 import random
 
-from mplib import Planner as MplibPlanner
+from mplib.planner import Planner as MplibPlanner
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
@@ -231,6 +231,8 @@ def get_object_list(
 
 
 def load_camera_from_data(camera_data: dict[str, dict], uuid: str) -> Camera:
+    if not isinstance(camera_data["name"], str):
+        raise ValueError(f"Camera name {camera_data['name']} is not a string")
     camera = Camera(
         prim_path=f"/World/{uuid}/" + camera_data["name"],
         name=camera_data["name"],
@@ -267,6 +269,8 @@ def get_embodiment(robot_config: dict, robot: Robot) -> BaseEmbodiment:
             return FrankaNormalEmbodiment(robot)
         elif robot_config["config"]["gripper_type"] == "robotiq":
             return FrankaRobotiqEmbodiment(robot)
+        else:
+            raise ValueError(f"Unsupported robot config: {robot_config}")
     elif robot_config["type"] == "aloha_split":
         if robot_config["config"]["gripper_type"] == "aloha_split":
             return AlohaSplitEmbodiment(robot)
@@ -365,42 +369,44 @@ def process_long_horizon_replacement(
     )
     usd_list = os.listdir(folder_path)
     usd_list = [
-        usd for usd in usd_list if not os.path.isdir(os.path.join(folder_path, usd))
+        str(usd)
+        for usd in usd_list
+        if not os.path.isdir(os.path.join(folder_path, usd))
     ]
     types = ["category", "materials", "color", "shape"]
+    meta_info = None
     while True:
         type = random.choice(types)
+        random_long_horizon_folder_path = demogen_config["domain_randomization"][
+            "replace_object"
+        ]["replacement"]["random_long_horizon"]["folder_path"]
+        if not isinstance(random_long_horizon_folder_path, str):
+            raise ValueError(
+                f"Random long horizon folder path {random_long_horizon_folder_path} is not a string"
+            )
         if type == "category":
             replacement_config, meta_info = generate_long_horizon_by_category(
                 scene,
                 usd_list,
-                demogen_config["domain_randomization"]["replace_object"]["replacement"][
-                    "random_long_horizon"
-                ]["folder_path"],
+                random_long_horizon_folder_path,
             )
         elif type == "materials":
             replacement_config, meta_info = generate_long_horizon_by_materials(
                 scene,
                 usd_list,
-                demogen_config["domain_randomization"]["replace_object"]["replacement"][
-                    "random_long_horizon"
-                ]["folder_path"],
+                random_long_horizon_folder_path,
             )
         elif type == "color":
             replacement_config, meta_info = generate_long_horizon_by_color(
                 scene,
                 usd_list,
-                demogen_config["domain_randomization"]["replace_object"]["replacement"][
-                    "random_long_horizon"
-                ]["folder_path"],
+                random_long_horizon_folder_path,
             )
         elif type == "shape":
             replacement_config, meta_info = generate_long_horizon_by_shape(
                 scene,
                 usd_list,
-                demogen_config["domain_randomization"]["replace_object"]["replacement"][
-                    "random_long_horizon"
-                ]["folder_path"],
+                random_long_horizon_folder_path,
             )
         if replacement_config is None:
             continue
@@ -415,6 +421,8 @@ def process_long_horizon_replacement(
             background_list = apply_rule(rule, background_list, scene["object_pool"])
         if len(obj1_list) > 5 and len(obj2_list) > 5 and len(background_list) > 5:
             break
+    if meta_info is None:
+        raise ValueError("Meta info is None")
     return replacement_config, meta_info
 
 
@@ -880,14 +888,14 @@ def set_articulation(scene: dict, demogen_config: dict, world: World) -> None:
         else:
             scene["articulation_list"][key] = scene["object_list"][key]
     world.reset()
-    for articulation in scene["articulation_list"].values():
+    for key, articulation in scene["articulation_list"].items():
         if scene["articulation_data"][key]["is_articulated"]:
             articulation._articulation_view.initialize()
     world.initialize_physics()
     for _ in range(10):
         world.step()
     for arti_id, articulation in scene["articulation_list"].items():
-        if scene["articulation_data"][key]["is_articulated"]:
+        if scene["articulation_data"][arti_id]["is_articulated"]:
             if (
                 arti_id in demogen_config["generation_config"]["articulation"]
                 and "target_positions"
@@ -1393,15 +1401,6 @@ def is_valid_object_path(path: str) -> bool:
     )
 
 
-def is_valid_object_path(path: str) -> bool:
-    return (
-        os.path.exists(path)
-        and not os.path.isdir(path)
-        and str(path).endswith(".usd")
-        and str(path) != ""
-    )
-
-
 def recovery_scene_render(
     scene: dict,
     task_data: dict,
@@ -1480,3 +1479,4 @@ def recovery_scene_render(
             scene["object_list"]["00000000000000000000000000000000"].prim.SetActive(
                 False
             )
+    return scene

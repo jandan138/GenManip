@@ -9,7 +9,7 @@ import os
 import random
 
 import cv2
-from mplib import Pose
+from mplib.pymp import Pose
 import numpy as np
 import random
 from scipy.spatial.transform import Rotation as R
@@ -171,15 +171,20 @@ def random_robot_eepose(robot: BaseEmbodiment, current_dir: str) -> int:
     )
     orientation = rot.as_quat()[[3, 0, 1, 2]]
     joint_positions = planner.IK(
-        Pose(p=position, q=orientation),
+        Pose(p=position.astype(float), q=orientation.astype(float)),
         franka_robot.get_joint_positions()[:9],
         return_closest=True,
     )
     if joint_positions[0] != "Success":
         return -1
+    elif joint_positions is None:
+        return -1
     else:
+        joint_positions = joint_positions[1]
+        if joint_positions is None:
+            return -1
         franka_robot.set_joint_positions(
-            np.concatenate([joint_positions[1][:7], robot.gripper_open])
+            np.concatenate([joint_positions[1][:7], robot.gripper_open]),
         )
         return 0
 
@@ -382,6 +387,7 @@ def load_scene_as_background(
 
 def random_objaverse_table_texture(scene: dict, default_config: dict) -> None:
     light_intensity = 0
+    texture_path = None
     while light_intensity < 80:
         texture_path = random.choice(scene["assets_list"]["wall_texture"])
         image = cv2.imread(
@@ -391,6 +397,8 @@ def random_objaverse_table_texture(scene: dict, default_config: dict) -> None:
         )
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         light_intensity = np.mean(np.array(image))
+    if texture_path is None:
+        raise ValueError("No texture path found")
     change_material_info(
         f"{scene['object_list']['00000000000000000000000000000000'].prim_path}",
         texture_path=os.path.abspath(
@@ -398,7 +406,7 @@ def random_objaverse_table_texture(scene: dict, default_config: dict) -> None:
         ),
         translation=(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)),
         rotation=0,
-        scale=[0.4, 0.4],
+        scale=(0.4, 0.4),
     )
 
 
@@ -406,6 +414,7 @@ def random_wall_texture(scene: dict, default_config: dict) -> None:
     # randomize 5 walls' texture, [left, right, front, back, top]
     for i in range(5):
         light_intensity = 0
+        texture_path = None
         while light_intensity < 80:
             texture_path = random.choice(scene["assets_list"]["wall_texture"])
             image = cv2.imread(
@@ -415,6 +424,8 @@ def random_wall_texture(scene: dict, default_config: dict) -> None:
             )
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             light_intensity = np.mean(np.array(image))
+        if texture_path is None:
+            raise ValueError("No texture path found")
         scene["background"]["wall_textures"][i].set_texture(
             os.path.abspath(
                 f"{default_config['ASSETS_DIR']}/miscs/textures/{texture_path}"
@@ -498,9 +509,11 @@ def random_texture_once(
         image = get_src(scene["camera_list"]["top_camera"], "rgb")
     else:
         raise ValueError("No main camera found")
+    if image is None:
+        raise ValueError("No image found")
     # get the light intensity
-    light_intensity = np.mean(image)
-    return light_intensity
+    light_intensity = np.mean(np.array(image))
+    return float(light_intensity)
 
 
 def random_texture_once_for_eval(
@@ -561,8 +574,10 @@ def random_texture_once_for_eval(
         image = get_src(scene["camera_list"]["top_camera"], "rgb")
     else:
         raise ValueError("No main camera found")
-    light_intensity = np.mean(image)
-    return light_intensity
+    if image is None:
+        raise ValueError("No image found")
+    light_intensity = np.mean(np.array(image))
+    return float(light_intensity)
 
 
 def random_texture(
@@ -619,7 +634,7 @@ def domain_randomization(
     demogen_config: dict,
     task_data: dict,
     mode: str = "demogen",
-) -> dict:
+) -> dict | int:
     # randomize robot base position
     if demogen_config["domain_randomization"]["random_environment"][
         "robot_base_position"
@@ -943,7 +958,6 @@ def build_up_scene(
                     replaced_uid,
                     default_config,
                     demogen_config,
-                    scale,
                     0.06,
                 )
 
@@ -1018,7 +1032,6 @@ def build_up_scene(
                     replaced_uid,
                     default_config,
                     demogen_config,
-                    scale,
                     0.06,
                 )
 
@@ -1093,3 +1106,4 @@ def build_up_scene(
         obj_info = scene["object_pool"].get_object_info(obj_uid)
         if obj_info is not None and obj_uid not in task_data["object_infos"]:
             task_data["object_infos"][obj_uid] = obj_info
+    return scene

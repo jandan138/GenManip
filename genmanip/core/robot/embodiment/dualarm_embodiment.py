@@ -7,6 +7,7 @@ Licensed under the MIT License.
 
 import numpy as np
 
+from curobo.types.state import JointState
 from omni.isaac.core import World  # type: ignore
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.robots.robot import Robot  # type: ignore
@@ -90,9 +91,11 @@ class DualArmEmbodiment(BaseEmbodiment):
             self.robot, f"{self.arm_name}_right", world, current_dir
         )
 
-    def _fk_single(
-        self, joint_positions: list[float]
-    ) -> tuple[list[float], list[float]]:
+    def _fk_single(  # type: ignore[override]
+        self, joint_positions: np.ndarray
+    ) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
+        if self.left_planner is None or self.right_planner is None:
+            raise ValueError("Planner is not initialized")
         return (
             self.left_planner.fk_single(joint_positions[: self.arm_dof_num]),
             self.right_planner.fk_single(
@@ -102,14 +105,14 @@ class DualArmEmbodiment(BaseEmbodiment):
             ),
         )
 
-    def _plan_pose(
+    def _plan_pose(  # type: ignore[override]
         self,
         goal_pose: tuple[np.ndarray, np.ndarray],
-        joint_position: list[float],
+        joint_position: JointState,
         dof_name: list[str],
         grasp: bool = False,
         arm: str = "default",
-    ) -> list[float]:
+    ) -> list[np.ndarray] | None:
         if arm == "left":
             goal_pose = (
                 goal_pose[0]
@@ -143,7 +146,7 @@ class DualArmEmbodiment(BaseEmbodiment):
 
     def convert_curobo_result_to_action(
         self, result: list[float], grasp: bool, arm: str = "default"
-    ) -> list[float]:
+    ) -> np.ndarray:
         joint_positions = self.robot.get_joint_positions()
         if arm == "left":
             if (

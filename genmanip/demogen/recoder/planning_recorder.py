@@ -143,11 +143,11 @@ class Logger:
         instruction: str,
         log_dir: str = "logs",
         max_size: int = 1,  # Size in TB
-        name: str | None = None,
-        task_data: dict | None = None,
-        tcp_config: dict | None = None,
+        name: str = "",
+        task_data: dict = {},
+        tcp_config: dict = {},
     ) -> None:
-        if name is None:
+        if name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         else:
             self.name = name
@@ -189,17 +189,19 @@ class Logger:
     def load_dynamic_info(
         self,
         action: np.ndarray,
-        gripper_close: np.ndarray,
+        gripper_action: float,
         arm: str = "default",
         name: str | list[str] | None = None,
     ) -> None:
         action = np.array(action)
         if arm == "default":
-            gripper_close = gripper_close
+            gripper_close = gripper_action
         elif arm == "left":
-            gripper_close = [gripper_close, -1]
+            gripper_close = [gripper_action, -1]
         elif arm == "right":
-            gripper_close = [-1, gripper_close]
+            gripper_close = [-1, gripper_action]
+        else:
+            raise ValueError(f"Invalid arm: {arm}")
         if isinstance(name, list):
             self.add_action_name_frame(name)
         elif isinstance(name, str):
@@ -305,7 +307,7 @@ class Logger:
             )
             if config_path is not None:
                 shutil.copy(config_path, self.log_dir / "config.yaml")
-            self.set_permissions(self.log_dir)
+            self.set_permissions(str(self.log_dir))
             return True
         self.env = lmdb.open(str(log_dir_lmdb), map_size=self.max_size)
         txn = self.env.begin(write=True)
@@ -322,7 +324,7 @@ class Logger:
         pickle.dump(meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb"))
         if config_path is not None:
             shutil.copy(config_path, self.log_dir / "config.yaml")
-        self.set_permissions(self.log_dir)
+        self.set_permissions(str(self.log_dir))
         print(f"save data with length {self.log_num_steps} to {self.log_dir}")
         return True
 

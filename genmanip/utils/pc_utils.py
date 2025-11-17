@@ -14,6 +14,7 @@ import open3d as o3d
 from scipy.spatial import ConvexHull
 import shapely
 from shapely.geometry import Polygon, MultiPolygon, Point
+from shapely.geometry.base import BaseGeometry
 import trimesh
 
 matplotlib.use("Agg")  # Set non-interactive backend
@@ -27,7 +28,7 @@ def bbox_to_polygon(x: float, y: float, w: float, h: float) -> Polygon:
 
 def check_mesh_collision(
     mesh1: o3d.geometry.TriangleMesh, mesh2: o3d.geometry.TriangleMesh
-) -> bool:
+) -> bool | tuple:
     def o3d2trimesh(o3d_mesh: o3d.geometry.TriangleMesh) -> trimesh.Trimesh:
         vertices = np.asarray(o3d_mesh.vertices)
         faces = np.asarray(o3d_mesh.triangles)
@@ -39,7 +40,8 @@ def check_mesh_collision(
     collision_manager = trimesh.collision.CollisionManager()
     collision_manager.add_object("mesh1", tmesh1)
     collision_manager.add_object("mesh2", tmesh2)
-    return collision_manager.in_collision_internal()
+    result = collision_manager.in_collision_internal()
+    return result
 
 
 def compute_aabb_lwh(
@@ -53,7 +55,7 @@ def compute_aabb_lwh(
 
 
 def compute_min_distance_between_two_polygons(
-    polygon1: Polygon, polygon2: Polygon, num_points: int = 1000
+    polygon1: BaseGeometry, polygon2: BaseGeometry, num_points: int = 1000
 ) -> float:
     points1 = sample_points_in_polygon(polygon1, num_points=num_points)
     points2 = sample_points_in_polygon(polygon2, num_points=num_points)
@@ -65,7 +67,9 @@ def compute_min_distance_between_two_polygons(
     return res
 
 
-def sample_points_in_polygon(polygon: Polygon, num_points: int = 1000) -> np.ndarray:
+def sample_points_in_polygon(
+    polygon: BaseGeometry, num_points: int = 1000
+) -> np.ndarray:
     boundary = polygon.boundary
     boundary_length = boundary.length
     points = []
@@ -75,15 +79,15 @@ def sample_points_in_polygon(polygon: Polygon, num_points: int = 1000) -> np.nda
     return np.array(points)
 
 
-def transform_polygon(polygon: Polygon, x: float, y: float) -> Polygon:
+def transform_polygon(polygon: BaseGeometry, x: float, y: float) -> BaseGeometry:
     return shapely.affinity.translate(polygon, xoff=x, yoff=y)
 
 
 def rotate_polygon(
-    polygon: Polygon, angle: float, center: tuple[float, float]
-) -> Polygon:
+    polygon: BaseGeometry, angle: float, center: tuple[float, float]
+) -> BaseGeometry:
     return shapely.affinity.rotate(
-        polygon, angle, origin=tuple(center), use_radians=True
+        polygon, angle, origin=Point(center), use_radians=True
     )
 
 
@@ -92,7 +96,7 @@ def compute_near_area(
     mesh2: o3d.geometry.TriangleMesh,
     near_distance: float = 0.1,
     angle_steps: int = 36,
-) -> Polygon:
+) -> BaseGeometry:
     pcd1 = get_pcd_from_mesh(mesh1)
     pcd2 = get_pcd_from_mesh(mesh2)
     polygon1 = get_xy_contour(pcd1, contour_type="concave_hull")
@@ -299,10 +303,25 @@ def compute_pcd_center(pcd: o3d.geometry.PointCloud) -> np.ndarray:
     return center
 
 
-def get_max_distance_to_polygon(polygon: Polygon, point: Point) -> float:
-    return max(
-        [point.distance(Point(vertex)) for vertex in list(polygon.exterior.coords)]
-    )
+def get_max_distance_to_polygon(polygon: BaseGeometry, point: Point) -> float:
+    if isinstance(polygon, Polygon):
+        return max(
+            [point.distance(Point(vertex)) for vertex in list(polygon.exterior.coords)]
+        )
+    elif isinstance(polygon, MultiPolygon):
+        max_distance = 0
+        for single_polygon in polygon.geoms:
+            _max_distance = max(
+                [
+                    point.distance(Point(vertex))
+                    for vertex in list(single_polygon.exterior.coords)
+                ]
+            )
+            if max_distance < _max_distance:
+                max_distance = _max_distance
+        return max_distance
+    else:
+        raise ValueError(f"Invalid polygon type: {type(polygon)}")
 
 
 def get_mesh_from_points_and_faces(
@@ -358,11 +377,11 @@ def visualize_polygons(polygons: list, output_path: str = "polygons.png") -> Non
 
 def get_platform_available_area(
     platform_pc: o3d.geometry.PointCloud,
-    pc_list: dict,
+    pc_list: dict[str, np.ndarray],
     filtered_uid: list[str] = [],
     visualize: bool = False,
     buffer_size: float = 0.0,
-) -> Polygon:
+) -> BaseGeometry:
     platform_polygon = get_xy_contour(platform_pc, contour_type="concave_hull")
     if visualize:
         polygons = []
@@ -380,7 +399,9 @@ def get_platform_available_area(
     return platform_polygon
 
 
-def get_random_point_within_polygon(polygon: Polygon, attempts: int = 1000) -> Point:
+def get_random_point_within_polygon(
+    polygon: BaseGeometry, attempts: int = 1000
+) -> Point | None:
     min_x, min_y, max_x, max_y = polygon.bounds
     for _ in range(attempts):
         rand_x = random.uniform(min_x, max_x)
@@ -391,11 +412,15 @@ def get_random_point_within_polygon(polygon: Polygon, attempts: int = 1000) -> P
     return None
 
 
+def pcd_to_points(pcd: o3d.geometry.PointCloud) -> np.ndarray:
+    return np.asarray(pcd.points)
+
+
 def get_xy_contour(
-    points: np.ndarray | o3d.geometry.PointCloud, contour_type: str = "convex_hull"
-) -> Polygon:
-    if type(points) == o3d.geometry.PointCloud:
-        points = np.asarray(points.points)
+    points: o3d.geometry.PointCloud | np.ndarray, contour_type: str = "convex_hull"
+) -> BaseGeometry:
+    if isinstance(points, o3d.geometry.PointCloud):
+        points = pcd_to_points(points)
     if points.shape[1] == 3:
         points = points[:, :2]
     if contour_type == "convex_hull":
@@ -408,6 +433,8 @@ def get_xy_contour(
         xy_points = points
         concave_hull_points = concave_hull(xy_points)
         polygon = Polygon(concave_hull_points)
+    else:
+        raise ValueError(f"Invalid contour type: {contour_type}")
     return polygon
 
 
@@ -485,12 +512,12 @@ def save_numpy_to_pcd(
     o3d.io.write_point_cloud(filename, pcd)
 
 
-def compute_polygon_iou(polygon1: Polygon, polygon2: Polygon) -> float:
+def compute_polygon_iou(polygon1: BaseGeometry, polygon2: BaseGeometry) -> float:
     return polygon1.intersection(polygon2).area / polygon1.union(polygon2).area
 
 
 def find_fixed_polygon_placement(
-    large_polygon: Polygon, small_polygon: Polygon
+    large_polygon: BaseGeometry, small_polygon: BaseGeometry
 ) -> list[tuple[np.ndarray, float]]:
     large_center = np.array(large_polygon.centroid.coords[0])
     small_center = np.array(small_polygon.centroid.coords[0])
@@ -499,14 +526,14 @@ def find_fixed_polygon_placement(
 
 
 def find_polygon_placement(
-    large_polygon: Polygon, small_polygon: Polygon, max_attempts: int = 1000
+    large_polygon: BaseGeometry, small_polygon: BaseGeometry, max_attempts: int = 1000
 ) -> list[tuple[np.ndarray, float]]:
     if large_polygon.is_empty or small_polygon.is_empty:
         return []
     minx, miny, maxx, maxy = large_polygon.bounds
     valid_placements = []
     for _ in range(max_attempts):
-        coords = np.array(small_polygon.exterior.coords)
+        coords = get_exterior_coords(small_polygon)
         small_centroid = np.mean(coords, axis=0)
         tx = np.random.uniform(minx, maxx)
         ty = np.random.uniform(miny, maxy)
@@ -522,9 +549,25 @@ def find_polygon_placement(
     return valid_placements
 
 
+def get_exterior_coords(polygon: BaseGeometry) -> np.ndarray:
+    if isinstance(polygon, Polygon):
+        return np.array(polygon.exterior.coords)
+    elif isinstance(polygon, MultiPolygon):
+        coords_list = [
+            np.asarray(poly.exterior.coords)
+            for poly in polygon.geoms
+            if poly.exterior is not None
+        ]
+        if len(coords_list) == 0:
+            return np.empty((0, 2), dtype=float)
+        return np.vstack(coords_list)
+    else:
+        raise ValueError(f"Invalid polygon type: {type(polygon)}")
+
+
 def find_polygon_placement_with_rotation(
-    large_polygon: Polygon,
-    small_polygon: Polygon,
+    large_polygon: BaseGeometry,
+    small_polygon: BaseGeometry,
     object1_center: tuple[float, float],
     max_attempts: int = 1000,
 ) -> list[tuple[np.ndarray, float]]:
@@ -535,7 +578,7 @@ def find_polygon_placement_with_rotation(
     for _ in range(max_attempts):
         random_angle = np.random.uniform(0, 2 * np.pi)
         rotated_polygon = rotate_polygon(small_polygon, random_angle, object1_center)
-        coords = np.array(rotated_polygon.exterior.coords)
+        coords = get_exterior_coords(rotated_polygon)
         small_centroid = np.mean(coords, axis=0)
         tx = np.random.uniform(minx, maxx)
         ty = np.random.uniform(miny, maxy)

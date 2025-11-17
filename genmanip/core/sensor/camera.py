@@ -44,18 +44,21 @@ def collect_camera_info(camera: Camera) -> dict:
         info["depth"] = get_src(camera, "depth")
     if camera._custom_annotators["semantic_segmentation"] is not None:
         seg_data = get_src(camera, "seg")
-        info["obj_mask"] = seg_data["mask"]
-        info["obj_mask_id2labels"] = seg_data["id2labels"]
+        if seg_data is not None and isinstance(seg_data, dict):
+            info["obj_mask"] = seg_data["mask"]
+            info["obj_mask_id2labels"] = seg_data["id2labels"]
     if camera._custom_annotators["bounding_box_2d_tight"] is not None:
-        info["bbox2d_tight"], info["bbox2d_tight_id2labels"] = get_src(
-            camera, "bbox2d_tight"
-        )
+        result = get_src(camera, "bbox2d_tight")
+        if result is not None:
+            info["bbox2d_tight"], info["bbox2d_tight_id2labels"] = result
     if camera._custom_annotators["bounding_box_2d_loose"] is not None:
-        info["bbox2d_loose"], info["bbox2d_loose_id2labels"] = get_src(
-            camera, "bbox2d_loose"
-        )
+        result = get_src(camera, "bbox2d_loose")
+        if result is not None:
+            info["bbox2d_loose"], info["bbox2d_loose_id2labels"] = result
     if camera._custom_annotators["bounding_box_3d"] is not None:
-        info["bbox3d"], info["bbox3d_id2labels"] = get_src(camera, "bbox3d")
+        result = get_src(camera, "bbox3d")
+        if result is not None:
+            info["bbox3d"], info["bbox3d_id2labels"] = result
     if camera._custom_annotators["motion_vectors"] is not None:
         info["motion_vectors"] = get_src(camera, "motion_vectors")
     info["focal_length"] = camera.get_focal_length()
@@ -181,7 +184,7 @@ def get_motion_vectors(camera: Camera) -> np.ndarray:
     return motion_vectors
 
 
-def get_src(camera: Camera, type: str) -> np.ndarray | dict | None:
+def get_src(camera: Camera, type: str) -> np.ndarray | dict | tuple | None:
     if type == "rgb":
         return get_rgb(camera)
     if type == "depth":
@@ -201,9 +204,10 @@ def get_src(camera: Camera, type: str) -> np.ndarray | dict | None:
 
 
 def get_world_point_from_pixel_(camera: Camera, point: np.ndarray) -> np.ndarray:
+    depth = np.asarray(get_src(camera, "depth"))
     return camera.get_world_points_from_image_coords(
         np.array([int(point[0]), int(point[1])]).reshape(-1, 2),
-        np.array([get_src(camera, "depth")[int(point[1]), int(point[0])]]).reshape(-1),
+        np.array([depth[int(point[1]), int(point[0])]]).reshape(-1),
     )[0]
 
 
@@ -221,6 +225,7 @@ def get_world_point_from_pixel(camera: Camera, point: np.ndarray) -> np.ndarray:
     cx = intrinsic[0, 2]
     cy = intrinsic[1, 2]
     x, y = point[0], point[1]
+    depth = np.asarray(depth)
     Z = depth[int(y)][int(x)]
     X = (x - cx) * Z / fx
     Y = (y - cy) * Z / fy
@@ -317,10 +322,12 @@ def set_camera_look_at(
     elevation: float = 90.0,
     azimuth: float = 0.0,
 ) -> None:
-    if isinstance(target, XFormPrim):
+    if isinstance(target, np.ndarray):
+        target_position = target
+    elif isinstance(target, XFormPrim):
         target_position, _ = target.get_world_pose()
     else:
-        target_position = target
+        raise ValueError(f"Target must be a numpy array or XFormPrim: {type(target)}")
     elev_rad = math.radians(elevation)
     azim_rad = math.radians(azimuth)
     offset_x = distance * math.cos(elev_rad) * math.cos(azim_rad)
@@ -343,10 +350,24 @@ def setup_camera(
     # SimBox Style
     if "pixel_size" in camera_cfg:
         pixel_size = camera_cfg.get("pixel_size")  # Pixel size in microns
+        if pixel_size is None:
+            raise ValueError("Pixel size is not provided in SimBox style")
         f_number = camera_cfg.get("f_number")  # F-number
+        if f_number is None:
+            raise ValueError("F-number is not provided in SimBox style")
         focus_distance = camera_cfg.get("focus_distance")  # Focus distance in meters
-        fx, fy, cx, cy = camera_cfg.get("camera_params")
-        width, height = camera_cfg.get("resolution")
+        if focus_distance is None:
+            raise ValueError("Focus distance is not provided in SimBox style")
+        camera_params = camera_cfg.get("camera_params", None)
+        if camera_params is not None:
+            fx, fy, cx, cy = camera_params
+        else:
+            raise ValueError("Camera parameters are not provided in SimBox style")
+        resolution = camera_cfg.get("resolution", None)
+        if resolution is not None:
+            width, height = resolution
+        else:
+            raise ValueError("Resolution is not provided in SimBox style")
         horizontal_aperture = pixel_size * 1e-3 * width
         vertical_aperture = pixel_size * 1e-3 * height
         focal_length_x = fx * pixel_size * 1e-3
@@ -380,10 +401,9 @@ def setup_camera(
         )
         camera.set_vertical_aperture(camera_cfg.get("vertical_aperture", 5.625))
         camera.set_horizontal_aperture(camera_cfg.get("horizontal_aperture", 10.0))
-        if camera_cfg.get("camera_params", None) is not None:
-            set_camera_rational_polynomial(
-                camera, *camera_cfg.get("camera_params", None)
-            )
+        camera_params = camera_cfg.get("camera_params", None)
+        if camera_params is not None:
+            set_camera_rational_polynomial(camera, *camera_params)
 
     # add custom annotators
     if camera_cfg.get("with_distance", False):
