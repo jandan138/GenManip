@@ -1,92 +1,108 @@
-# GenManip: LLM-driven Simulation for Generalizable Instruction-Following Manipulation 
+# GenManip Suite
 
-<div align="center">
+**GenManip** is a comprehensive robotics simulation suite built on **NVIDIA Isaac Sim**, designed for research in **general robotic manipulation**.
+It provides an integrated platform for **data generation, benchmarking, and baseline development**, offering a unified workflow from precision scene design to large-scale dataset creation.
 
-📄 **Official Project Page for CVPR 2025 Paper**  
-🎥 Watch the demo video below to see **GenManip** in action!
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=FnoFvzVlM6E" target="_blank">
-    <img src="readme_assets/teaser.png" alt="GenManip Video" width="100%"/>
-  </a>
-</p>
+This repository contains installation instructions, tutorials, documentation, example benchmarks, and references for all baseline methods.
 
 [![Paper](https://img.shields.io/badge/Paper-arXiv%20\(CVPR%202025\)-blue)](https://arxiv.org/abs/2506.10966)
-[![Project Page](https://img.shields.io/badge/Website-genmanip.axi404.top-%231877F2)](https://genmanip.axi404.top/)
+[![Project Page](https://img.shields.io/badge/Website-genmanip.axi404.top-%231877F2)](https://genmanip.com/)
 [![Docs](https://img.shields.io/badge/Docs-Available-brightgreen)](https://genmanip.axi404.top/overview)
 
-</div>
+---
+
+## 📦 About GenManip
+
+GenManip supports the full workflow—from **handcrafted scenes** to **procedurally generated large-scale datasets**.
+Its streamlined toolchain allows you to easily build, customize, and share your own manipulation tasks.
+
+The core concept is the **GenManip Package**:
+Install official or community benchmarks just like adding expansion packs to a game.
+Everything communicates through a black-box unified API so you can focus on model development without worrying about internal implementations.
+
+GenManip strictly follows **LeRobot GR00t** data conventions, ensuring compatibility with modern training pipelines.
 
 ---
 
-## 🧠 Overview
+## 🌟 Key Highlights
 
-**GenManip** is a large-scale simulation and evaluation platform for **generalist robotic manipulation policies** under diverse and realistic **instruction-following scenarios**.
+* 🔌 **GenManip Package System**
 
-Built on [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim), **GenManip** enables:
-- 🧠 **LLM-driven task generation** via a novel **Task-oriented Scene Graph (ToSG)**  
-- 🔬 **200 curated evaluation scenarios** for both modular and end-to-end policy benchmarking  
-- 🧱 A scalable asset pool with **10,000+ rigid** and **100+ articulated** objects with multimodal annotations  
-- 🧭 Evaluation of **spatial**, **appearance**, **commonsense**, and **long-horizon reasoning** abilities  
+  Install or publish benchmark assets with a single command — expandable like game DLCs.
 
----
+* 📊 **Unified Benchmark Interface**
 
-## 🚀 Recent Highlights
+  Includes *GenManip Scaling Pick-and-Place*, *GenManip IROS Benchmark*, and more.
+  All benchmarks share one unified communication API, making model evaluation plug-and-play.
 
-### 🔹 Oct 2025 — Data & Evaluation Release
-The **data synthesis pipeline** and **evaluation toolkit** for generalizable pick-and-place tasks are now available.
+* 🧩 **User-Friendly Docs & Config Templates**
 
-### 🔹 Aug 2025 — IROS 2025 Challenge Integration  
-GenManip serves as the **core simulation backbone** for the **IROS 2025 Challenge: Vision-Language Manipulation in Open Tabletop Environments**.
+  Rich tutorials and configuration examples help you get started in minutes.
+  You can create your own benchmark or data pipeline with just a few config edits.
 
-- Generated **55K+ generalizable pick-and-place tasks** across ~14K objects using the ALOHA platform  
-- Released **10 expert-designed post-training tasks** for dual-arm manipulation  
-- Provided diverse **pre-training data** with randomized objects, scenes, and language instructions to promote **cross-domain generalization**
+* 🎨 **Full-Stack Domain Randomization**
 
-📌 **Challenge Registration:**  
-[https://eval.ai/web/challenges/challenge-page/2626/overview](https://eval.ai/web/challenges/challenge-page/2626/overview)
+  Randomize *objects, layouts, lights, cameras, textures, rooms*, enabling robust large-scale data generation.
 
-<p align="center">
-  <img src="readme_assets/iros-teaser.jpg" width="80%" alt="IROS 2025 Teaser"/>
-</p>
+* 🤖 **Cross-Embodiment Support**
 
----
+  Works out of the box with:
 
-## 📂 Dataset Access
+  * Franka Panda + Panda Hand
+  * Franka + Robotiq 2F-85
+  * Aloha Split
+  * Lift2
 
-| Type | Description | Link |
-|------|--------------|------|
-| **Pre-training Data** | Dual-arm generalizable pick-and-place (55K+ samples) | [Hugging Face](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main) |
-| **Post-training Data** | Dual-arm manipulation, 10 benchmark tasks | [Hugging Face](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Manip/tree/main) |
+* 📐 **Rule/Execution Set System**
 
-<video src="readme_assets/scaling_data.mp4" controls width="600"></video>
+  Provides a structured syntax for defining task completion logic
+  (*top / left / right / front / back / in* relations + logical composition). Compute the rules and generate data by execution set, result in photorealistic manipulation.
 
-**Additional Resources**
-- The **GenManip Benchmark** will be merged into [InternManip](https://github.com/InternRobotics/InternManip)  
-- Datasets are also included in **[InternData-M1](https://huggingface.co/datasets/InternRobotics/InternData-M1)** — a large-scale embodied robotics dataset with ~250K demonstrations and rich annotations (2D/3D boxes, trajectories, grasps, masks)  
-- Conversion to **LeRobot** format is ongoing; all data has been generated and will be fully available soon  
-- Scaling data for **long-horizon, multi-stage manipulation** is in progress 🚀  
+* 🚀 **Massive Parallel Execution**
 
----
+  Run thousands of Isaac Sim instances across multiple servers.
+  Stress-tested to **1500 concurrent instances** on **500× RTX 4090 (48GB)** GPUs.
 
-## ✨ Key Features
+* 🏭 **High-Performance Data Generation Pipeline**
 
-| Feature | Description |
-| -------- | ------------ |
-| 🎯 **ToSG-based Task Synthesis** | Graph-based semantic representation for generating compositional tasks |
-| 🖼️ **Photorealistic Simulation** | RTX ray-traced rendering with physically accurate dynamics |
-| 📊 **Benchmark Suite** | 200+ diverse tasks with human-in-the-loop annotation refinement |
-| 🧪 **Evaluation Toolkit** | Supports SR, SPL, ablation studies, and generalization diagnostics |
+  Built on **cuRobo** + generalized oracle rules.
+  Scales from single GPU to hundreds of GPUs.
+
+* 🧱 **Meta Object System**
+
+  Flexible scene composition and object substitution for scalable dataset/benchmark creation.
 
 ---
 
-## 🧩 TODO List
+## 🚀 Getting Started
 
-- [x] Website, documentation, and leaderboard  
-- [x] Code release for task synthesis, rendering, and evaluation  
-- [ ] Full GenManip asset pack (10K+ objects)  
-- [ ] Baseline model implementations (ACT, Seer, InternVLA-M1, etc.)  
-- [ ] Objaverse scaling pipeline  
+You can launch your first benchmark or data generation pipeline in minutes.
+Check out our tutorials for a step-by-step learning path — from basics to advanced usage.
+
+👉 Full tutorials available at **genmanip.com**
+
+For questions or collaborations, feel free to open an Issue or contact:
+📧 **[gaoning@pjlab.org.cn](mailto:gaoning@pjlab.org.cn)**
+
+---
+
+## 📚 Example Use Cases
+
+### SHAILAB IROS Challenge 2025
+
+A 10-task dual-arm manipulation benchmark supporting both data generation and evaluation.
+
+![iros-challenge-2025](https://github.com/user-attachments/assets/fa587e5b-064d-45ef-b0c4-aaab0bb92b0a)
+
+Learn more at the SHAILAB IROS Challenge 2025 webpage.
+
+---
+
+### Large-Scale Data Generation for InternData M1/ Evaluation for InternVLA M1
+
+GenManip powers large-scale simulation pipelines used in *InternData M1* and the training/evaluation of *InternVLA-M1*.
+
+![output](https://github.com/user-attachments/assets/69b724fd-a271-4260-80bd-1dfc74d183f7)
 
 ---
 
@@ -101,3 +117,6 @@ If you find our work useful, please cite:
   booktitle={CVPR},
   year={2025}
 }
+```
+
+Know more about our CVPR paper version at branch [archived/cvpr2025](https://github.com/InternRobotics/GenManip/tree/archived/cvpr2025)
