@@ -56,7 +56,7 @@ GenManip strictly follows **LeRobot GR00t** data conventions, ensuring compatibi
 * 📐 **Rule/Execution Set System**
 
   Provides a structured syntax for defining task completion logic
-  (*top / left / right / front / back / in* relations + logical composition). Compute the rules and generate data by execution set, result in photorealistic manipulation.
+  (*top / left / right / front / back / in* relations + logical composition). Compute the rules and generate data by execution set, result in photorealistic manipulation data.
 
 * 🚀 **Massive Parallel Execution**
 
@@ -94,9 +94,7 @@ A 10-task dual-arm manipulation benchmark supporting both data generation and ev
 
 ![iros-challenge-2025](https://github.com/user-attachments/assets/fa587e5b-064d-45ef-b0c4-aaab0bb92b0a)
 
-Learn more at the SHAILAB IROS Challenge 2025 webpage.
-
----
+Learn more at the [SHAILAB IROS Challenge 2025 webpage](https://internrobotics.shlab.org.cn/challenge/2025/).
 
 ### Large-Scale Data Generation for InternData M1/ Evaluation for InternVLA M1
 
@@ -120,3 +118,4 @@ If you find our work useful, please cite:
 ```
 
 Know more about our CVPR paper version at branch [archived/cvpr2025](https://github.com/InternRobotics/GenManip/tree/archived/cvpr2025)
+
