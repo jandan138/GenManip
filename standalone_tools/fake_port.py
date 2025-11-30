@@ -1,3 +1,10 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import argparse
 import pickle
 import struct
@@ -86,7 +93,7 @@ if __name__ == "__main__":
 
     # 2. create a receive port to receive data from GenManip
     receive_socket = create_receive_port_and_attach(port=args.receive_port)
-    
+
     # 3. while True, start the model inference loop
     while True:
         # 4. Receive data from GenManip

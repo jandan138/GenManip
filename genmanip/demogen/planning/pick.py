@@ -5,7 +5,7 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
-from genmanip.utils.transform_utils import (
+from genmanip.utils.standalone.transform_utils import (
     adjust_orientation,
     adjust_translation_along_quaternion,
 )

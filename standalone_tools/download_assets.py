@@ -1,8 +1,14 @@
+"""
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
 import argparse
 import os
 import pathlib
 import shutil
-import zipfile
 
 from huggingface_hub import snapshot_download
 

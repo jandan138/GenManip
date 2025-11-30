@@ -15,6 +15,7 @@ from pxr import Usd, UsdGeom, Sdf  # type: ignore
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
+
 def move_prim(stage: Usd.Stage, old_path: str, new_path: str):
     old_path = Sdf.Path(old_path)
     new_path = Sdf.Path(new_path)
@@ -243,7 +244,7 @@ def bbox_to_polygon(x, y, w, h):
 
 if __name__ == "__main__":
     stage = Usd.Stage.Open(
-                os.path.join("/home/gaoning/grasp_vla_assets/scenes/test_mona_lisa/scene.usd")
-            )
-    
+        os.path.join("/home/gaoning/grasp_vla_assets/scenes/test_mona_lisa/scene.usd")
+    )
+
     print_prim_tree(stage.GetPseudoRoot())

@@ -15,7 +15,10 @@ def collect_eval_pkl(log_dir_parent):
     cnt = 0
     for log_dir in os.listdir(log_dir_parent):
         if os.path.isdir(os.path.join(log_dir_parent, log_dir)):
-            os.rename(os.path.join(log_dir_parent, log_dir), os.path.join(log_dir_parent, f"{str(cnt).zfill(3)}"))
+            os.rename(
+                os.path.join(log_dir_parent, log_dir),
+                os.path.join(log_dir_parent, f"{str(cnt).zfill(3)}"),
+            )
             cnt += 1
 
 

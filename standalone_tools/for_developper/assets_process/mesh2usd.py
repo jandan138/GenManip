@@ -2,8 +2,9 @@ import argparse
 import asyncio
 import os
 from tqdm import tqdm
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 from pathlib import Path
+
 
 async def convert(in_file, out_file, load_materials=False):
     import omni.kit.asset_converter  # type: ignore
@@ -32,10 +33,10 @@ def asset_convert(args):
     supported_file_formats = ["glb", "obj", "fbx"]
     for folder in args.folders:
         local_asset_output = folder + f"/../{args.dist_folder}"
-        result = omni.client.create_folder(f"{local_asset_output}")
+        result = omni.client.create_folder(f"{local_asset_output}")  # type: ignore[attr-defined]
     for folder in args.folders:
         print(f"\nConverting folder {folder}...")
-        (result, models) = omni.client.list(folder)
+        (result, models) = omni.client.list(folder)  # type: ignore[attr-defined]
         for i, entry in tqdm(enumerate(models)):
             if i >= args.max_models:
                 print(f"max models ({args.max_models}) reached, exiting conversion")
@@ -45,7 +46,9 @@ def asset_convert(args):
             model_format = (os.path.splitext(model)[1])[1:]
             if model_format in supported_file_formats:
                 input_model_path = folder + "/" + model
-                converted_model_path = folder + f"/../{args.dist_folder}/" + model_name + ".usd"
+                converted_model_path = (
+                    folder + f"/../{args.dist_folder}/" + model_name + ".usd"
+                )
                 if not os.path.exists(converted_model_path):
                     status = asyncio.get_event_loop().run_until_complete(
                         convert(input_model_path, converted_model_path, True)

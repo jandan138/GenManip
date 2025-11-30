@@ -7,20 +7,21 @@ Licensed under the MIT License.
 
 import argparse
 from filelock import SoftFileLock
+import gc
 import os
 import sys
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp # type: ignore[import-untyped]
 import numpy as np
 from tqdm import tqdm
 
-from genmanip.utils.file_utils import (
+from genmanip.utils.standalone.file_utils import (
     load_default_config,
     load_dict_from_pkl,
     load_yaml,
     make_dir,
 )
-from genmanip.utils.utils import parse_demogen_config, setup_logger
+from genmanip.utils.standalone.utils import parse_demogen_config, setup_logger
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_dir)
@@ -90,8 +91,8 @@ config = load_yaml(args.config)
 
 simulation_app = SimulationApp({"headless": not args.local})
 
-from genmanip.core.loading.domain_randomization import random_texture
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.domain_randomization import random_texture
+from genmanip.core.loader.scene import (
     build_scene_from_config,
     clear_scene,
     collect_meta_infos,
@@ -100,14 +101,14 @@ from genmanip.core.loading.loading import (
     recovery_scene_render,
     warmup_world,
 )
-from genmanip.core.pointcloud.pointcloud import (
+from genmanip.utils.pointcloud.pointcloud import (
     meshDict2pointCloudDict,
     get_current_pointCloutList,
     objectList2meshList,
 )
-from genmanip.core.robot.franka import create_joint_xform_list
+from genmanip.core.embodiment.utils import create_joint_xform_list
 from genmanip.core.sensor.camera import set_camera_look_at
-from genmanip.core.usd_utils import remove_colliders
+from genmanip.utils.usd_utils import remove_colliders
 from genmanip.demogen.recoder.render_recorder import Logger
 from genmanip.demogen.recoder.utils import parse_planning_result
 
@@ -307,7 +308,7 @@ for demogen_config in demogen_config_list:
                 # 2-9. warmup world
                 for _ in range(10):
                     if has_joint_world_pose:
-                        for joint_name, joint_xform in joint_xform_list.items():
+                        for joint_name, joint_xform in joint_xform_list.items():  # type: ignore[attr-defined]
                             joint_xform.set_world_pose(
                                 *data_list[0]["joint_world_pose"][joint_name]
                             )
@@ -352,7 +353,7 @@ for demogen_config in demogen_config_list:
                 for data in tqdm(data_list):
                     # 3-1. set robot state
                     if has_joint_world_pose:
-                        for joint_name, joint_xform in joint_xform_list.items():
+                        for joint_name, joint_xform in joint_xform_list.items():  # type: ignore[attr-defined]
                             joint_xform.set_world_pose(
                                 *data["joint_world_pose"][joint_name]
                             )
@@ -387,13 +388,13 @@ for demogen_config in demogen_config_list:
                     # 3-4. load dynamic info
                     if args.save_pointcloud:
                         pointcloud = get_current_pointCloutList(
-                            scene["object_list"], pointDict
+                            scene["object_list"], pointDict  # type: ignore[attr-defined]
                         )
                         if has_joint_world_pose:
                             pointcloud.update(
                                 {
                                     "robot": get_current_pointCloutList(
-                                        joint_xform_list, pointJointDict
+                                        joint_xform_list, pointJointDict  # type: ignore[attr-defined]
                                     )
                                 }
                             )
@@ -415,6 +416,7 @@ for demogen_config in demogen_config_list:
 
                 # 4. save render result after rendering
                 recorder.save(without_depth=args.without_depth)
+                gc.collect()
                 executed = True
 
             # remove lock file after rendering

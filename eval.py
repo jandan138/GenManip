@@ -9,17 +9,17 @@ import argparse
 import os
 import sys
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 import socket
 from tqdm import tqdm
 
-from genmanip.utils.file_utils import (
+from genmanip.utils.standalone.file_utils import (
     load_default_config,
     load_dict_from_pkl,
     load_yaml,
     make_dir,
 )
-from genmanip.utils.utils import parse_eval_config, setup_logger
+from genmanip.utils.standalone.utils import parse_eval_config, setup_logger
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_dir)
@@ -81,17 +81,17 @@ config = load_yaml(args.config)
 
 simulation_app = SimulationApp({"headless": not args.local})
 
-from genmanip.core.loading.domain_randomization import random_texture_for_eval
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.domain_randomization import random_texture_for_eval
+from genmanip.core.loader.scene import (
     clear_scene,
     recovery_scene,
 )
-from genmanip.core.pointcloud.pointcloud import get_current_pcList_by_meshList
-from genmanip.core.usd_utils import remove_colliders
-from genmanip.demogen.evaluate.evaluate import check_finished
-from genmanip_bench.evaluate.evaluator import Evaluator, parse_lmdb_data
-from genmanip_bench.evaluate.utils import get_next_seed, initialize_scene
-from genmanip_bench.request_model.socket_utils import (
+from genmanip.utils.pointcloud.pointcloud import get_current_pcList_by_meshList
+from genmanip.utils.usd_utils import remove_colliders
+from genmanip.core.metrics.metrics import check_finished
+from genmanip.core.evaluator.evaluator import Evaluator, parse_lmdb_data
+from genmanip.core.evaluator.utils import get_next_seed, initialize_scene
+from genmanip.utils.standalone.socket_utils import (
     create_receive_port_and_attach,
     create_send_port_and_wait,
 )
@@ -109,8 +109,8 @@ def evaluate_one_case(
     default_config: dict,
     scene: dict,
     evaluator: Evaluator,
-    seed: int,
-) -> int:
+    seed: str,
+) -> float:
     # 2-0. load meta info and planning data for objects and layout information
     meta_info = load_dict_from_pkl(
         os.path.join(

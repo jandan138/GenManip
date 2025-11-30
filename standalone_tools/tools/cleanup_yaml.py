@@ -8,8 +8,11 @@ import yaml
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_path", type=str, required=True)
-    parser.add_argument("--preserve-anchors", action="store_true", 
-                        help="Detect duplicate dicts and create YAML anchors/aliases")
+    parser.add_argument(
+        "--preserve-anchors",
+        action="store_true",
+        help="Detect duplicate dicts and create YAML anchors/aliases",
+    )
     return parser.parse_args()
 
 
@@ -25,17 +28,17 @@ def dict_to_hashable(obj: Any) -> Any:
         return str(obj)
 
 
-def deduplicate_dicts(data: Any, memo: Dict[Any, Any] = None) -> Any:
+def deduplicate_dicts(data: Any, memo: Dict[Any, Any] | None = None) -> Any:
     """Replace duplicate dicts with references to the same object to enable YAML anchors"""
     if memo is None:
         memo = {}
-    
+
     if isinstance(data, dict):
         # First, recursively process all values
         processed = {}
         for key, value in data.items():
             processed[key] = deduplicate_dicts(value, memo)
-        
+
         # Check if this dict structure already exists
         hashable = dict_to_hashable(processed)
         if hashable in memo:
@@ -45,10 +48,10 @@ def deduplicate_dicts(data: Any, memo: Dict[Any, Any] = None) -> Any:
             # Store this as a new unique structure
             memo[hashable] = processed
             return processed
-    
+
     elif isinstance(data, list):
         return [deduplicate_dicts(item, memo) for item in data]
-    
+
     else:
         return data
 
@@ -59,11 +62,11 @@ def main() -> None:
         try:
             with open(args.yaml_path, "r") as f:
                 yaml_data = yaml.load(f, Loader=yaml.FullLoader)
-            
+
             # Optionally deduplicate to create anchors/aliases
             if args.preserve_anchors:
                 yaml_data = deduplicate_dicts(yaml_data)
-            
+
             with open(args.yaml_path, "w") as f:
                 yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
             print(f"Successfully cleaned: {args.yaml_path}")
@@ -77,13 +80,15 @@ def main() -> None:
                     try:
                         with open(file_path, "r") as f:
                             yaml_data = yaml.load(f, Loader=yaml.FullLoader)
-                        
+
                         # Optionally deduplicate to create anchors/aliases
                         if args.preserve_anchors:
                             yaml_data = deduplicate_dicts(yaml_data)
-                        
+
                         with open(file_path, "w") as f:
-                            yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
+                            yaml.dump(
+                                yaml_data, f, default_flow_style=False, sort_keys=False
+                            )
                         print(f"Successfully cleaned: {file_path}")
                     except Exception as e:
                         print(f"Error processing {file_path}: {e}")

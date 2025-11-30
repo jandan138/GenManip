@@ -1,4 +1,4 @@
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 simulation_app = SimulationApp({"headless": True})  # False
 
@@ -435,7 +435,7 @@ def save_convex_hulls_as_obj(convex_hulls, output_path):
 
 def run_coacd(mesh_path, output_path):
     mesh = trimesh.load(mesh_path, force="mesh")
-    mesh = coacd.Mesh(mesh.vertices, mesh.faces)
+    mesh = coacd.Mesh(mesh.vertices, mesh.faces)  # type: ignore[attr-defined]
     parts = coacd.run_coacd(mesh)
     save_convex_hulls_as_obj(parts, output_path)
     return parts
@@ -471,7 +471,9 @@ def process_single_prim(prim: Usd.Prim, output_path: str):
     run_coacd(os.path.join(output_path, prim.GetName() + ".obj"), acd_mesh_path)
     print(f"Exported {prim.GetName()} to {acd_mesh_path}")
     os.remove(os.path.join(output_path, prim.GetName() + ".obj"))
-    print(f"Deleted {prim.GetName()} from {os.path.join(output_path, prim.GetName() + '.obj')}")
+    print(
+        f"Deleted {prim.GetName()} from {os.path.join(output_path, prim.GetName() + '.obj')}"
+    )
 
 
 def load_world_xform_prim(scene_path, scene_prim_path="/World"):

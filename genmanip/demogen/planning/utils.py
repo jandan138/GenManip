@@ -12,7 +12,7 @@ import random
 
 import numpy as np
 
-from genmanip.utils.file_utils import make_dir, load_dict_from_pkl
+from genmanip.utils.standalone.file_utils import make_dir, load_dict_from_pkl
 
 
 def check_demogen_finished(demogen_config, default_config):

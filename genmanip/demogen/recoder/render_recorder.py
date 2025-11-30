@@ -27,9 +27,9 @@ from genmanip.core.sensor.camera import (
     get_tcp_2d_trace,
     get_tcp_3d_trace,
 )
-from genmanip.core.robot.embodiment import BaseEmbodiment
-from genmanip.core.robot.franka import create_joint_xform_list, create_tcp_xform_list
-from genmanip.utils.transform_utils import (
+from genmanip.core.embodiment import BaseEmbodiment
+from genmanip.core.embodiment.utils import create_joint_xform_list, create_tcp_xform_list
+from genmanip.utils.standalone.transform_utils import (
     compute_delta_eepose,
     compute_pose2,
     pose_to_transform,
@@ -483,6 +483,9 @@ class Logger:
         #     return False
         self.log_dir.mkdir(parents=True, exist_ok=True)
         log_dir_lmdb = self.log_dir / "lmdb"
+        if os.path.exists(log_dir_lmdb):
+            print("LMDB Existed, Skipping save.")
+            return False
         meta_info = {}
         meta_info["max_size"] = self.max_size
         meta_info["num_steps"] = self.log_num_steps
@@ -509,10 +512,10 @@ class Logger:
         self.env = lmdb.open(
                 str(log_dir_lmdb),
                 map_size=self.max_size,
-                writemap=True,
-                map_async=True,
-                sync=False,
-                metasync=False,
+                # writemap=True,
+                # map_async=True,
+                # sync=False,
+                # metasync=False,
             )
         txn = self.env.begin(write=True)
         with open(log_dir_lmdb / "info.json", "w") as f:
@@ -596,7 +599,6 @@ class Logger:
         #         )
         #         meta_info["keys"][key].append(f"{key}/{step_id}".encode("utf-8"))
         txn.commit()
-        self.env.sync()
         self.env.close()
         pickle.dump(meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb"))
         if config_path is not None:

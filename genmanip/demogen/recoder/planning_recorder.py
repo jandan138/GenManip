@@ -19,10 +19,10 @@ import shutil
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.sensor import Camera  # type: ignore
 
-from genmanip.core.robot.embodiment import BaseEmbodiment
-from genmanip.core.robot.franka import create_joint_xform_list
+from genmanip.core.embodiment import BaseEmbodiment
+from genmanip.core.embodiment.utils import create_joint_xform_list
 from genmanip.core.sensor.camera import get_intrinsic_matrix
-from genmanip.utils.transform_utils import pose_to_transform
+from genmanip.utils.standalone.transform_utils import pose_to_transform
 
 DEFAULT_RGB_SCALE_FACTOR = 256000.0
 

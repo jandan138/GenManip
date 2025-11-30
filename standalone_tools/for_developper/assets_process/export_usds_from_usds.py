@@ -1,4 +1,4 @@
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 simulation_app = SimulationApp({"headless": True})  # False
 
@@ -437,7 +437,7 @@ def save_convex_hulls_as_obj(convex_hulls, output_path):
 
 def run_coacd(mesh_path, output_path):
     mesh = trimesh.load(mesh_path, force="mesh")
-    mesh = coacd.Mesh(mesh.vertices, mesh.faces)
+    mesh = coacd.Mesh(mesh.vertices, mesh.faces)  # type: ignore[attr-defined]
     parts = coacd.run_coacd(mesh)
     save_convex_hulls_as_obj(parts, output_path)
     return parts

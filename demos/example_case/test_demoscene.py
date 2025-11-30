@@ -14,22 +14,22 @@ import sys
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
-from genmanip.utils.file_utils import load_default_config, load_yaml
-from genmanip.utils.utils import setup_logger
+from genmanip.utils.standalone.file_utils import load_default_config, load_yaml
+from genmanip.utils.standalone.utils import setup_logger
 
 simulation_app = SimulationApp({"headless": True})
 
 from omni.isaac.core import World  # type: ignore
 
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.scene import (
     create_camera_list,
     get_object_list,
     load_world_xform_prim,
     relate_franka_from_data,
 )
-from genmanip.core.pointcloud.pointcloud import objectList2meshList
+from genmanip.utils.pointcloud.pointcloud import objectList2meshList
 from genmanip.core.sensor.camera import get_src
-from genmanip.core.usd_utils import set_colliders
+from genmanip.utils.usd_utils import set_colliders
 
 # 1. setup logger and config
 logger = setup_logger()

@@ -7,7 +7,7 @@ from scipy.spatial.transform import Rotation as R
 def joint_position_to_end_effector_pose(joint_position, panda=None):
     if panda is None:
         panda = rtb.models.Panda()
-    hand_pose = panda.fkine(q=joint_position, end="panda_hand").A
+    hand_pose = panda.fkine(q=joint_position, end="panda_hand").A  # type: ignore[attr-defined]
     position = hand_pose[:3, 3]
     rotation = hand_pose[:3, :3]
     orientation = R.from_matrix(rotation).as_quat()[[3, 0, 1, 2]]
@@ -46,7 +46,6 @@ def add_ee_pose_action(log_dir: str, franka: rtb.models.Panda):
         wtxn.put(b"ee_pose_action", pickle.dumps(ee_poses))
     env.close()
     print(f"Added {len(ee_poses)} ee_pose_action entries to {lmdb_path}")
-
 
 
 if __name__ == "__main__":

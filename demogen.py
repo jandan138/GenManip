@@ -10,17 +10,18 @@ import copy
 import os
 import sys
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
+import numpy as np
 from tqdm import tqdm
 
-from genmanip.utils.file_utils import (
+from genmanip.utils.standalone.file_utils import (
     load_default_config,
     load_task_config,
     load_yaml,
     make_dir,
     record_log,
 )
-from genmanip.utils.utils import (
+from genmanip.utils.standalone.utils import (
     check_proxy_exist,
     check_usda_exist,
     parse_demogen_config,
@@ -84,12 +85,12 @@ is_wop = args.without_planning
 
 simulation_app = SimulationApp({"headless": not is_local})
 
-from genmanip.core.loading.domain_randomization import (
+from genmanip.core.loader.domain_randomization import (
     build_up_scene,
     domain_randomization,
     reset_scene,
 )
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.scene import (
     build_scene_from_config,
     clear_scene,
     collect_meta_infos,
@@ -100,9 +101,9 @@ from genmanip.core.loading.loading import (
     update_meta_infos,
     warmup_world,
 )
-from genmanip.core.pointcloud.pointcloud import get_current_pcList_by_meshList
-from genmanip.core.usd_utils import remove_colliders
-from genmanip.demogen.evaluate.evaluate import check_finished
+from genmanip.utils.pointcloud.pointcloud import get_current_pcList_by_meshList
+from genmanip.utils.usd_utils import remove_colliders
+from genmanip.core.metrics.metrics import check_finished
 from genmanip.demogen.planning.planning import apply_action_by_config
 from genmanip.demogen.planning.utils import (
     check_evalgen_finished,
@@ -206,7 +207,8 @@ for demogen_config in demogen_config_list:
         preload_objects(scene, default_config, demogen_config, without_planning=is_wop)
 
         # 2-5. remove colliders for default ground plane, TODO: remove this after make sure all scene assets' ground plane has no colliders
-        remove_colliders(scene["object_list"]["defaultGroundPlane"].prim_path)
+        if "defaultGroundPlane" in scene["object_list"]:
+            remove_colliders(scene["object_list"]["defaultGroundPlane"].prim_path)
 
         # 2-6. setup robot joint positions
         setup_robot_joint_positions(
@@ -331,7 +333,7 @@ for demogen_config in demogen_config_list:
             # if in without planning mode, only first frame is needed, so save and continue
             if is_wop:
                 recorder.load_dynamic_info(
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                    np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
                     1,
                     name=f"0/cold_start",
                 )
@@ -367,7 +369,7 @@ for demogen_config in demogen_config_list:
                         default_config,
                         demogen_config,
                         recorder,
-                        idx,
+                        str(idx),
                     )
                     if not is_success:
                         raise Exception("Subgoal not completed")
@@ -419,7 +421,7 @@ for demogen_config in demogen_config_list:
 
             # 4-4. if the task is finished, save the recorder and record the success
             if finished:
-                recorder.save(demogen_config["task_name"], args.config)
+                recorder.save(demogen_config["task_name"], args.config) # type: ignore
                 if not is_evalgen:
                     record_log(
                         os.path.join(

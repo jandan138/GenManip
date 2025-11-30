@@ -13,7 +13,7 @@ import sys
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
-from genmanip.utils.file_utils import load_yaml
+from genmanip.utils.standalone.file_utils import load_yaml
 
 parser = ArgumentParser()
 parser.add_argument(
@@ -30,16 +30,16 @@ config = load_yaml(args.config)
 
 simulation_app = SimulationApp({"headless": not args.local})
 
-from genmanip.utils.file_utils import load_default_config
-from genmanip.utils.utils import setup_logger
-from genmanip_bench.evaluate.evaluator import parse_lmdb_data
-from genmanip.utils.file_utils import load_dict_from_pkl, make_dir
-from genmanip.utils.utils import parse_eval_config
+from genmanip.utils.standalone.file_utils import load_default_config
+from genmanip.utils.standalone.utils import setup_logger
+from genmanip.core.evaluator.evaluator import parse_lmdb_data
+from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
+from genmanip.utils.standalone.utils import parse_eval_config
 from genmanip.demogen.planning.utils import (
     check_eval_finished,
     adjust_arm_gripper_action_by_embodiment,
 )
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.scene import (
     build_scene_from_config,
     clear_scene,
     warmup_world,
@@ -47,8 +47,8 @@ from genmanip.core.loading.loading import (
     collect_meta_infos,
     load_object_pool,
 )
-from genmanip.core.loading.loading import recovery_scene
-from genmanip.core.usd_utils import remove_colliders
+from genmanip.core.loader.scene import recovery_scene
+from genmanip.utils.usd_utils import remove_colliders
 
 simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 logger = setup_logger()

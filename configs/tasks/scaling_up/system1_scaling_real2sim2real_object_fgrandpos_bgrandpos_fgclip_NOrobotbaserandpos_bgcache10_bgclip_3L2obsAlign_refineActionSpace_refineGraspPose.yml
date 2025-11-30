@@ -3,7 +3,7 @@ demonstration_configs:
     cameras:
       config_path: configs/cameras/fixed_camera_robotiq_s2r_3L_align_twoObs.yml
       type: fixed
-    object_data_path: obj_container
+    object_data_path: real2sim2real
     random_environment:
       has_wall: true
       hdr: true

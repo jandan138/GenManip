@@ -3,7 +3,7 @@ demonstration_configs:
     cameras:
       config_path: configs/cameras/fixed_camera_robotiq.yml
       type: fixed
-    object_data_path: object_v7
+    object_data_path: objaverse_annotation_refined_pnp
     random_environment:
       has_wall: true
       hdr: true

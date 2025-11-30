@@ -20,34 +20,34 @@ from isaacsim import SimulationApp
 
 simulation_app = SimulationApp({"headless": True})  # False
 
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.scene import (
     get_embodiment,
     add_robot_to_scene,
     load_world_xform_prim,
     get_object_list,
     create_camera_list,
 )
-from genmanip.core.pointcloud.pointcloud import (
+from genmanip.utils.pointcloud.pointcloud import (
     get_mesh_info_by_load,
     get_current_meshList,
     objectList2meshList,
 )
-from genmanip.core.random_place.random_place import place_object_to_object_by_relation
+from genmanip.demogen.random_place.random_place import place_object_to_object_by_relation
 from genmanip.core.sensor.camera import set_camera_look_at, get_src
-from genmanip.core.usd_utils import (
+from genmanip.utils.usd_utils import (
     add_usd_to_world,
     resize_object,
     set_colliders,
     resize_object_by_lwh,
 )
 from genmanip.demogen.planning.pick import prepare_grasp_motion_planning_payload
-from genmanip.thirdparty.anygrasp import get_init_grasp
-from genmanip.utils.file_utils import load_yaml, load_default_config
-from genmanip.utils.pc_utils import compute_mesh_bbox, compute_aabb_lwh
-from genmanip.utils.utils import setup_logger
+from genmanip.utils.anygrasp.anygrasp import get_init_grasp
+from genmanip.utils.standalone.file_utils import load_yaml, load_default_config
+from genmanip.utils.standalone.pc_utils import compute_mesh_bbox, compute_aabb_lwh
+from genmanip.utils.standalone.utils import setup_logger
 from genmanip.demogen.planning.pick_and_place import adjust_grasp_by_embodiment
-from genmanip.core.usd_utils import setup_physics_scene
-from object_utils.object_pool import ObjectPool
+from genmanip.utils.usd_utils import setup_physics_scene
+from genmanip.utils.object_utils.object_pool import ObjectPool
 from omni.isaac.core.utils.prims import delete_prim  # type: ignore
 from omni.isaac.core import World  # type: ignore
 import numpy as np
@@ -151,7 +151,7 @@ print(f"processing {len(usd_list)} objects")
 object_pool = ObjectPool(
     os.path.join(
         current_dir,
-        "assets/objects/objaverse_annotation_refined_container_selection.pickle",
+        "assets/objects/objaverse_annotation_refined_pnp.pickle",
     )
 )
 result_dir = Path(os.path.join(current_dir, "saved/filtered_objects"))

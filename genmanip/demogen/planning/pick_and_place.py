@@ -10,14 +10,14 @@ import torch
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 
-from genmanip.core.loading.utils import collect_world_pose_list, reset_object_xyz
-from genmanip.core.pointcloud.pointcloud import get_current_meshList
-from genmanip.core.random_place.random_place import place_object_to_object_by_relation
-from genmanip.core.robot.embodiment import BaseEmbodiment
+from genmanip.core.loader.utils import collect_world_pose_list, reset_object_xyz
+from genmanip.utils.pointcloud.pointcloud import get_current_meshList
+from genmanip.demogen.random_place.random_place import place_object_to_object_by_relation
+from genmanip.core.embodiment import BaseEmbodiment
 from genmanip.core.sensor.camera import set_camera_look_at
 from genmanip.demogen.recoder.planning_recorder import Logger as PlanningLogger
-from genmanip.thirdparty.anygrasp import get_init_grasp
-from genmanip.utils.transform_utils import (
+from genmanip.utils.anygrasp.anygrasp import get_init_grasp
+from genmanip.utils.standalone.transform_utils import (
     adjust_orientation,
     adjust_translation_along_quaternion,
     compute_final_pose,

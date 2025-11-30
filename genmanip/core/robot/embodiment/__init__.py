@@ -1,6 +1,0 @@
-from .base_embodiment import BaseEmbodiment
-from .singlearm_embodiment import SingleArmEmbodiment
-from .dualarm_embodiment import DualArmEmbodiment
-from .franka_embodiment import FrankaNormalEmbodiment, FrankaRobotiqEmbodiment
-from .aloha_embodiment import AlohaSplitEmbodiment
-from .lift2_embodiment import Lift2Embodiment

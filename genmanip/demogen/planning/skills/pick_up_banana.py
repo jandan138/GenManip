@@ -7,7 +7,7 @@ Licensed under the MIT License.
 
 import numpy as np
 
-from genmanip.core.usd_utils import get_world_pose_by_prim_path
+from genmanip.utils.usd_utils import get_world_pose_by_prim_path
 from genmanip.demogen.recoder.planning_recorder import Logger as PlanningLogger
 
 

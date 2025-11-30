@@ -72,5 +72,5 @@ if __name__ == "__main__":
         if os.path.isdir(f"{data_path}/trajectory/{path}")
     ]
     with Pool(processes=args.workers) as pool:
-        list(tqdm(pool.imap(fix_qpos_to_robotiq, data_list), total=len(data_list))) 
+        list(tqdm(pool.imap(fix_qpos_to_robotiq, data_list), total=len(data_list)))
     print("Done, welcome to robotiq")

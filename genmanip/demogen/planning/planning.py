@@ -8,9 +8,9 @@ Licensed under the MIT License.
 import os
 from typing import cast
 
-from genmanip.core.pointcloud.pointcloud import get_current_pcList_by_meshList
-from genmanip.core.usd_utils import set_mass
-from genmanip.demogen.evaluate.evaluate import check_subgoal_finished_rigid
+from genmanip.utils.pointcloud.pointcloud import get_current_pcList_by_meshList
+from genmanip.utils.usd_utils import set_mass
+from genmanip.core.metrics.metrics import check_subgoal_finished_rigid
 from genmanip.demogen.planning.pick_and_place import (
     get_action_meta_info,
     record_planning,

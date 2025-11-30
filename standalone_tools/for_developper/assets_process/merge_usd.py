@@ -7,7 +7,7 @@ pip install usd-core==24.11
 pip install open3d numpy shapely
 """
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 simulation_app = SimulationApp({"headless": True, "width": "1920", "height": "1080"})
 import os

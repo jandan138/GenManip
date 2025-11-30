@@ -7,12 +7,13 @@
 4. 防止弹飞，保持articulation留在原地：加上physicsfixedjoint，绑在link_0的位置保持不动
 """
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp # type: ignore[import-untyped]
+
 CONFIG = {"sync_loads": True, "headless": True, "renderer": "RayTracedLighting"}
 simulation_app = SimulationApp(launch_config=CONFIG)
 # simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 
-from pxr import Usd, UsdPhysics, UsdGeom, Gf, Sdf, PhysxSchema
+from pxr import Usd, UsdPhysics, UsdGeom, Gf, Sdf, PhysxSchema # type: ignore[attr-defined]
 
 SDF_COLLISION_APPROXIMATION_NAME = "sdf"
 CONVEX_HULL_COLLISION_APPROXIMATION_NAME = "convexHull"
@@ -23,7 +24,7 @@ COLLISION_APPROXIMATION_OPTIONS_SET = [
     SDF_COLLISION_APPROXIMATION_NAME,
     CONVEX_HULL_COLLISION_APPROXIMATION_NAME,
     CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME,
-    MESH_SIMPLIFICATION_COLLISION_APPROXIMATION_NAME
+    MESH_SIMPLIFICATION_COLLISION_APPROXIMATION_NAME,
 ]
 
 
@@ -61,7 +62,7 @@ def get_joint_connected_bodies(joint):
 
 def get_leaf_meshes(item):
     leaf_meshes = set()
-    
+
     def recurse_prim(current_prim):
         if current_prim.GetChildren():
             for child in current_prim.GetChildren():
@@ -83,7 +84,11 @@ def transform_to_rt(prim):
             return None
 
         new_order = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        data_type = [Sdf.ValueTypeNames.Double3, Sdf.ValueTypeNames.Quatd, Sdf.ValueTypeNames.Double3]
+        data_type = [
+            Sdf.ValueTypeNames.Double3,
+            Sdf.ValueTypeNames.Quatd,
+            Sdf.ValueTypeNames.Double3,
+        ]
         if "xformOp:transform" in order:
             tf_m = prim.GetAttribute("xformOp:transform").Get()
             tf = Gf.Transform()
@@ -94,11 +99,9 @@ def transform_to_rt(prim):
             scale = tf.GetScale()
             data = [translation, orientation, scale]
 
-
             for term, dt, d in zip(new_order, data_type, data):
                 attr = prim.CreateAttribute(term, dt, custom=False)
                 attr.Set(d)
-
 
             prim.GetAttribute("xformOpOrder").Set(new_order)
 
@@ -118,7 +121,9 @@ def set_mesh_merge_collision(prim, includes, excludes):
 
 def set_collider_with_approx(prim, approx):
     if approx not in COLLISION_APPROXIMATION_OPTIONS_SET:
-        raise TypeError(f"'{approx}' is not a valid collision approximation option or not supported in our design.")
+        raise TypeError(
+            f"'{approx}' is not a valid collision approximation option or not supported in our design."
+        )
     if prim.GetTypeName() in ["Xform", "Mesh"]:
         collider = UsdPhysics.CollisionAPI.Apply(prim)
         mesh_collider = UsdPhysics.MeshCollisionAPI.Apply(prim)
@@ -131,14 +136,18 @@ def set_collider_with_approx(prim, approx):
             physx_collider = PhysxSchema.PhysxConvexHullCollisionAPI.Apply(prim)
             physx_collider.CreateHullVertexLimitAttr().Set(64)
         elif approx == CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME:
-            physx_collider = PhysxSchema.PhysxConvexDecompositionCollisionAPI.Apply(prim)
+            physx_collider = PhysxSchema.PhysxConvexDecompositionCollisionAPI.Apply(
+                prim
+            )
             physx_collider.CreateHullVertexLimitAttr().Set(64)
             physx_collider.CreateMaxConvexHullsAttr().Set(256)
             physx_collider.CreateMinThicknessAttr().Set(0.0001)
             physx_collider.CreateShrinkWrapAttr().Set(False)
             physx_collider.CreateErrorPercentageAttr().Set(0.011)
         elif approx == MESH_SIMPLIFICATION_COLLISION_APPROXIMATION_NAME:
-            physx_collider = PhysxSchema.PhysxTriangleMeshSimplificationCollisionAPI.Apply(prim)
+            physx_collider = (
+                PhysxSchema.PhysxTriangleMeshSimplificationCollisionAPI.Apply(prim)
+            )
 
 
 def set_rigidbody(prim, init_state=True):
@@ -148,8 +157,12 @@ def set_rigidbody(prim, init_state=True):
 
         # set xformOp Attribute for rigid body
         if not prim.HasAttribute("xformOp:transform"):
-            prim.CreateAttribute("xformOpOrder", Sdf.ValueTypeNames.TokenArray, custom=False).Set(["xformOp:transform"])
-            transform_attr = prim.CreateAttribute("xformOp:transform", Sdf.ValueTypeNames.Matrix4d, custom=False)
+            prim.CreateAttribute(
+                "xformOpOrder", Sdf.ValueTypeNames.TokenArray, custom=False
+            ).Set(["xformOp:transform"])
+            transform_attr = prim.CreateAttribute(
+                "xformOp:transform", Sdf.ValueTypeNames.Matrix4d, custom=False
+            )
             identity_matrix = Gf.Matrix4d(1.0)
             transform_attr.Set(identity_matrix)
             # xformOp:transform 单位矩阵初始化
@@ -173,7 +186,7 @@ def remove_collider_(prim):
     if prim.HasAPI(UsdPhysics.MeshCollisionAPI):
         prim.RemoveAPI(UsdPhysics.MeshCollisionAPI)
     if prim.GetAttribute("physics:collisionEnabled"):
-        prim.GetAttribute("physics:collisionEnabled").Clear()    
+        prim.GetAttribute("physics:collisionEnabled").Clear()
     if prim.GetAttribute("physics:approximation"):
         prim.GetAttribute("physics:approximation").Clear()
 
@@ -247,17 +260,21 @@ def bind_articulation_root(prim):
         print(f"Already have articulation root on {prim}")
     return articulation_root
 
-def setAngularDrive(joint_prim, stiffness=0.0, target_position=0.0, damping=0.0, target_velocity=0.0):
-    angularDriveAPI = UsdPhysics.DriveAPI.Apply(joint_prim,
-        UsdPhysics.Tokens.angular
-    )
+
+def setAngularDrive(
+    joint_prim, stiffness=0.0, target_position=0.0, damping=0.0, target_velocity=0.0
+):
+    angularDriveAPI = UsdPhysics.DriveAPI.Apply(joint_prim, UsdPhysics.Tokens.angular)
     angularDriveAPI.CreateTypeAttr(UsdPhysics.Tokens.force)
     angularDriveAPI.CreateStiffnessAttr(stiffness)
     angularDriveAPI.CreateTargetPositionAttr(target_position)
     angularDriveAPI.CreateDampingAttr(damping)
     angularDriveAPI.CreateTargetVelocityAttr(target_velocity)
 
-def setLinearDrive(joint_prim, stiffness=0.0, target_position=0.0, damping=0.0, target_velocity=0.0):
+
+def setLinearDrive(
+    joint_prim, stiffness=0.0, target_position=0.0, damping=0.0, target_velocity=0.0
+):
     linearDriveAPI = UsdPhysics.DriveAPI.Apply(joint_prim, UsdPhysics.Tokens.linear)
     linearDriveAPI.CreateTypeAttr(UsdPhysics.Tokens.acceleration)
     linearDriveAPI.CreateStiffnessAttr(stiffness)
@@ -266,13 +283,15 @@ def setLinearDrive(joint_prim, stiffness=0.0, target_position=0.0, damping=0.0, 
     linearDriveAPI.CreateTargetVelocityAttr(target_velocity)
 
 
-def bind_articulation(instance_prim, pickable=False, approx=SDF_COLLISION_APPROXIMATION_NAME):
+def bind_articulation(
+    instance_prim, pickable=False, approx=SDF_COLLISION_APPROXIMATION_NAME
+):
     children = instance_prim.GetChildren()
 
     joint_list = get_all_joints(instance_prim)
     # jointed_prims_set = set()
     # for joint in joint_list:
-    #     jointed_prims_set.update(get_joint_connected_bodies(joint)) 
+    #     jointed_prims_set.update(get_joint_connected_bodies(joint))
 
     # start binding
     for child in children:
@@ -287,13 +306,14 @@ def bind_articulation(instance_prim, pickable=False, approx=SDF_COLLISION_APPROX
         #         bind_rigid_for_merged_mesh(child, approx)
         #     else:
         #         bind_static_for_merged_mesh(child, approx)
-        
+
         # if childName.lower() == 'group_static':
         #     bind_static_for_merged_mesh(child, approx)
-    
+
     # enable joint after binding
     for joint in joint_list:
         joint.GetJointEnabledAttr().Set(True)
+
 
 def set_articulation_body_collider(stage_path):
     stage = Usd.Stage.Open(stage_path)
@@ -302,10 +322,13 @@ def set_articulation_body_collider(stage_path):
     # 处理之前先清理干净，避免冲突
     remove_collider(instance_prim)
     remove_rigid(instance_prim)
-    bind_articulation(instance_prim, pickable=False, approx=CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME)
+    bind_articulation(
+        instance_prim,
+        pickable=False,
+        approx=CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME,
+    )
 
     stage.GetRootLayer().Save()
-
 
 
 def set_articulation(usd_path, is_articulation=True):
@@ -314,12 +337,16 @@ def set_articulation(usd_path, is_articulation=True):
     root_prim = stage.GetPrimAtPath("/Root")
     if is_articulation:
         bind_articulation_root(root_prim)
-    
+
     ## 设置rigid_body和collider
     instance_prim = stage.GetPrimAtPath("/Root/Instance")
     remove_collider(instance_prim)
     remove_rigid(instance_prim)
-    bind_articulation(instance_prim, pickable=False, approx=CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME)
+    bind_articulation(
+        instance_prim,
+        pickable=False,
+        approx=CONVEX_DECOMPOSITION_COLLISION_APPROXIMATION_NAME,
+    )
 
     ## 设置joint
     if is_articulation:
@@ -332,12 +359,23 @@ def set_articulation(usd_path, is_articulation=True):
             print(joint)
             joint_prim = joint.GetPrim()
             if isinstance(joint, UsdPhysics.RevoluteJoint):
-                setAngularDrive(joint_prim, stiffness=0.0, target_position=0.0, damping=0, target_velocity=0)
+                setAngularDrive(
+                    joint_prim,
+                    stiffness=0.0,
+                    target_position=0.0,
+                    damping=0,
+                    target_velocity=0,
+                )
             elif isinstance(joint, UsdPhysics.PrismaticJoint):
-                setLinearDrive(joint_prim, stiffness=0.0, target_position=0.0, damping=0, target_velocity=0)
+                setLinearDrive(
+                    joint_prim,
+                    stiffness=0.0,
+                    target_position=0.0,
+                    damping=0,
+                    target_velocity=0,
+                )
 
     stage.GetRootLayer().Save()
-
 
 
 if __name__ == "__main__":

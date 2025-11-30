@@ -1,4 +1,11 @@
 """
+Copyright (c) 2025 Ning Gao, Shanghai Artificial Intelligence Laboratory
+All rights reserved.
+
+Licensed under the MIT License.
+"""
+
+"""
 Professional Robotics Dataset Visualization Tool
 
 This script provides comprehensive visualization capabilities for robotics datasets
@@ -686,7 +693,9 @@ def annotate_semantic_mask(data, frame_data, i):
     return frame_data["color_image"]
 
 
-def image_to_float_array(image: np.ndarray, scale_factor: float = None) -> np.ndarray:
+def image_to_float_array(
+    image: np.ndarray, scale_factor: float | None = None
+) -> np.ndarray:
     """Convert RGB image to scaled float representation.
 
     Utility function for converting RGB images to float arrays with custom scaling.
@@ -1194,41 +1203,49 @@ def annotate_all_text(data, frame_data, i, args):
 
 def find_dataset_directories(parent_path):
     """Find all subdirectories containing valid LMDB datasets.
-    
+
     Scans the parent directory for subdirectories that contain both
     'lmdb' folder and 'meta_info.pkl' file, indicating valid datasets.
-    
+
     Args:
         parent_path (str): Path to parent directory containing multiple datasets
-        
+
     Returns:
         list: List of valid dataset directory paths
     """
     dataset_dirs = []
     parent_path = Path(parent_path)
-    
+
     if not parent_path.exists():
         raise FileNotFoundError(f"Parent directory not found: {parent_path}")
-    
+
     for item in parent_path.iterdir():
         if item.is_dir():
             # Check if this directory contains required dataset files
             lmdb_path = item / "lmdb"
             meta_path = item / "meta_info.pkl"
-            
+
             if lmdb_path.exists() and meta_path.exists():
                 dataset_dirs.append(str(item))
                 print(f"Found dataset: {item.name}")
-    
+
     return sorted(dataset_dirs)
 
 
-def process_single_dataset(data_path, camera_name, annotator_type, output_path, output_format, worker_id=0, skip_existing=False):
+def process_single_dataset(
+    data_path,
+    camera_name,
+    annotator_type,
+    output_path,
+    output_format,
+    worker_id=0,
+    skip_existing=False,
+):
     """Process a single dataset and generate visualization video.
-    
+
     This function encapsulates the entire processing pipeline for a single dataset,
     allowing it to be called from multiple threads in batch mode.
-    
+
     Args:
         data_path (str): Path to the dataset directory
         camera_name (str): Name of the camera sensor
@@ -1237,36 +1254,42 @@ def process_single_dataset(data_path, camera_name, annotator_type, output_path, 
         output_format (str): Output video format ('mp4' or 'avi')
         worker_id (int): Worker thread ID for logging
         skip_existing (bool): Skip processing if output file already exists
-        
+
     Returns:
         tuple: (success: bool, dataset_name: str, output_path: str, error_msg: str)
     """
     dataset_name = os.path.basename(data_path)
-    
+
     try:
         # Check if output file already exists and skip_existing is enabled
         if skip_existing and os.path.exists(output_path):
-            print(f"[Worker {worker_id}] {dataset_name}: Output file already exists, skipping...")
+            print(
+                f"[Worker {worker_id}] {dataset_name}: Output file already exists, skipping..."
+            )
             return True, dataset_name, output_path, "Skipped (file exists)"
-        
+
         print(f"[Worker {worker_id}] Processing dataset: {dataset_name}")
-        
+
         # Load metadata with selective loading based on annotation types
         data = get_meta_data(data_path, camera_name, annotator_type)
-        
+
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
+
         # Single frame processing (PNG output)
         if data["num_frames"] == 1:
-            print(f"[Worker {worker_id}] {dataset_name}: Single frame detected, processing as image...")
-            
+            print(
+                f"[Worker {worker_id}] {dataset_name}: Single frame detected, processing as image..."
+            )
+
             # For single frame, check PNG output path if skip_existing is enabled
-            png_output = os.path.splitext(output_path)[0] + '.png'
+            png_output = os.path.splitext(output_path)[0] + ".png"
             if skip_existing and os.path.exists(png_output):
-                print(f"[Worker {worker_id}] {dataset_name}: PNG output already exists, skipping...")
+                print(
+                    f"[Worker {worker_id}] {dataset_name}: PNG output already exists, skipping..."
+                )
                 return True, dataset_name, png_output, "Skipped (PNG exists)"
-            
+
             i = 0
             frame_data = get_frame_data(data_path, camera_name, i, annotator_type)
             frame_data["color_image"] = cv2.cvtColor(
@@ -1275,36 +1298,48 @@ def process_single_dataset(data_path, camera_name, annotator_type, output_path, 
 
             # Apply all enabled annotations
             _apply_annotations(data, frame_data, i, annotator_type)
-            
+
             # Save as PNG for single frame
             cv2.imwrite(png_output, frame_data["color_image"])
-            print(f"[Worker {worker_id}] {dataset_name}: Single frame saved to {png_output}")
+            print(
+                f"[Worker {worker_id}] {dataset_name}: Single frame saved to {png_output}"
+            )
             return True, dataset_name, png_output, ""
-        
+
         # Multi-frame video processing
-        print(f"[Worker {worker_id}] {dataset_name}: Processing {data['num_frames']} frames...")
-        
+        print(
+            f"[Worker {worker_id}] {dataset_name}: Processing {data['num_frames']} frames..."
+        )
+
         # Get video dimensions from first frame
         first_frame_data = get_frame_data(data_path, camera_name, 0, annotator_type)
         height, width = first_frame_data["color_image"].shape[:2]
-        
+
         # Configure output path with correct extension
         if output_format == "mp4" and not output_path.endswith(".mp4"):
             output_path = os.path.splitext(output_path)[0] + ".mp4"
         elif output_format == "avi" and not output_path.endswith(".avi"):
             output_path = os.path.splitext(output_path)[0] + ".avi"
-        
+
         success = _process_video_frames(
-            data, data_path, camera_name, annotator_type, 
-            output_path, output_format, width, height, worker_id, dataset_name
+            data,
+            data_path,
+            camera_name,
+            annotator_type,
+            output_path,
+            output_format,
+            width,
+            height,
+            worker_id,
+            dataset_name,
         )
-        
+
         if success:
             print(f"[Worker {worker_id}] {dataset_name}: Video saved to {output_path}")
             return True, dataset_name, output_path, ""
         else:
             return False, dataset_name, output_path, "Video processing failed"
-            
+
     except Exception as e:
         error_msg = f"Error processing {dataset_name}: {str(e)}"
         print(f"[Worker {worker_id}] {error_msg}")
@@ -1331,107 +1366,159 @@ def _apply_annotations(data, frame_data, i, annotator_type):
         annotate_grasp_point(data, frame_data, i)
 
 
-def _process_video_frames(data, data_path, camera_name, annotator_type, output_path, 
-                         output_format, width, height, worker_id, dataset_name):
+def _process_video_frames(
+    data,
+    data_path,
+    camera_name,
+    annotator_type,
+    output_path,
+    output_format,
+    width,
+    height,
+    worker_id,
+    dataset_name,
+):
     """Process video frames using either PyAV or OpenCV."""
-    
+
     # Use PyAV for better video encoding if available
     if HAS_AV and output_format == "mp4":
         return _process_with_pyav(
-            data, data_path, camera_name, annotator_type, 
-            output_path, width, height, worker_id, dataset_name
+            data,
+            data_path,
+            camera_name,
+            annotator_type,
+            output_path,
+            width,
+            height,
+            worker_id,
+            dataset_name,
         )
     else:
         return _process_with_opencv(
-            data, data_path, camera_name, annotator_type, 
-            output_path, output_format, width, height, worker_id, dataset_name
+            data,
+            data_path,
+            camera_name,
+            annotator_type,
+            output_path,
+            output_format,
+            width,
+            height,
+            worker_id,
+            dataset_name,
         )
 
 
-def _process_with_pyav(data, data_path, camera_name, annotator_type, 
-                      output_path, width, height, worker_id, dataset_name):
+def _process_with_pyav(
+    data,
+    data_path,
+    camera_name,
+    annotator_type,
+    output_path,
+    width,
+    height,
+    worker_id,
+    dataset_name,
+):
     """Process video using PyAV with H.264 encoding."""
     try:
         # Initialize PyAV container and stream
-        output_container = av.open(output_path, "w")
+        output_container = av.open(output_path, "w")  # type: ignore[attr-defined]
         stream = output_container.add_stream("libx264", 30)
         stream.width = width
         stream.height = height
         stream.pix_fmt = "yuv420p"
-        
+
         # Process frames
         for i in range(data["num_frames"]):
             frame_data = get_frame_data(data_path, camera_name, i, annotator_type)
             frame_data["color_image"] = cv2.cvtColor(
                 frame_data["color_image"], cv2.COLOR_RGB2BGR
             )
-            
+
             _apply_annotations(data, frame_data, i, annotator_type)
-            annotate_all_text(data, frame_data, i, 
-                             type('Args', (), {'annotator_type': annotator_type})())
-            
+            annotate_all_text(
+                data,
+                frame_data,
+                i,
+                type("Args", (), {"annotator_type": annotator_type})(),
+            )
+
             # Convert to RGB for PyAV
             rgb_frame = cv2.cvtColor(frame_data["color_image"], cv2.COLOR_BGR2RGB)
-            av_frame = av.VideoFrame.from_ndarray(rgb_frame, format="rgb24")
+            av_frame = av.VideoFrame.from_ndarray(rgb_frame, format="rgb24")  # type: ignore[attr-defined]
             av_frame = av_frame.reformat(format="yuv420p")
-            
+
             # Encode and write frame
             for packet in stream.encode(av_frame):
                 output_container.mux(packet)
-            
+
             del frame_data
-        
+
         # Flush encoder
         for packet in stream.encode():
             output_container.mux(packet)
-        
+
         output_container.close()
         return True
-        
+
     except Exception as e:
         print(f"[Worker {worker_id}] PyAV encoding failed for {dataset_name}: {e}")
         return False
 
 
-def _process_with_opencv(data, data_path, camera_name, annotator_type, 
-                        output_path, output_format, width, height, worker_id, dataset_name):
+def _process_with_opencv(
+    data,
+    data_path,
+    camera_name,
+    annotator_type,
+    output_path,
+    output_format,
+    width,
+    height,
+    worker_id,
+    dataset_name,
+):
     """Process video using OpenCV VideoWriter."""
     try:
         # Configure video encoding
         if output_format == "mp4":
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
         elif output_format == "avi":
-            fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        
+            fourcc = cv2.VideoWriter_fourcc(*"XVID")  # type: ignore[attr-defined]
+
         # Initialize video writer
-        video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-        
+        video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))  # type: ignore[attr-defined]
+
         if not video_writer.isOpened():
             # Fallback to Motion JPEG
-            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")  # type: ignore[attr-defined]
             output_path = os.path.splitext(output_path)[0] + ".avi"
             video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-            
+
             if not video_writer.isOpened():
                 return False
-        
+
         # Process frames
         for i in range(data["num_frames"]):
             frame_data = get_frame_data(data_path, camera_name, i, annotator_type)
             frame_data["color_image"] = cv2.cvtColor(
                 frame_data["color_image"], cv2.COLOR_RGB2BGR
             )
-            
+
             _apply_annotations(data, frame_data, i, annotator_type)
-            annotate_all_text(data, frame_data, i, 
-                             type('Args', (), {'annotator_type': annotator_type})())
-            
+            annotate_all_text(
+                data,
+                frame_data,
+                i,
+                type("Args", (), {"annotator_type": annotator_type})(),
+            )
+
             video_writer.write(frame_data["color_image"])
             del frame_data
-        
+
         video_writer.release()
         return True
-        
+
     except Exception as e:
         print(f"[Worker {worker_id}] OpenCV encoding failed for {dataset_name}: {e}")
         return False
@@ -1439,32 +1526,34 @@ def _process_with_opencv(data, data_path, camera_name, annotator_type,
 
 def process_batch_datasets(args):
     """Process multiple datasets in batch mode using multi-threading.
-    
+
     Args:
         args (argparse.Namespace): Command line arguments
     """
     print(f"Starting batch processing with {args.num_workers} workers...")
-    
+
     # Find all dataset directories
     dataset_dirs = find_dataset_directories(args.data_path)
-    
+
     if not dataset_dirs:
         print("ERROR: No valid datasets found in the specified directory!")
-        print("   Make sure each subdirectory contains 'lmdb' folder and 'meta_info.pkl' file.")
+        print(
+            "   Make sure each subdirectory contains 'lmdb' folder and 'meta_info.pkl' file."
+        )
         return
-    
+
     print(f"Found {len(dataset_dirs)} datasets to process")
-    
+
     # Create output directory
     output_parent = Path(args.output_path)
     output_parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Prepare tasks for worker threads
     tasks = []
     for data_path in dataset_dirs:
         dataset_name = os.path.basename(data_path)
         output_file = output_parent / f"{dataset_name}.{args.output_format}"
-        
+
         task = partial(
             process_single_dataset,
             data_path=data_path,
@@ -1472,27 +1561,27 @@ def process_batch_datasets(args):
             annotator_type=args.annotator_type,
             output_path=str(output_file),
             output_format=args.output_format,
-            skip_existing=args.skip_existing
+            skip_existing=args.skip_existing,
         )
         tasks.append((task, dataset_name))
-    
+
     # Process datasets using thread pool
     successful = 0
     failed = 0
     results = []
-    
+
     with ThreadPoolExecutor(max_workers=args.num_workers) as executor:
         # Submit all tasks
         future_to_dataset = {
-            executor.submit(task, worker_id=i % args.num_workers): dataset_name 
+            executor.submit(task, worker_id=i % args.num_workers): dataset_name
             for i, (task, dataset_name) in enumerate(tasks)
         }
-        
+
         # Process completed tasks with progress tracking
         with tqdm(total=len(tasks), desc="Processing datasets", unit="dataset") as pbar:
             for future in as_completed(future_to_dataset):
                 dataset_name = future_to_dataset[future]
-                
+
                 try:
                     success, name, output_path, error_msg = future.result()
                     if success:
@@ -1504,15 +1593,15 @@ def process_batch_datasets(args):
                 except Exception as e:
                     failed += 1
                     results.append(f"FAILED: {dataset_name}: Unexpected error - {e}")
-                
+
                 pbar.update(1)
-    
+
     # Print final results
     print(f"\nBatch processing completed!")
     print(f"   Successful: {successful}")
     print(f"   Failed: {failed}")
     print(f"   Output directory: {args.output_path}")
-    
+
     if results:
         print(f"\nDetailed results:")
         for result in results[:10]:  # Show first 10 results
@@ -1523,23 +1612,23 @@ def process_batch_datasets(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    
+
     # Check if batch mode is enabled
     if args.batch_mode:
         print("Batch processing mode enabled")
         process_batch_datasets(args)
         exit()
-    
+
     # Single dataset processing mode
     print("Single dataset processing mode")
-    
+
     # Check if output file already exists and skip_existing is enabled
     if args.skip_existing:
         # Determine the actual output path based on format and content
         temp_data = get_meta_data(args.data_path, args.camera_name, args.annotator_type)
         if temp_data["num_frames"] == 1:
             # Single frame will be saved as PNG
-            check_path = os.path.splitext(args.output_path)[0] + '.png'
+            check_path = os.path.splitext(args.output_path)[0] + ".png"
         else:
             # Multi-frame will be saved with specified format
             if args.output_format == "mp4" and not args.output_path.endswith(".mp4"):
@@ -1548,17 +1637,17 @@ if __name__ == "__main__":
                 check_path = os.path.splitext(args.output_path)[0] + ".avi"
             else:
                 check_path = args.output_path
-        
+
         if os.path.exists(check_path):
             print(f"Output file already exists: {check_path}")
             print("Skipping processing (use --skip_existing=False to force overwrite)")
             exit()
-    
+
     # Optimized processing pipeline with selective data loading
     print("Loading metadata...")
     data = get_meta_data(args.data_path, args.camera_name, args.annotator_type)
     Path(os.path.dirname(args.output_path)).mkdir(parents=True, exist_ok=True)
-    
+
     # Single frame processing (PNG output)
     if data["num_frames"] == 1:
         print("Detected single frame dataset, processing as image...")
@@ -1588,20 +1677,20 @@ if __name__ == "__main__":
         if "gp" in args.annotator_type:
             annotate_grasp_point(data, frame_data, i)
         annotate_all_text(data, frame_data, i, args)
-        
+
         cv2.imwrite(args.output_path, frame_data["color_image"])
         print(f"Single frame saved to: {args.output_path}")
         exit()
 
     # Multi-frame processing with streaming (MP4 output)
     print(f"Processing video with {data['num_frames']} frames...")
-    
+
     # Determine video dimensions from first frame
     first_frame_data = get_frame_data(
         args.data_path, args.camera_name, 0, args.annotator_type
     )
     height, width = first_frame_data["color_image"].shape[:2]
-    
+
     # Configure output path
     output_path = args.output_path
     if args.output_format == "mp4" and not output_path.endswith(".mp4"):
@@ -1611,18 +1700,18 @@ if __name__ == "__main__":
 
     print(f"Video dimensions: {width}x{height}")
     print(f"Output path: {output_path}")
-    
+
     # Use PyAV for better video encoding if available
     if HAS_AV and args.output_format == "mp4":
         print("Using PyAV with H.264 encoding for optimal VSCode compatibility")
-        
+
         # Initialize PyAV container and stream
-        output_container = av.open(output_path, "w")
+        output_container = av.open(output_path, "w")  # type: ignore[attr-defined]
         stream = output_container.add_stream("libx264", 30)
         stream.width = width
         stream.height = height
         stream.pix_fmt = "yuv420p"  # Standard pixel format for maximum compatibility
-        
+
         # Process frames with PyAV
         for i in tqdm(
             range(data["num_frames"]), desc="Processing frames", unit="frame"
@@ -1635,7 +1724,7 @@ if __name__ == "__main__":
             frame_data["color_image"] = cv2.cvtColor(
                 frame_data["color_image"], cv2.COLOR_RGB2BGR
             )
-            
+
             # Apply all enabled annotations
             if "di" in args.annotator_type:
                 annotate_depth_image(data, frame_data, i)
@@ -1654,32 +1743,32 @@ if __name__ == "__main__":
             if "gp" in args.annotator_type:
                 annotate_grasp_point(data, frame_data, i)
             annotate_all_text(data, frame_data, i, args)
-            
+
             # Convert back to RGB for PyAV
             rgb_frame = cv2.cvtColor(frame_data["color_image"], cv2.COLOR_BGR2RGB)
-            
+
             # Convert frame to PyAV format
-            av_frame = av.VideoFrame.from_ndarray(rgb_frame, format="rgb24")
+            av_frame = av.VideoFrame.from_ndarray(rgb_frame, format="rgb24")  # type: ignore[attr-defined]
             av_frame = av_frame.reformat(format="yuv420p")
-            
+
             # Encode and write frame
             for packet in stream.encode(av_frame):
                 output_container.mux(packet)
-            
+
             # Explicit memory cleanup
             del frame_data
-        
+
         # Flush encoder
         for packet in stream.encode():
             output_container.mux(packet)
-        
+
         # Close container
         output_container.close()
-        
+
         print("Video processing completed successfully!")
         print(f"Video saved as: {output_path}")
         print("H.264 encoded video should play perfectly in VSCode!")
-        
+
     else:
         # Fallback to OpenCV VideoWriter
         if not HAS_AV and args.output_format == "mp4":
@@ -1687,30 +1776,30 @@ if __name__ == "__main__":
                 "WARNING: PyAV not available - using OpenCV fallback (may have VSCode compatibility issues)"
             )
             print("TIP: Install PyAV for better compatibility: pip install av")
-        
+
         # Configure video encoding based on output format
         if args.output_format == "mp4":
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
             print("Using MP4 format with MPEG-4 encoding")
         elif args.output_format == "avi":
-            fourcc = cv2.VideoWriter_fourcc(*"XVID")
+            fourcc = cv2.VideoWriter_fourcc(*"XVID")  # type: ignore[attr-defined]
             print("Using AVI format with XVID encoding")
-        
+
         # Initialize video writer
-        video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-        
+        video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))  # type: ignore[attr-defined]
+
         if not video_writer.isOpened():
             # Fallback to Motion JPEG if primary codec fails
             print("Primary codec failed, falling back to Motion JPEG...")
-            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")  # type: ignore[attr-defined]
             output_path = os.path.splitext(output_path)[0] + ".avi"
             video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-            
+
             if not video_writer.isOpened():
                 raise RuntimeError(
                     "Failed to initialize video writer with any supported codec"
                 )
-        
+
         # Process frames with OpenCV
         for i in tqdm(
             range(data["num_frames"]), desc="Processing frames", unit="frame"
@@ -1751,7 +1840,7 @@ if __name__ == "__main__":
         video_writer.release()
         print("Video processing completed successfully!")
         print(f"Video saved as: {output_path}")
-        
+
         # Provide format-specific playback recommendations
         if args.output_format == "mp4":
             print(

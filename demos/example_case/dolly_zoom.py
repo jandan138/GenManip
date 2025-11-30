@@ -12,19 +12,19 @@ from isaacsim import SimulationApp
 
 simulation_app = SimulationApp({"headless": False})
 
-from genmanip.core.loading.loading import (
+from genmanip.core.loader.scene import (
     create_camera_list,
     load_world_xform_prim,
     get_object_list,
 )
 from genmanip.core.sensor.camera import get_src
-from genmanip.utils.file_utils import load_default_config
-from genmanip.utils.utils import setup_logger
-from genmanip.core.loading.loading import relate_franka_from_data
+from genmanip.utils.standalone.file_utils import load_default_config
+from genmanip.utils.standalone.utils import setup_logger
+from genmanip.core.loader.scene import relate_franka_from_data
 from omni.isaac.core import World  # type: ignore
-from genmanip.utils.file_utils import load_yaml
-from genmanip.core.pointcloud.pointcloud import objectList2meshList
-from genmanip.core.usd_utils import set_colliders
+from genmanip.utils.standalone.file_utils import load_yaml
+from genmanip.utils.pointcloud.pointcloud import objectList2meshList
+from genmanip.utils.usd_utils import set_colliders
 
 logger = setup_logger()
 default_config = load_default_config(
@@ -64,7 +64,7 @@ for i in range(100):
     world.step()
 
 print("start")
-from genmanip.utils.robot_utils import joint_position_to_end_effector_pose
+from genmanip.utils.standalone.robot_utils import joint_position_to_end_effector_pose
 
 target_pos, target_ori = joint_position_to_end_effector_pose(
     franka_list[0].get_joint_positions()

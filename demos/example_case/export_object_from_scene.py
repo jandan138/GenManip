@@ -12,8 +12,8 @@ from isaacsim import SimulationApp
 
 simulation_app = SimulationApp({"headless": True})
 
-from genmanip.core.loading.loading import load_world_xform_prim
-from genmanip.core.usd_utils.export_utils import export
+from genmanip.core.loader.scene import load_world_xform_prim
+from genmanip.utils.usd_utils.export_utils import export
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.utils.prims import get_prim_at_path  # type: ignore
@@ -45,8 +45,8 @@ for usd_path in tqdm(usd_path_list):
         child_info[child.GetName()[4:]][
             "scale"
         ] = child_xform.get_local_scale().tolist()
-        from genmanip.core.usd_utils import get_prim_bbox
-        from genmanip.utils.pc_utils import compute_aabb_lwh
+        from genmanip.utils.usd_utils import get_prim_bbox
+        from genmanip.utils.standalone.pc_utils import compute_aabb_lwh
 
         try:
             l, w, h = compute_aabb_lwh(get_prim_bbox(child_xform.prim))

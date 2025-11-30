@@ -5,7 +5,7 @@ current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
 from argparse import ArgumentParser
-from genmanip.utils.file_utils import load_json, load_yaml
+from genmanip.utils.standalone.file_utils import load_json, load_yaml
 
 parser = ArgumentParser()
 parser.add_argument(
@@ -23,14 +23,14 @@ config = load_yaml(args.config)
 simulation_app = SimulationApp({"headless": not args.local})
 
 from omni.isaac.core.utils.prims import delete_prim, get_prim_at_path  # type: ignore
-from genmanip.demogen.evaluate.evaluate import check_finished
-from genmanip.utils.file_utils import load_default_config
-from genmanip.utils.utils import setup_logger
-from genmanip_bench.evaluate.evaluator import Evaluator, parse_lmdb_data
-from genmanip.core.usd_utils.export_utils import export
-from genmanip.utils.file_utils import load_dict_from_pkl, make_dir
-from genmanip.utils.utils import parse_eval_config
-from genmanip.core.loading.loading import (
+from genmanip.core.metrics.metrics import check_finished
+from genmanip.utils.standalone.file_utils import load_default_config
+from genmanip.utils.standalone.utils import setup_logger
+from genmanip.core.evaluator.evaluator import Evaluator, parse_lmdb_data
+from genmanip.utils.usd_utils.export_utils import export
+from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
+from genmanip.utils.standalone.utils import parse_eval_config
+from genmanip.core.loader.scene import (
     build_scene_from_config,
     clear_scene,
     warmup_world,
@@ -38,8 +38,8 @@ from genmanip.core.loading.loading import (
     collect_meta_infos,
     load_object_pool,
 )
-from genmanip.core.loading.loading import recovery_scene
-from genmanip.core.usd_utils import remove_colliders
+from genmanip.core.loader.scene import recovery_scene
+from genmanip.utils.usd_utils import remove_colliders
 from filelock import SoftFileLock
 
 def check_eval_finished(eval_config, default_config):
