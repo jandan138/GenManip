@@ -39,7 +39,7 @@ default_config = load_default_config(
 ASSETS_DIR = default_config["ASSETS_DIR"]
 TEST_USD_NAME = default_config["TEST_USD_NAME"]
 TABLE_UID = "aa49db8a801d402dac6cf1579536502c"
-camera_data = load_yaml("configs/cameras/fixed_camera_robotiq_simbox.yml")
+camera_data = load_yaml("configs/cameras/fixed_camera.yml")
 
 # 2. load scene
 scene_xform, uuid = load_world_xform_prim(
