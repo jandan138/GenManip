@@ -9,7 +9,7 @@ import argparse
 import os
 import pathlib
 import shutil
-
+import tarfile
 from huggingface_hub import snapshot_download
 
 
@@ -73,7 +73,7 @@ def download_robot_franka_robotiq_dataset():
 
 
 def download_robot_split_aloha_mid_360_dataset():
-    repo_id = "Axi404/GenManip-Robot-AlohaSplit-Assets"
+    repo_id = "Axi404/GenManip-Robot-SplitAlohaMid360-Assets"
     snapshot_download(
         repo_id=repo_id,
         repo_type="dataset",
@@ -106,6 +106,30 @@ def download_robot_lift2_dataset():
     remove_huggingface_info("saved/assets/miscs/curobo/R5a")
 
 
+def download_objaverse_subset_dataset():
+    repo_id = "Axi404/GenManip-Assets-ObjaverseSubset"
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir="saved/assets/object_usds/objaverse_usd",
+    )
+    remove_huggingface_info("saved/assets/object_usds/objaverse_usd")
+    parts_dir = "saved/assets/object_usds/objaverse_usd/textures_tar"
+    output_tar = "saved/assets/object_usds/objaverse_usd/textures.tar"
+    extract_dir = "saved/assets/object_usds/objaverse_usd/textures"
+    parts = sorted(
+        f for f in os.listdir(parts_dir) if f.startswith("textures.tar.part")
+    )
+    with open(output_tar, "wb") as out:
+        for p in parts:
+            with open(os.path.join(parts_dir, p), "rb") as f:
+                out.write(f.read())
+    with tarfile.open(output_tar, "r") as tar:
+        tar.extractall(os.path.dirname(extract_dir))
+    shutil.rmtree(parts_dir)
+    os.remove(output_tar)
+
+
 def download_all_robot_datasets():
     download_robot_franka_robotiq_dataset()
     download_robot_split_aloha_mid_360_dataset()
@@ -121,6 +145,11 @@ def download_custom_benchmark_dataset(repo_id: str):
         local_dir=f"saved/assets/collected_packages/{repo_id.split('/')[-1]}",
     )
     remove_huggingface_info(f"saved/assets/collected_packages/{repo_id.split('/')[-1]}")
+
+    if os.path.exists(
+        f"saved/assets/collected_packages/{repo_id.split('/')[-1]}/.version"
+    ):
+        return
 
     src = f"saved/assets/collected_packages/{repo_id.split('/')[-1]}/tasks"
     dst = f"saved/tasks"
@@ -164,5 +193,7 @@ if __name__ == "__main__":
         download_robot_split_aloha_mid_360_dataset()
     elif args.dataset == "lift2":
         download_robot_lift2_dataset()
+    elif args.dataset == "objaverse-subset":
+        download_objaverse_subset_dataset()
     else:
         download_custom_benchmark_dataset(args.dataset)
