@@ -12,6 +12,8 @@ import sys
 from isaacsim import SimulationApp  # type: ignore[import-untyped]
 import socket
 from tqdm import tqdm
+from huggingface_hub import HfApi, snapshot_download
+import pathlib
 
 from genmanip.utils.standalone.file_utils import (
     load_default_config,
@@ -77,7 +79,6 @@ def parse_args() -> argparse.Namespace:
 
 
 args = parse_args()
-config = load_yaml(args.config)
 
 simulation_app = SimulationApp({"headless": not args.local})
 
@@ -240,12 +241,96 @@ def evaluate_one_task(
     return True
 
 
+def check_benchmark_version(benchmark_id: str) -> bool:
+    api = HfApi()
+    files = api.list_repo_files(repo_id=benchmark_id, repo_type="dataset")
+    if ".version" in files:
+        return True
+    else:
+        return False
+
+
+def parse_config_and_benchmark_id(
+    config_or_benchmark_id: str, current_dir: str
+) -> tuple[dict, str | None]:
+    if str(config_or_benchmark_id).endswith(".yml") or str(
+        config_or_benchmark_id
+    ).endswith(".yaml"):
+        config = load_yaml(config_or_benchmark_id)
+        benchmark_id = None
+    elif os.path.exists(
+        os.path.join(
+            current_dir,
+            "saved/assets/collected_packages",
+            str(config_or_benchmark_id).split("/")[-1],
+            "tasks",
+            "config.yaml",
+        )
+    ):
+        print("Loading benchmark from local directory...")
+        config = load_yaml(
+            os.path.join(
+                current_dir,
+                "saved/assets/collected_packages",
+                str(config_or_benchmark_id).split("/")[-1],
+                "tasks",
+                "config.yaml",
+            )
+        )
+        benchmark_id = config_or_benchmark_id
+    else:
+        print("Downloading benchmark from HuggingFace...")
+        if check_benchmark_version(config_or_benchmark_id):
+            pathlib.Path("saved/assets/collected_packages").mkdir(
+                parents=True, exist_ok=True
+            )
+            pathlib.Path("saved/tasks").mkdir(parents=True, exist_ok=True)
+            snapshot_download(
+                repo_id=config_or_benchmark_id,
+                repo_type="dataset",
+                local_dir=f"saved/assets/collected_packages/{config_or_benchmark_id.split('/')[-1]}",
+            )
+            if os.path.exists(
+                os.path.join(
+                    current_dir,
+                    "saved/assets/collected_packages",
+                    str(config_or_benchmark_id).split("/")[-1],
+                    "tasks",
+                    "config.yaml",
+                )
+            ):
+                config = load_yaml(
+                    os.path.join(
+                        current_dir,
+                        "saved/assets/collected_packages",
+                        str(config_or_benchmark_id).split("/")[-1],
+                        "tasks",
+                        "config.yaml",
+                    )
+                )
+                benchmark_id = config_or_benchmark_id
+            else:
+                raise ValueError(f"Config file {config_or_benchmark_id} not found")
+        else:
+            raise ValueError(f"Config file {config_or_benchmark_id} not found")
+    return config["evaluation_configs"], benchmark_id
+
+
 def main():
     # 0-2. load default config
     default_config = load_default_config(
         current_dir, "__None__.json", "local" if args.local else "default"
     )
-    eval_config_list = parse_eval_config(config)
+    eval_config_list, benchmark_id = parse_config_and_benchmark_id(
+        args.config, current_dir
+    )
+    if benchmark_id is not None:
+        default_config["TASKS_DIR"] = os.path.join(
+            current_dir,
+            "saved/assets/collected_packages",
+            benchmark_id.split("/")[-1],
+            "tasks",
+        )
 
     # 0-3. create receive and send ports, need to launch model client before running this script
     receive_port = create_receive_port_and_attach(args.receive_port)

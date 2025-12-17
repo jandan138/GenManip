@@ -11,12 +11,13 @@ import os
 from pathlib import Path
 import pickle
 import shutil
+import json
 from tqdm import tqdm
 import huggingface_hub
 
 import yaml
 
-from isaacsim import SimulationApp # type: ignore[import-untyped]
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 kit = SimulationApp({"headless": True})
 from omni.isaac.core.utils.extensions import enable_extension  # type: ignore
@@ -25,12 +26,13 @@ enable_extension("omni.kit.usd.collect")
 
 from omni.kit.usd.collect import Collector, CollectorStatus  # type: ignore
 
+VERSION = "0.1.0"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--asset_path", type=str, nargs="+", required=True)
     parser.add_argument("--dataset_id", type=str, required=True)
-    parser.add_argument("--no_copy_back", action="store_true", default=False)
     parser.add_argument("--upload_to_huggingface", action="store_true", default=False)
     parser.add_argument("--huggingface_username", type=str, required=False)
     return parser.parse_args()
@@ -71,6 +73,7 @@ def parse_pickle_file(pickle_file: str) -> dict:
     yaml_dir = str(pickle_file).replace("meta_info.pkl", "config.yaml")
     with open(yaml_dir, "r") as f:
         yaml_data = yaml.load(f, yaml.FullLoader)
+        yaml_data = json.loads(json.dumps(yaml_data))
     data["scene_usd_path"] = []
     for v in yaml_data["evaluation_configs"]:
         data["scene_usd_path"].append(v["usd_name"])
@@ -204,8 +207,6 @@ def print_info(
     pickle_infos: dict[str, dict],
     upload_to_huggingface: bool,
     repo_id: str | None,
-    copy_back: bool,
-    cb_dir_list: list[str] | None,
 ) -> None:
     print("-" * 50)
     print(f"Collected assets successfully")
@@ -223,10 +224,6 @@ def print_info(
             print(f"Upload to Hugging Face {repo_id}")
         else:
             print("Upload to Hugging Face cancelled")
-        print("-" * 50)
-    if copy_back and cb_dir_list is not None:
-        for cb_dir in cb_dir_list:
-            print(f"Copy task folder to {cb_dir}")
         print("-" * 50)
 
 
@@ -315,12 +312,14 @@ def rewrite_pickle_info(
         for v in pickle_info["task_data"]["initial_layout"].values():
             if "path" in v and v["path"] != "":
                 usd_raw_path = os.path.join(base_path, v["path"])
-                v["path"] = os.path.join(file_projection[usd_raw_path], "instance.usd")
+                v["path"] = str(
+                    os.path.join(file_projection[usd_raw_path], "instance.usd")
+                ).replace("saved/assets/", "")
         case_dir = os.path.dirname(
             os.path.join(os.path.dirname(os.path.dirname(base_path)), pickle_file)
         )
         target_case_dir = str(case_dir).replace(
-            "saved/tasks",
+            f"saved/tasks/GenManip-Package-{dataset_id}",
             f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/tasks",
         )
         Path(os.path.dirname(target_case_dir)).mkdir(parents=True, exist_ok=True)
@@ -329,6 +328,7 @@ def rewrite_pickle_info(
             pickle.dump(pickle_info, f)
         with open(os.path.join(target_case_dir, "config.yaml"), "r") as f:
             config_data = yaml.load(f, yaml.FullLoader)
+            config_data = json.loads(json.dumps(config_data))
             config_data["demonstration_configs"] = []
             for v in config_data["evaluation_configs"]:
                 v["usd_name"] = (
@@ -354,97 +354,6 @@ def rewrite_pickle_info(
         "w",
     ) as f:
         yaml.dump(total_config, f)
-
-
-def copy_back(base_path: str, dataset_id: str) -> list[str]:
-    cb_dir_list = []
-
-    for dir in os.listdir(
-        os.path.join(
-            base_path,
-            "collected_packages",
-            f"GenManip-Package-{dataset_id}",
-            "tasks",
-        )
-    ):
-        raw_path = os.path.join(os.path.dirname(base_path), "tasks", dir)
-        if os.path.exists(raw_path):
-            Path(os.path.join(os.path.dirname(base_path), "tasks", "backup")).mkdir(
-                parents=True, exist_ok=True
-            )
-            cnt = 0
-            while os.path.exists(
-                os.path.join(
-                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
-                )
-            ):
-                cnt += 1
-            shutil.move(
-                raw_path,
-                os.path.join(
-                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
-                ),
-            )
-            print(
-                f"Find existing dir: {dir} and remove it to backup folder:",
-                os.path.join(
-                    os.path.dirname(base_path), "tasks", "backup", f"{dir}_{cnt}"
-                ),
-            )
-        if os.path.isdir(
-            os.path.join(
-                base_path,
-                "collected_packages",
-                f"GenManip-Package-{dataset_id}",
-                "tasks",
-                dir,
-            )
-        ):
-            shutil.copytree(
-                os.path.join(
-                    base_path,
-                    "collected_packages",
-                    f"GenManip-Package-{dataset_id}",
-                    "tasks",
-                    dir,
-                ),
-                raw_path,
-            )
-            cb_dir_list.append(raw_path)
-
-    shutil.copyfile(
-        os.path.join(
-            base_path,
-            "collected_packages",
-            f"GenManip-Package-{dataset_id}",
-            "tasks",
-            "config.yaml",
-        ),
-        f"configs/tasks/GenManip-Package-{dataset_id}.yml",
-    )
-
-    Path(f"configs/cameras/GenManip-Package-{dataset_id}").mkdir(
-        parents=True, exist_ok=True
-    )
-    for camera_path in os.listdir(
-        os.path.join(
-            base_path,
-            "collected_packages",
-            f"GenManip-Package-{dataset_id}",
-            "cameras",
-        )
-    ):
-        shutil.copyfile(
-            os.path.join(
-                base_path,
-                "collected_packages",
-                f"GenManip-Package-{dataset_id}",
-                "cameras",
-                camera_path,
-            ),
-            f"configs/cameras/GenManip-Package-{dataset_id}/{camera_path}",
-        )
-    return cb_dir_list
 
 
 def upload_to_huggingface(
@@ -505,9 +414,9 @@ def preprocess_asset_path(asset_path: list[str], dataset_id) -> str:
             if "config.yaml" in files:
                 with open(os.path.join(root, "config.yaml"), "r") as f:
                     config_data = yaml.load(f, yaml.FullLoader)
+                    config_data = json.loads(json.dumps(config_data))
                 config_data["demonstration_configs"] = []
                 for v in config_data["evaluation_configs"]:
-                    v["task_name"] = f"GenManip-Package-{dataset_id}/" + v["task_name"]
                     camera_dst_path = os.path.join(
                         camera_config_path,
                         v["domain_randomization"]["cameras"]["config_path"].replace(
@@ -523,7 +432,7 @@ def preprocess_asset_path(asset_path: list[str], dataset_id) -> str:
                         "domain_randomization"
                     ]["cameras"]["config_path"].replace(
                         "configs/cameras/",
-                        f"configs/cameras/GenManip-Package-{dataset_id}/",
+                        f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/cameras/",
                     )
                 with open(os.path.join(root, "config.yaml"), "w") as f:
                     yaml.dump(config_data, f)
@@ -584,9 +493,10 @@ def main() -> None:
         )
     )
 
-    # Copy dir back to task folder
-    if not args.no_copy_back:
-        cb_dir_list = copy_back(base_path=base_path, dataset_id=dataset_id)
+    with open(
+        f"saved/assets/collected_packages/GenManip-Package-{dataset_id}/.version", "w"
+    ) as f:
+        f.write(VERSION)
 
     if args.upload_to_huggingface:
         repo_id = upload_to_huggingface(
@@ -599,9 +509,7 @@ def main() -> None:
         asset_raw_path_list=asset_raw_path_list,
         pickle_infos=pickle_infos,
         upload_to_huggingface=args.upload_to_huggingface,
-        repo_id=repo_id if args.upload_to_huggingface else None, # type: ignore
-        copy_back=not args.no_copy_back,
-        cb_dir_list=cb_dir_list if not args.no_copy_back else None, # type: ignore
+        repo_id=repo_id if args.upload_to_huggingface else None,  # type: ignore
     )
 
     kit.close()
