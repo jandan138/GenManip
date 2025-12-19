@@ -8,20 +8,11 @@ Licensed under the MIT License.
 import argparse
 import os
 import sys
+import traceback
 
 from isaacsim import SimulationApp  # type: ignore[import-untyped]
-import socket
-from tqdm import tqdm
-from huggingface_hub import HfApi, snapshot_download
-import pathlib
 
-from genmanip.utils.standalone.file_utils import (
-    load_default_config,
-    load_dict_from_pkl,
-    load_yaml,
-    make_dir,
-)
-from genmanip.utils.standalone.utils import parse_eval_config, setup_logger
+from genmanip.utils.standalone.file_utils import load_yaml
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_dir)
@@ -82,268 +73,41 @@ args = parse_args()
 
 simulation_app = SimulationApp({"headless": not args.local})
 
-from genmanip.core.loader.domain_randomization import random_texture_for_eval
-from genmanip.core.loader.scene import (
-    clear_scene,
-    recovery_scene,
-)
-from genmanip.utils.pointcloud.pointcloud import get_current_pcList_by_meshList
-from genmanip.utils.usd_utils import remove_colliders
-from genmanip.core.metrics.metrics import check_finished
-from genmanip.core.evaluator.evaluator import Evaluator, parse_lmdb_data
-from genmanip.core.evaluator.utils import get_next_seed, initialize_scene
-from genmanip.utils.standalone.socket_utils import (
-    create_receive_port_and_attach,
-    create_send_port_and_wait,
+from genmanip.core.evaluator.env import IsaacEvalEnv
+from genmanip.core.evaluator.utils import (
+    parse_config_and_benchmark_id,
 )
 
 # 0. Basic Setup
 # 0-0. Isaac Sim hacking to avoid stuck in cooking, https://forums.developer.nvidia.com/t/gpu-memory-usage/300922/8
 simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 
-# 0-1. setup logger
-logger = setup_logger()
-
-
-def evaluate_one_case(
-    eval_config: dict,
-    default_config: dict,
-    scene: dict,
-    evaluator: Evaluator,
-    seed: str,
-) -> float:
-    # 2-0. load meta info and planning data for objects and layout information
-    meta_info = load_dict_from_pkl(
-        os.path.join(
-            default_config["TASKS_DIR"],
-            eval_config["task_name"],
-            f"{seed}/meta_info.pkl",
-        )
-    )
-    planning_data = parse_lmdb_data(
-        os.path.join(
-            default_config["TASKS_DIR"],
-            eval_config["task_name"],
-            f"{seed}",
-        )
-    )
-
-    # 2-1. recovery scene in layout, including load objects and setup layout
-    recovery_scene(
-        scene, evaluator, meta_info["task_data"], eval_config, default_config
-    )
-
-    # 2-2. randomize the texture / other randomization if needed
-    if args.random_randomization:
-        random_texture_for_eval(
-            scene,
-            default_config,
-            eval_config,
-        )
-
-    # 2-3. update task data
-    eval_config["generation_config"]["goal"] = meta_info["task_data"]["goal"]
-    evaluator.update_task_data(meta_info["task_data"], planning_data)
-
-    # 2-4. remove colliders for default ground plane, TODO: remove this after make sure all scene assets' ground plane has no colliders
-    remove_colliders(scene["object_list"]["defaultGroundPlane"].prim_path)
-
-    # 2-5. warmup physics
-    for _ in range(50):
-        scene["world"].step()
-
-    # 2-6. initialize evaluator
-    evaluator.initialize(seed)
-
-    # 3. main loop for singleevaluation
-    step_cnt = 0
-    finished = 0
-    for _ in tqdm(range(args.num_steps)):
-        # 3-0. request action from model client
-        action = evaluator.request_action(without_render=args.without_render)
-
-        # 3-1. set joint position targets
-        scene["robot_info"]["robot_list"][0].robot_view.set_joint_position_targets(
-            action,
-            joint_indices=scene["robot_info"]["robot_list"][0].default_dof_indices,
-        )
-        scene["world"].step(render=not args.without_render)
-
-        # 3-3. record the data
-        evaluator.record(is_save_image=not args.without_render)
-
-        # 3-4. check if the task goal is finished every 10 steps
-        if step_cnt % 10 == 0:
-            success = check_finished(
-                eval_config["generation_config"]["goal"],
-                pclist=get_current_pcList_by_meshList(
-                    scene["object_list"], scene["cacheDict"]["meshDict"]
-                ),
-                articulation_list=scene["articulation_list"],
-            )
-            finished = finished + 10 if (success == 1) else 0
-
-            # 3-5. if the task goal is finished 100 times, break the loop
-            if finished != 0:
-                print(f"finished {finished} times")
-            if finished >= 100:
-                break
-        step_cnt += 1
-
-    # 3-6. finish the evaluation
-    success = check_finished(
-        eval_config["generation_config"]["goal"],
-        pclist=get_current_pcList_by_meshList(
-            scene["object_list"], scene["cacheDict"]["meshDict"]
-        ),
-        articulation_list=scene["articulation_list"],
-    )
-    evaluator.finish(finished, success)
-    return success
-
-
-def evaluate_one_task(
-    eval_config: dict,
-    default_config: dict,
-    current_dir: str,
-    receive_port: socket.socket,
-    send_port: socket.socket,
-) -> bool:
-    # 1-0. make directory for the evaluation
-    make_dir(os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"]))
-
-    # 1-1. check if the evaluation is finished
-    seed = get_next_seed(eval_config, default_config)
-    if seed is None:
-        return False
-
-    # 1-2. initialize
-    scene = initialize_scene(eval_config, default_config, current_dir)
-    evaluator = Evaluator(
-        scene,
-        eval_config["instruction"],
-        os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"]),
-        current_dir,
-        send_port=send_port,
-        receive_port=receive_port,
-        is_relative_action=True,
-    )
-
-    # 2. Main Loop
-    while simulation_app.is_running():
-        evaluate_one_case(eval_config, default_config, scene, evaluator, seed)
-        seed = get_next_seed(eval_config, default_config)
-        if seed is None:
-            break
-
-    # 3-8. clear the scene
-    clear_scene(scene, eval_config, current_dir)
-    return True
-
-
-def check_benchmark_version(benchmark_id: str) -> bool:
-    api = HfApi()
-    files = api.list_repo_files(repo_id=benchmark_id, repo_type="dataset")
-    if ".version" in files:
-        return True
-    else:
-        return False
-
-
-def parse_config_and_benchmark_id(
-    config_or_benchmark_id: str, current_dir: str
-) -> tuple[dict, str | None]:
-    if str(config_or_benchmark_id).endswith(".yml") or str(
-        config_or_benchmark_id
-    ).endswith(".yaml"):
-        config = load_yaml(config_or_benchmark_id)
-        benchmark_id = None
-    elif os.path.exists(
-        os.path.join(
-            current_dir,
-            "saved/assets/collected_packages",
-            str(config_or_benchmark_id).split("/")[-1],
-            "tasks",
-            "config.yaml",
-        )
-    ):
-        print("Loading benchmark from local directory...")
-        config = load_yaml(
-            os.path.join(
-                current_dir,
-                "saved/assets/collected_packages",
-                str(config_or_benchmark_id).split("/")[-1],
-                "tasks",
-                "config.yaml",
-            )
-        )
-        benchmark_id = config_or_benchmark_id
-    else:
-        print("Downloading benchmark from HuggingFace...")
-        if check_benchmark_version(config_or_benchmark_id):
-            pathlib.Path("saved/assets/collected_packages").mkdir(
-                parents=True, exist_ok=True
-            )
-            pathlib.Path("saved/tasks").mkdir(parents=True, exist_ok=True)
-            snapshot_download(
-                repo_id=config_or_benchmark_id,
-                repo_type="dataset",
-                local_dir=f"saved/assets/collected_packages/{config_or_benchmark_id.split('/')[-1]}",
-            )
-            if os.path.exists(
-                os.path.join(
-                    current_dir,
-                    "saved/assets/collected_packages",
-                    str(config_or_benchmark_id).split("/")[-1],
-                    "tasks",
-                    "config.yaml",
-                )
-            ):
-                config = load_yaml(
-                    os.path.join(
-                        current_dir,
-                        "saved/assets/collected_packages",
-                        str(config_or_benchmark_id).split("/")[-1],
-                        "tasks",
-                        "config.yaml",
-                    )
-                )
-                benchmark_id = config_or_benchmark_id
-            else:
-                raise ValueError(f"Config file {config_or_benchmark_id} not found")
-        else:
-            raise ValueError(f"Config file {config_or_benchmark_id} not found")
-    return config["evaluation_configs"], benchmark_id
-
 
 def main():
-    # 0-2. load default config
-    default_config = load_default_config(
-        current_dir, "__None__.json", "local" if args.local else "default"
-    )
-    eval_config_list, benchmark_id = parse_config_and_benchmark_id(
-        args.config, current_dir
-    )
-    if benchmark_id is not None:
-        default_config["TASKS_DIR"] = os.path.join(
-            current_dir,
-            "saved/assets/collected_packages",
-            benchmark_id.split("/")[-1],
-            "tasks",
-        )
+    config, benchmark_id = parse_config_and_benchmark_id(args.config, current_dir)
+    env = IsaacEvalEnv(args, simulation_app, current_dir, config, benchmark_id)
 
-    # 0-3. create receive and send ports, need to launch model client before running this script
-    receive_port = create_receive_port_and_attach(args.receive_port)
-    send_port = create_send_port_and_wait(args.send_port)
+    try:
+        while True:
+            obs, info = env.reset()
 
-    # 1. Evaluate every task
-    for eval_config in eval_config_list:
-        evaluate_one_task(
-            eval_config, default_config, current_dir, receive_port, send_port
-        )
+            if info is None:
+                print("All tasks completed!")
+                break
 
-    # 4. close the simulation app
-    simulation_app.close()
+            print(f"Running Task: {info['task']}, Seed: {info['seed']}")
+
+            done = False
+            while not done:
+                action = env.get_remote_action(obs)
+                obs, _, done, info = env.step(action)
+
+            env.post_episode_process(None)
+    except Exception as e:
+        env.logger.error(f"Error: {e}")
+        env.logger.error(traceback.format_exc())
+    finally:
+        env.close()
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from urllib3.util.ssl_ import create_urllib3_context
 
 from omni.isaac.sensor import Camera  # type: ignore
 
-from genmanip.core.sensor.camera import get_src, get_intrinsic_matrix
+from genmanip.utils.usd_utils.camera_utils import get_src, get_intrinsic_matrix
 
 urllib3.disable_warnings(InsecureRequestWarning)
 

@@ -67,9 +67,7 @@ demonstration_configs:
       type: convexDecomposition
     type: collider
   robots:
-  - config:
-      gripper_type: robotiq
-    type: franka
+  - type: manip/franka/robotiq
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: system2_scaling_14kobj_object_container_fgrandpos_bgrandpos
   usd_name: scene_usds/base_scenes/base

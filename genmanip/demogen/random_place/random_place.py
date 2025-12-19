@@ -25,17 +25,17 @@ from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.articulations import Articulation  # type: ignore
 from omni.isaac.core import World  # type: ignore
 
+from genmanip.demogen.random_place.scene_graph_placement import process_scene_graph
+from genmanip.extensions.metrics.default.sr_based_genmanip_relationship import (
+    check_subgoal_finished_rigid,
+    get_related_position,
+)
 from genmanip.utils.pointcloud.pointcloud import (
     get_current_meshList,
     get_current_pcList_by_meshList,
     meshlist_to_pclist,
 )
-from genmanip.utils.pointcloud.utils import PointCloudInfo, MeshInfo
-from genmanip.demogen.random_place.scene_graph_placement import process_scene_graph
-from genmanip.core.metrics.metrics import (
-    check_subgoal_finished_rigid,
-    get_related_position,
-)
+from genmanip.utils.pointcloud.utils import MeshInfo
 from genmanip.utils.standalone.pc_utils import (
     bbox_to_polygon,
     check_mesh_collision,
@@ -272,7 +272,7 @@ def place_object_to_object_by_relation(
             "position": relation,
         }
         finished = check_subgoal_finished_rigid(
-            subgoal, pclist[object1_uid], pclist[object2_uid]
+            relation, pclist[object1_uid], pclist[object2_uid]
         )
     else:
         if another_object2_uid is None:
@@ -284,7 +284,7 @@ def place_object_to_object_by_relation(
             "another_obj2_uid": another_object2_uid,
         }
         finished = check_subgoal_finished_rigid(
-            subgoal,
+            relation,
             pclist[object1_uid],
             pclist[object2_uid],
             pclist[another_object2_uid],
@@ -677,7 +677,7 @@ def setup_random_custom_tableset(
 
 def setup_random_all_range(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     random_all_range_config: dict,
     background_objects: list[str],
 ) -> int:
@@ -786,7 +786,7 @@ def setup_scene_graph_placement(
 
 def setup_random_all_range_buffered(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     random_all_range_config: dict,
     background_objects: list[str],
     task_data: dict,
@@ -945,7 +945,7 @@ def setup_random_all_range_buffered(
 
 def setup_random_tableset(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     background_objects: list[str],
 ) -> int:
     for key in object_list:
@@ -987,7 +987,7 @@ def setup_random_tableset(
 
 def setup_random_tableset_buffered(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     background_objects: list[str],
     object_uid: str,
     container_uid: str,
@@ -1043,7 +1043,7 @@ def setup_random_tableset_buffered(
 
 def setup_random_obj1_range(
     object_list: dict[str, XFormPrim],
-    meshDict: dict[str, dict],
+    meshDict: dict[str, MeshInfo],
     task_data: dict,
     obj1_random_range: dict,
     world_pose_list: dict[str, tuple[np.ndarray, np.ndarray]],

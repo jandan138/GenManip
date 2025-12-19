@@ -8,6 +8,7 @@ Licensed under the MIT License.
 from datetime import datetime
 import os
 import json
+import logging
 from pathlib import Path
 import pickle
 import shutil
@@ -20,15 +21,16 @@ import roboticstoolbox as rtb
 
 from omni.isaac.sensor import Camera  # type: ignore
 
-from genmanip.core.sensor.camera import (
+from genmanip.core.robot.base import BaseEmbodiment
+from genmanip.utils.usd_utils import (
     collect_camera_info,
+    create_joint_xform_list,
+    create_tcp_xform_list,
     get_intrinsic_matrix,
     get_pixel_from_world_point,
     get_tcp_2d_trace,
     get_tcp_3d_trace,
 )
-from genmanip.core.embodiment import BaseEmbodiment
-from genmanip.core.embodiment.utils import create_joint_xform_list, create_tcp_xform_list
 from genmanip.utils.standalone.transform_utils import (
     compute_delta_eepose,
     compute_pose2,
@@ -110,7 +112,7 @@ def uint16_array_to_float_array(uint16_array: np.ndarray) -> np.ndarray:
     return float_array
 
 
-class Logger:
+class RenderRecorder:
     def __init__(
         self,
         cameras: dict[str, Camera],
@@ -121,13 +123,17 @@ class Logger:
         name: str = "",
         task_data: dict = {},
         tcp_config: list[dict] = [],
+        logger: logging.Logger | None = None,
     ):
         if name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         else:
             self.name = name
         self.instruction = instruction
-        self.log_dir = Path(log_dir)
+        self.data_dir = Path(log_dir)
+        self.logger = logger
+        if self.logger is not None:
+            self.logger.info(f"Generated data will be saved to: {self.data_dir}")
         self.max_size = int(max_size * 1024**4)
         self.json_data_logger = {}
         self.scalar_data_logger = {}
@@ -167,6 +173,7 @@ class Logger:
         qvel: np.ndarray,
         gripper_close: np.ndarray,
         name: str | None = None,
+        base_motion: np.ndarray = np.array([0.0, 0.0, 0.0]),
         pointcloud: dict[str, np.ndarray] | None = None,
     ) -> None:
         self.add_name_frame(name)
@@ -180,6 +187,7 @@ class Logger:
             f"gripper_action", action[len(self.embodiment.default_arm_dof_indices) :]
         )
         self.add_scalar_data(f"gripper_close", gripper_close)
+        self.add_scalar_data(f"base_motion", base_motion)
         self.add_scalar_data(f"name", name)
         if pointcloud is not None:
             self.add_scalar_data(f"observation/pointcloud", pointcloud)
@@ -479,12 +487,13 @@ class Logger:
         config_path: str | None = None,
         without_depth: bool = False,
     ) -> bool:
-        # if os.path.exists(self.log_dir):
+        # if os.path.exists(self.data_dir):
         #     return False
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        log_dir_lmdb = self.log_dir / "lmdb"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        log_dir_lmdb = self.data_dir / "lmdb"
         if os.path.exists(log_dir_lmdb):
-            print("LMDB Existed, Skipping save.")
+            if self.logger is not None:
+                self.logger.info("LMDB Existed, Skipping save.")
             return False
         meta_info = {}
         meta_info["max_size"] = self.max_size
@@ -503,20 +512,13 @@ class Logger:
             or len(self.scalar_data_logger["arm_action"]) == 0
         ):
             pickle.dump(
-                meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb")
+                meta_info, open(os.path.join(self.data_dir, "meta_info.pkl"), "wb")
             )
             if config_path is not None:
-                shutil.copy(config_path, self.log_dir / "config.yaml")
-            self.set_permissions(str(self.log_dir))
+                shutil.copy(config_path, self.data_dir / "config.yaml")
+            self.set_permissions(str(self.data_dir))
             return True
-        self.env = lmdb.open(
-                str(log_dir_lmdb),
-                map_size=self.max_size,
-                # writemap=True,
-                # map_async=True,
-                # sync=False,
-                # metasync=False,
-            )
+        self.env = lmdb.open(str(log_dir_lmdb), map_size=self.max_size)
         txn = self.env.begin(write=True)
         with open(log_dir_lmdb / "info.json", "w") as f:
             json.dump(self.json_data_logger, f)
@@ -570,40 +572,16 @@ class Logger:
                 k = f"{key}/{i:04d}".encode("utf-8")
                 txn.put(k, buf)
                 meta_info["keys"][key].append(k)
-        # for key, value in self.color_image_logger.items():
-        #     meta_info["keys"][key] = []
-        #     for i, image in enumerate(tqdm(value)):
-        #         step_id = str(i).zfill(4)
-        #         txn.put(
-        #             f"{key}/{step_id}".encode("utf-8"),
-        #             pickle.dumps(cv2.imencode(".jpg", image.astype(np.uint8))[1]),
-        #         )
-        #         meta_info["keys"][key].append(f"{key}/{step_id}".encode("utf-8"))
-        # for key, value in self.depth_image_logger.items():
-        #     meta_info["keys"][key] = []
-        #     for i, image in enumerate(tqdm(value)):
-        #         step_id = str(i).zfill(4)
-        #         image = fload_array_to_uint16_png(image)
-        #         txn.put(
-        #             f"{key}/{step_id}".encode("utf-8"),
-        #             pickle.dumps(cv2.imencode(".png", image.astype(np.uint16))[1]),
-        #         )
-        #         meta_info["keys"][key].append(f"{key}/{step_id}".encode("utf-8"))
-        # for key, value in self.obj_mask_logger.items():
-        #     meta_info["keys"][key] = []
-        #     for i, infos in enumerate(tqdm(value)):
-        #         step_id = str(i).zfill(4)
-        #         txn.put(
-        #             f"{key}/{step_id}".encode("utf-8"),
-        #             pickle.dumps(cv2.imencode(".png", infos.astype(np.uint8))[1]),
-        #         )
-        #         meta_info["keys"][key].append(f"{key}/{step_id}".encode("utf-8"))
         txn.commit()
         self.env.close()
-        pickle.dump(meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb"))
+        pickle.dump(meta_info, open(os.path.join(self.data_dir, "meta_info.pkl"), "wb"))
         if config_path is not None:
-            shutil.copy(config_path, self.log_dir / "config.yaml")
-        self.set_permissions(str(self.log_dir))
+            shutil.copy(config_path, self.data_dir / "config.yaml")
+        self.set_permissions(str(self.data_dir))
+        if self.logger is not None:
+            self.logger.info(
+                f"Save data with length {self.log_num_steps} to {self.data_dir}"
+            )
         return True
 
     def set_permissions(self, path: str) -> None:

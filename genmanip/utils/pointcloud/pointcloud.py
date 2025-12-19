@@ -57,7 +57,7 @@ def get_current_meshList(
 
 
 def get_current_pcList_by_meshList(
-    object_list: dict[str, XFormPrim], mesh_list: dict[str, o3d.geometry.TriangleMesh]
+    object_list: dict[str, XFormPrim], mesh_list: dict[str, MeshInfo]
 ) -> dict[str, np.ndarray]:
     mesh_list = get_current_meshList(object_list, mesh_list)
     return meshlist_to_pclist(mesh_list)

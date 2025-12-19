@@ -1,6 +1,7 @@
 import os
 import sys
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore
+
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
@@ -23,24 +24,20 @@ config = load_yaml(args.config)
 simulation_app = SimulationApp({"headless": not args.local})
 
 from omni.isaac.core.utils.prims import delete_prim, get_prim_at_path  # type: ignore
-from genmanip.core.metrics.metrics import check_finished
 from genmanip.utils.standalone.file_utils import load_default_config
 from genmanip.utils.standalone.utils import setup_logger
 from genmanip.core.evaluator.evaluator import Evaluator, parse_lmdb_data
 from genmanip.utils.usd_utils.export_utils import export
 from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
 from genmanip.utils.standalone.utils import parse_eval_config
-from genmanip.core.loader.scene import (
-    build_scene_from_config,
+from genmanip.utils.loader.scene import (
     clear_scene,
-    warmup_world,
-    preprocess_scene,
-    collect_meta_infos,
-    load_object_pool,
 )
-from genmanip.core.loader.scene import recovery_scene
+from genmanip.utils.loader.scene import recovery_scene
 from genmanip.utils.usd_utils import remove_colliders
 from filelock import SoftFileLock
+from genmanip.core.scene.scene import Scene
+
 
 def check_eval_finished(eval_config, default_config):
     lock_file = os.path.join(
@@ -66,6 +63,7 @@ def check_eval_finished(eval_config, default_config):
             f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
         )
 
+
 simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 logger = setup_logger()
 if args.local:
@@ -74,30 +72,29 @@ else:
     default_config = load_default_config(current_dir, "default.json")
 eval_config_list = parse_eval_config(config)
 default_config["EVAL_RESULT_DIR"] = "saved/eval_usd"
+default_config["current_dir"] = current_dir
 for eval_config in eval_config_list:
     make_dir(os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"]))
     seed = check_eval_finished(eval_config, default_config)
     if seed == -1:
         continue
     seed = str(seed).zfill(3)
-    scene = build_scene_from_config(
-        eval_config,
+    scene = Scene(scene_config=eval_config)
+    scene.initialize(
         default_config,
-        current_dir,
-        is_eval=True,
+        eval_config,
         physics_dt=1 / 60,
         rendering_dt=1 / 60,
         only_depth_rep_for_camera=True,
     )
-    load_object_pool(scene, eval_config, current_dir)
-    preprocess_scene(scene, eval_config)
-    warmup_world(scene)
-    collect_meta_infos(scene)
+    scene.post_initialize()
     evaluator = Evaluator(
-        scene,
-        eval_config["instruction"],
-        os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"]),
-        current_dir,
+        camera_list=scene.camera_list,
+        robot=scene.robot_list[0],
+        instruction=eval_config["instruction"],
+        log_dir=os.path.join(
+            default_config["EVAL_RESULT_DIR"], eval_config["task_name"]
+        ),
         is_relative_action=True,
     )
     while simulation_app.is_running():
@@ -120,16 +117,16 @@ for eval_config in eval_config_list:
         )
         eval_config["generation_config"]["goal"] = meta_info["task_data"]["goal"]
         evaluator.update_task_data(meta_info["task_data"], planning_data)
-        remove_colliders(scene["object_list"]["defaultGroundPlane"].prim_path)
+        remove_colliders(scene.object_list["defaultGroundPlane"].prim_path)
         for _ in range(50):
-            scene["world"].step()
+            scene.world.step()
         export(
             os.path.join(
                 default_config["EVAL_RESULT_DIR"],
                 eval_config["task_name"],
                 f"{seed}.usd",
             ),
-            [get_prim_at_path(f"/World/{scene['uuid']}")],
+            [get_prim_at_path(f"/World/{scene.uuid}")],
         )
         seed = check_eval_finished(eval_config, default_config)
         if seed == -1:

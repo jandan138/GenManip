@@ -11,10 +11,10 @@ import omni.usd  # type: ignore
 from pxr import PhysxSchema  # type: ignore
 
 
-def setup_physics_scene() -> None:
+def setup_physics_scene(GPUDynamics: bool = False) -> None:
     stage = omni.usd.get_context().get_stage()
     physxSceneAPI = PhysxSchema.PhysxSceneAPI.Get(stage, "/physicsScene")
-    physxSceneAPI.GetEnableGPUDynamicsAttr().Set(False)
+    physxSceneAPI.GetEnableGPUDynamicsAttr().Set(GPUDynamics)
     physxSceneAPI.GetEnableStabilizationAttr().Set(True)
     physxSceneAPI.GetEnableCCDAttr().Set(False)
     physxSceneAPI.GetBroadphaseTypeAttr().Set("GPU")

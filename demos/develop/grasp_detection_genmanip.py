@@ -16,11 +16,11 @@ if args.debug:
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore
 
 simulation_app = SimulationApp({"headless": True})  # False
 
-from genmanip.core.loader.scene import (
+from genmanip.utils.loader.scene import (
     get_embodiment,
     add_robot_to_scene,
     load_world_xform_prim,
@@ -32,8 +32,10 @@ from genmanip.utils.pointcloud.pointcloud import (
     get_current_meshList,
     objectList2meshList,
 )
-from genmanip.demogen.random_place.random_place import place_object_to_object_by_relation
-from genmanip.core.sensor.camera import set_camera_look_at, get_src
+from genmanip.demogen.random_place.random_place import (
+    place_object_to_object_by_relation,
+)
+from genmanip.utils.usd_utils.camera_utils import set_camera_look_at, get_src
 from genmanip.utils.usd_utils import (
     add_usd_to_world,
     resize_object,
@@ -47,7 +49,7 @@ from genmanip.utils.standalone.pc_utils import compute_mesh_bbox, compute_aabb_l
 from genmanip.utils.standalone.utils import setup_logger
 from genmanip.demogen.planning.pick_and_place import adjust_grasp_by_embodiment
 from genmanip.utils.usd_utils import setup_physics_scene
-from genmanip.utils.object_utils.object_pool import ObjectPool
+from genmanip.utils.annotation.object_pool import ObjectPool
 from omni.isaac.core.utils.prims import delete_prim  # type: ignore
 from omni.isaac.core import World  # type: ignore
 import numpy as np
@@ -130,7 +132,10 @@ robot_config = {
     ],
 }
 robot_list = [
-    get_embodiment(robot_config, add_robot_to_scene(uuid, robot_config, default_config))
+    get_embodiment(
+        "manip/franka/panda_hand",
+        add_robot_to_scene(uuid, "manip/franka/panda_hand", default_config),
+    )
 ]
 for robot in robot_list:
     robot = world.scene.add(robot.robot)
@@ -224,7 +229,7 @@ for usd_path in usd_list:
                 scale,
                 meshlist[uid],
             )
-            meshDict[uid] = get_mesh_info_by_load(
+            mesh_info = get_mesh_info_by_load(
                 object_list[uid],
                 os.path.join(
                     default_config["ASSETS_DIR"],
@@ -233,6 +238,8 @@ for usd_path in usd_list:
                     f"{uid}.obj",
                 ),
             )
+            if mesh_info is not None:
+                meshDict[uid] = mesh_info
             robot_list[0].set_joint_positions(default_joint_positions)
             meshlist = get_current_meshList(object_list, meshDict)
             min_thickness = 0.06
@@ -253,7 +260,7 @@ for usd_path in usd_list:
                     h=h,
                     mesh=meshlist[uid],
                 )
-                meshDict[uid] = get_mesh_info_by_load(
+                mesh_info = get_mesh_info_by_load(
                     object_list[uid],
                     os.path.join(
                         default_config["ASSETS_DIR"],
@@ -262,6 +269,8 @@ for usd_path in usd_list:
                         f"{uid}.obj",
                     ),
                 )
+                if mesh_info is not None:
+                    meshDict[uid] = mesh_info
             IS_OK = place_object_to_object_by_relation(
                 uid,
                 "00000000000000000000000000000000",

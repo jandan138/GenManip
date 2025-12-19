@@ -101,7 +101,7 @@ def main():
     paths = os.listdir(args.data_path)
     data_paths = [
         os.path.join(args.data_path, path)
-        for path in tqdm.tqdm(paths, desc="Listing data paths")
+        for path in paths
         if os.path.isdir(os.path.join(args.data_path, path))
     ]
     with ThreadPoolExecutor(max_workers=args.num_workers) as executor:

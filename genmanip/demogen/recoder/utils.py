@@ -12,6 +12,8 @@ from typing import Any
 import lmdb
 import numpy as np
 
+from omni.isaac.core.prims import XFormPrim  # type: ignore
+
 
 def get_scalar_data_from_lmdb(data_path: str, key: bytes) -> list[Any]:
     meta_info = pickle.load(open(f"{data_path}/meta_info.pkl", "rb"))
@@ -29,7 +31,7 @@ def parse_planning_result(
     dir: str,
     default_config: dict,
     demogen_config: dict,
-    scene: dict,
+    object_list: dict[str, XFormPrim],
 ) -> list[dict]:
     data_list = []
     data_dir = os.path.join(
@@ -43,6 +45,7 @@ def parse_planning_result(
     arm_action_data = get_scalar_data_from_lmdb(data_dir, b"arm_action")
     gripper_action_data = get_scalar_data_from_lmdb(data_dir, b"gripper_action")
     gripper_close_data = get_scalar_data_from_lmdb(data_dir, b"gripper_close")
+    base_motion_data = get_scalar_data_from_lmdb(data_dir, b"base_motion")
     name_data = get_scalar_data_from_lmdb(data_dir, b"name")
     try:
         joint_world_pose_data = get_scalar_data_from_lmdb(
@@ -56,6 +59,7 @@ def parse_planning_result(
         arm_action,
         gripper_action,
         gripper_close,
+        base_motion,
         name,
         joint_world_pose,
     ) in zip(
@@ -64,6 +68,7 @@ def parse_planning_result(
         arm_action_data,
         gripper_action_data,
         gripper_close_data,
+        base_motion_data,
         name_data,
         (
             joint_world_pose_data
@@ -76,12 +81,13 @@ def parse_planning_result(
         data["qvel"] = qvel
         data["action"] = np.concatenate([arm_action, gripper_action])
         data["gripper_close"] = gripper_close
+        data["base_motion"] = base_motion
         data["name"] = name
         data["obj_info"] = {}
         if joint_world_pose is not None:
             data["joint_world_pose"] = joint_world_pose
         data_list.append(data)
-    for key in scene["object_list"]:
+    for key in object_list:
         position_data = get_scalar_data_from_lmdb(
             data_dir, f"observation/obj_pose/{key}/position".encode("utf-8")
         )

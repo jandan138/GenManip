@@ -112,9 +112,7 @@ demonstration_configs:
       type: convexDecomposition
     type: collider
   robots:
-  - config:
-      gripper_type: aloha_split
-    type: aloha_split
+  - type: manip/mobile_aloha/piper
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: system1_scaling_14kobj_object_container_fgrandpos_bgrandpos_fgclip_NOrobotbaserandpos_bgcache10_bgclip_3L2obsAlign_refineActionSpace_aloha
   usd_name: scene_usds/sim2real_scenes_align_for_scaling/base

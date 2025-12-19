@@ -55,9 +55,7 @@ demonstration_configs:
   - type: ccd
   robots:
   - &id006
-    config:
-      gripper_type: panda_hand
-    type: franka
+    type: manip/franka/panda_hand
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: Banana/banana_plate_4035_none-wow-wot-woh-now
   usd_name: scene_usds/debug_scenes/banana_plate_scenes/base

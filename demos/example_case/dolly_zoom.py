@@ -8,19 +8,19 @@ from tqdm import tqdm
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp # type: ignore
 
 simulation_app = SimulationApp({"headless": False})
 
-from genmanip.core.loader.scene import (
+from genmanip.utils.loader.scene import (
     create_camera_list,
     load_world_xform_prim,
     get_object_list,
 )
-from genmanip.core.sensor.camera import get_src
+from genmanip.utils.usd_utils.camera_utils import get_src
 from genmanip.utils.standalone.file_utils import load_default_config
 from genmanip.utils.standalone.utils import setup_logger
-from genmanip.core.loader.scene import relate_franka_from_data
+from genmanip.utils.loader.robot import relate_franka_from_data
 from omni.isaac.core import World  # type: ignore
 from genmanip.utils.standalone.file_utils import load_yaml
 from genmanip.utils.pointcloud.pointcloud import objectList2meshList
@@ -58,7 +58,7 @@ while (
 ):
     world.step()
 import numpy as np
-from genmanip.core.sensor.camera import set_camera_look_at
+from genmanip.utils.usd_utils.camera_utils import set_camera_look_at
 
 for i in range(100):
     world.step()

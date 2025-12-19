@@ -121,7 +121,7 @@ demonstration_configs:
     type: collider
   robots:
   - config:
-      gripper_type: robotiq
+      type: manip/franka/robotiq_simbox
     default_joint_positions:
     - 0.0
     - -0.785
@@ -136,7 +136,7 @@ demonstration_configs:
     - 0.0
     - 0.0
     - 0.0
-    type: franka
+    type: manip/franka/robotiq
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: system1_scaling_14kobj_object_container_fgrandpos_bgrandpos_fgclip_NOrobotbaserandpos_bgcache10_bgclip_3L2obsAlign_refineActionSpace_twohorizon_inone
   usd_name: scene_usds/sim2real_scenes_align_for_scaling/base

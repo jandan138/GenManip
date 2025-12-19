@@ -53,9 +53,7 @@ demonstration_configs:
       type: convexDecomposition
     type: collider
   robots:
-  - config:
-      gripper_type: robotiq
-    type: franka
+  - type: manip/franka/robotiq
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: Banana/banana_plate_4035_none-wow-wot-woh-now-robotiq
   usd_name: scene_usds/debug_scenes/banana_plate_scenes/base
@@ -70,9 +68,7 @@ evaluation_configs:
   preprocess_config:
   - *id005
   robots:
-  - config:
-      gripper_type: robotiq_simbox
-    type: franka
+  - type: manip/franka/robotiq_simbox
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: Banana/banana_plate_4035_none-wow-wot-woh-now-robotiq
   usd_name: scene_usds/debug_scenes/banana_plate_scenes/base

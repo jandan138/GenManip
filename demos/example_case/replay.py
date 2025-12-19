@@ -6,7 +6,7 @@ Licensed under the MIT License.
 """
 
 from argparse import ArgumentParser
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # type: ignore
 import os
 import sys
 
@@ -20,7 +20,7 @@ parser.add_argument(
     "-cfg",
     "--config",
     type=str,
-    default="/closedlooptest/configs/sandwich_plate_all_none.yaml",
+    default="configs/minimal.yaml",
     required=True,
     help="Path to the YAML config file",
 )
@@ -39,16 +39,11 @@ from genmanip.demogen.planning.utils import (
     check_eval_finished,
     adjust_arm_gripper_action_by_embodiment,
 )
-from genmanip.core.loader.scene import (
-    build_scene_from_config,
-    clear_scene,
-    warmup_world,
-    preprocess_scene,
-    collect_meta_infos,
-    load_object_pool,
-)
-from genmanip.core.loader.scene import recovery_scene
+from genmanip.utils.loader.scene import clear_scene
+from genmanip.utils.loader.scene import recovery_scene
 from genmanip.utils.usd_utils import remove_colliders
+from genmanip.core.scene.scene import Scene
+from genmanip.core.robot.dualarm_manip import DualArmEmbodiment
 
 simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 logger = setup_logger()
@@ -63,19 +58,15 @@ for eval_config in eval_config_list:
     make_dir(
         os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"], seed)
     )
-    scene = build_scene_from_config(
-        eval_config,
+    scene = Scene(scene_config=eval_config)
+    scene.initialize(
         default_config,
-        current_dir,
-        is_eval=True,
+        eval_config,
         physics_dt=1 / 30,
         rendering_dt=1 / 30,
         only_depth_rep_for_camera=True,
     )
-    load_object_pool(scene, eval_config, current_dir)
-    preprocess_scene(scene, eval_config)
-    warmup_world(scene)
-    collect_meta_infos(scene)
+    scene.post_initialize()
     while simulation_app.is_running():
         meta_info = load_dict_from_pkl(
             os.path.join(
@@ -95,22 +86,29 @@ for eval_config in eval_config_list:
             scene, None, meta_info["task_data"], eval_config, default_config
         )
         eval_config["generation_config"]["goal"] = meta_info["task_data"]["goal"]
-        remove_colliders(scene["object_list"]["defaultGroundPlane"].prim_path)
+        remove_colliders(scene.object_list["defaultGroundPlane"].prim_path)
         for _ in range(50):
-            scene["world"].step()
+            scene.world.step()
         for i in range(len(planning_data["action"])):
             arm_action = planning_data["action"][i]
             gripper_action = planning_data["gripper_action"][i]
             action = adjust_arm_gripper_action_by_embodiment(
                 arm_action,
                 gripper_action,
-                scene["robot_info"]["robot_list"][0].embodiment_name,
+                scene.robot_list[0].embodiment_name,
             )
-            scene["robot_info"]["robot_list"][0].robot_view.set_joint_position_targets(
+            if isinstance(scene.robot_list[0], DualArmEmbodiment):
+                base_motion = planning_data["base_motion"][i]
+                scene.robot_list[0].delta_move_to(
+                    base_motion[0],
+                    base_motion[1],
+                    base_motion[2],
+                )
+            scene.robot_list[0].robot_view.set_joint_position_targets(
                 action,
-                joint_indices=scene["robot_info"]["robot_list"][0].default_dof_indices,
+                joint_indices=scene.robot_list[0].default_dof_indices,
             )
-            scene["world"].step(render=True)
+            scene.world.step(render=True)
         seed = check_eval_finished(eval_config, default_config)
         if seed == -1:
             break

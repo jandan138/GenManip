@@ -12,6 +12,7 @@ import pickle
 import copy
 
 import csv
+from huggingface_hub import HfApi
 import json
 import yaml
 import trimesh
@@ -79,6 +80,7 @@ def load_default_config(
         config["TASKS_DIR"] = os.path.join(current_dir, "saved/tasks")
     if "TEST_USD_NAME" not in config:
         config["TEST_USD_NAME"] = "base"
+    config["current_dir"] = current_dir
     return config
 
 
@@ -147,11 +149,11 @@ def check_glb_properties(file_path: str) -> tuple[bool, int] | tuple[None, None]
         scene = trimesh.load(file_path)
         total_vertex_count = 0
         has_normal_map = False
-        for name, mesh in scene.geometry.items(): # type: ignore[attr-defined]
+        for name, mesh in scene.geometry.items():  # type: ignore[attr-defined]
             total_vertex_count += len(mesh.vertices)
             if isinstance(mesh, trimesh.Trimesh):
                 if hasattr(mesh.visual, "material"):
-                    material = mesh.visual.material # type: ignore[attr-defined]
+                    material = mesh.visual.material  # type: ignore[attr-defined]
                     if material and getattr(material, "normalTexture", None):
                         has_normal_map = True
         return has_normal_map, total_vertex_count
@@ -239,3 +241,12 @@ def report_log(log_path: str) -> dict:
     else:
         failed_log = {}
     return failed_log
+
+
+def check_benchmark_version(benchmark_id: str) -> bool:
+    api = HfApi()
+    files = api.list_repo_files(repo_id=benchmark_id, repo_type="dataset")
+    if ".version" in files:
+        return True
+    else:
+        return False

@@ -8,11 +8,11 @@ current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp # type: ignore
 
 simulation_app = SimulationApp({"headless": True})
 
-from genmanip.core.loader.scene import load_world_xform_prim
+from genmanip.utils.loader.scene import load_world_xform_prim
 from genmanip.utils.usd_utils.export_utils import export
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore

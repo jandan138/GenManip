@@ -144,9 +144,7 @@ demonstration_configs:
   preprocess_config: []
   robots:
   - &id008
-    config:
-      gripper_type: robotiq
-    type: franka
+    type: manip/franka/robotiq
     default_joint_positions:
     - 0.0
     - -0.785

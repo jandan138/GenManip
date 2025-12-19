@@ -12,6 +12,23 @@ import random
 from typing import Any
 
 
+class ColorFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: "\033[36m",  # Cyan
+        logging.INFO: "\033[32m",  # Green
+        logging.WARNING: "\033[33m",  # Yellow
+        logging.ERROR: "\033[31m",  # Red
+        logging.CRITICAL: "\033[1;31m",  # Bold Red
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, "")
+        record.levelname = f"{color}{record.levelname}{self.RESET}"
+        record.msg = f"{color}{record.msg}{self.RESET}"
+        return super().format(record)
+
+
 def tuple_to_list(data: Any) -> list:
     if isinstance(data, tuple):
         data = list(data)
@@ -32,17 +49,6 @@ def get_nth_item_from_dict(d: dict, n: int) -> tuple[Any, Any]:
     if n < 0 or n >= len(d):
         raise IndexError("Index out of range")
     return list(d.items())[n]
-
-
-def process_check_finished(result: Any) -> Any:
-    while isinstance(result, dict):
-        if "finished" in result:
-            result = result["finished"]
-        else:
-            for res in result:
-                result = result[res]
-                break
-    return result
 
 
 def setup_logger() -> logging.Logger:

@@ -103,9 +103,7 @@ demonstration_configs:
   preprocess_config: []
   robots:
   - &id007
-    config:
-      gripper_type: aloha_split
-    type: aloha_split
+    type: manip/mobile_aloha/piper
   table_uid: instance_01
   task_name: IROS_C_V5_Aloha/brush_paint
   usd_name: scene_usds/IROS_scenes_aloha_final/scene_paint/base

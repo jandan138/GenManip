@@ -21,16 +21,14 @@ from curobo.wrap.reacher.motion_gen import (
 import numpy as np
 import torch
 
-from omni.isaac.core import World  # type: ignore
 from omni.isaac.core.utils.types import JointsState as SimJointState  # type: ignore
-
+from omni.isaac.core.utils.stage import get_current_stage  # type: ignore
 
 class CuroboPlanner:
-    def __init__(self, robot_cfg: dict, world: World, robot_prim_path: str) -> None:
-        self.world = world
+    def __init__(self, robot_cfg: dict, robot_prim_path: str) -> None:
         self.robot_prim_path = robot_prim_path
         self.usd_helper = UsdHelper()
-        self.usd_helper.load_stage(self.world.stage)
+        self.usd_helper.load_stage(get_current_stage())
         self.robot_cfg = robot_cfg
         self.world_cfg = WorldConfig()
         self.tensor_args = TensorDeviceType()

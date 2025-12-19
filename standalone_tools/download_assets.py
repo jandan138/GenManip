@@ -73,7 +73,7 @@ def download_robot_franka_robotiq_dataset():
 
 
 def download_robot_split_aloha_mid_360_dataset():
-    repo_id = "Axi404/GenManip-Robot-SplitAlohaMid360-Assets"
+    repo_id = "Axi404/GenManip-Robot-AlohaSplit-Assets"
     snapshot_download(
         repo_id=repo_id,
         repo_type="dataset",

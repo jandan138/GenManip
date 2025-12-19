@@ -72,9 +72,7 @@ demonstration_configs:
       type: convexDecomposition
     type: collider
   robots:
-  - config:
-      gripper_type: panda_hand
-    type: franka
+  - type: manip/franka/panda_hand
   table_uid: aa49db8a801d402dac6cf1579536502c
   task_name: object_container_all_all-top
   usd_name: scene_usds/base_scenes/base

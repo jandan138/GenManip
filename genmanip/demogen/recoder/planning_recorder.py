@@ -6,6 +6,7 @@ Licensed under the MIT License.
 """
 
 from datetime import datetime
+import logging
 import os
 import json
 from pathlib import Path
@@ -19,10 +20,11 @@ import shutil
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.sensor import Camera  # type: ignore
 
-from genmanip.core.embodiment import BaseEmbodiment
-from genmanip.core.embodiment.utils import create_joint_xform_list
-from genmanip.core.sensor.camera import get_intrinsic_matrix
+from genmanip.core.robot.base import BaseEmbodiment
+from genmanip.utils.usd_utils.joint_utils import create_joint_xform_list
+from genmanip.utils.usd_utils.camera_utils import get_intrinsic_matrix
 from genmanip.utils.standalone.transform_utils import pose_to_transform
+
 
 DEFAULT_RGB_SCALE_FACTOR = 256000.0
 
@@ -134,7 +136,7 @@ def image_to_float_array(
     return float_array / scale_factor
 
 
-class Logger:
+class PlanningRecorder:
     def __init__(
         self,
         cameras: dict[str, Camera],
@@ -146,14 +148,17 @@ class Logger:
         name: str = "",
         task_data: dict = {},
         tcp_config: dict = {},
+        logger: logging.Logger | None = None,
     ) -> None:
         if name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         else:
             self.name = name
         self.instruction = instruction
-        self.log_dir = Path(f"{log_dir}/{self.name}")
-        print(self.log_dir)
+        self.data_dir = Path(f"{log_dir}/{self.name}")
+        self.logger = logger
+        if self.logger is not None:
+            self.logger.info(f"Generated data will be saved to: {self.data_dir}")
         self.max_size = int(max_size * 1024**4)
         self.json_data_logger = {}
         self.scalar_data_logger = {}
@@ -174,6 +179,13 @@ class Logger:
         self.object_list = object_list
         self.current_action = []
 
+        self.last_action = embodiment.robot.get_joint_positions()[
+            embodiment.default_dof_indices
+        ]
+        self.last_grasp = -1.0 if embodiment.gripper_dof_num == 1 else [-1.0, -1.0]
+        self.last_arm = "default"
+        self.last_base_motion = np.array([0.0, 0.0, 0.0])
+
     def load_static_info(self) -> None:
         for camera_name, camera in self.cameras.items():
             intrinsics_matrix = get_intrinsic_matrix(camera)
@@ -188,11 +200,24 @@ class Logger:
 
     def load_dynamic_info(
         self,
-        action: np.ndarray,
-        gripper_action: float,
-        arm: str = "default",
+        action: np.ndarray | None,
+        gripper_action: float | None,
+        arm: str | None = "default",
         name: str | list[str] | None = None,
+        base_motion: np.ndarray = np.array([0.0, 0.0, 0.0]),
     ) -> None:
+        if action is None:
+            action = self.last_action
+        else:
+            self.last_action = action
+        if gripper_action is None:
+            gripper_action = self.last_grasp  # type: ignore
+        else:
+            self.last_grasp = gripper_action
+        if arm is None:
+            arm = self.last_arm
+        else:
+            self.last_arm = arm
         action = np.array(action)
         if arm == "default":
             gripper_close = gripper_action
@@ -213,6 +238,7 @@ class Logger:
             f"gripper_action", action[self.embodiment.default_gripper_dof_indices]
         )
         self.add_scalar_data(f"gripper_close", gripper_close)
+        self.add_scalar_data(f"base_motion", base_motion)
         self.add_scalar_data(f"name", name)
         for key in self.object_list:
             self.add_scalar_data(
@@ -282,10 +308,10 @@ class Logger:
     def save(
         self, task_name: str | None = None, config_path: str | None = None
     ) -> bool:
-        # if os.path.exists(self.log_dir):
+        # if os.path.exists(self.data_dir):
         #     return False
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        log_dir_lmdb = self.log_dir / "lmdb"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        log_dir_lmdb = self.data_dir / "lmdb"
         meta_info = {}
         meta_info["max_size"] = self.max_size
         meta_info["num_steps"] = self.log_num_steps
@@ -303,11 +329,11 @@ class Logger:
             or len(self.scalar_data_logger["arm_action"]) == 0
         ):
             pickle.dump(
-                meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb")
+                meta_info, open(os.path.join(self.data_dir, "meta_info.pkl"), "wb")
             )
             if config_path is not None:
-                shutil.copy(config_path, self.log_dir / "config.yaml")
-            self.set_permissions(str(self.log_dir))
+                shutil.copy(config_path, self.data_dir / "config.yaml")
+            self.set_permissions(str(self.data_dir))
             return True
         self.env = lmdb.open(str(log_dir_lmdb), map_size=self.max_size)
         txn = self.env.begin(write=True)
@@ -321,11 +347,14 @@ class Logger:
             meta_info["keys"]["scalar_data"].append(key.encode("utf-8"))
         txn.commit()
         self.env.close()
-        pickle.dump(meta_info, open(os.path.join(self.log_dir, "meta_info.pkl"), "wb"))
+        pickle.dump(meta_info, open(os.path.join(self.data_dir, "meta_info.pkl"), "wb"))
         if config_path is not None:
-            shutil.copy(config_path, self.log_dir / "config.yaml")
-        self.set_permissions(str(self.log_dir))
-        print(f"save data with length {self.log_num_steps} to {self.log_dir}")
+            shutil.copy(config_path, self.data_dir / "config.yaml")
+        self.set_permissions(str(self.data_dir))
+        if self.logger is not None:
+            self.logger.info(
+                f"Save data with length {self.log_num_steps} to {self.data_dir}"
+            )
         return True
 
     def set_permissions(self, path: str) -> None:

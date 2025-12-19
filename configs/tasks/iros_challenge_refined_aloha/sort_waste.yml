@@ -132,9 +132,7 @@ demonstration_configs:
     type: apply_default_physics_material
   robots:
   - &id011
-    config:
-      gripper_type: aloha_split
-    type: aloha_split
+    type: manip/mobile_aloha/piper
   table_uid: instance
   task_name: IROS_C_V5_Aloha/waste_split
   usd_name: scene_usds/IROS_scenes_aloha_final/scene_waste/base
