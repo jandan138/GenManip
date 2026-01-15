@@ -16,6 +16,7 @@ from omni.isaac.sensor import Camera  # type: ignore
 from genmanip.core.metrics.metrics_manager import MetricsManager
 from genmanip.core.robot.base import BaseEmbodiment
 from genmanip.core.robot.utils import RobotFactory
+from genmanip.core.scene.scene_config import SceneConfig
 from genmanip.utils.loader.scene import (
     clean_prim_velocity,
     create_camera_list,
@@ -35,9 +36,8 @@ from genmanip.utils.loader.utils import (
 from genmanip.utils.pointcloud.pointcloud import objectList2meshList
 from genmanip.utils.standalone.file_utils import load_yaml
 from genmanip.utils.usd_utils import get_src, setup_physics_scene
-
-
 from genmanip.utils.pointcloud.utils import MeshInfo, PointCloudInfo
+from genmanip.utils.loader.scene import relate_object_from_data
 
 
 class AssetsLibrary:
@@ -97,7 +97,7 @@ class CacheLibrary:
 
 
 class Scene:
-    def __init__(self, scene_config: dict):
+    def __init__(self, scene_config: SceneConfig):
         self.scene_config = scene_config
         self.object_list: dict[str, XFormPrim] = {}
         self.robot_list: list[BaseEmbodiment] = []
@@ -139,15 +139,20 @@ class Scene:
         self.scene_xform, self.uuid = load_world_xform_prim(
             os.path.join(
                 self.default_config["ASSETS_DIR"],
-                f"{self.scene_config['usd_name']}.usda",
+                f"{self.scene_config.usd_name}.usda",
             )
         )
         self.world = World(physics_dt=physics_dt, rendering_dt=rendering_dt)
         setup_physics_scene()
 
+        # TODO: HACK, remove room collider to avoid error physics simulation
+        from genmanip.utils.usd_utils.collision_utils import remove_colliders
+
+        remove_colliders(f"/World/{self.uuid}/room")
+
         # Get object list
         self.object_list = get_object_list(
-            self.uuid, self.scene_xform, self.scene_config["table_uid"]
+            self.uuid, self.scene_xform, self.scene_config.table_uid
         )
         self.meta_infos["world_pose_list"] = collect_world_pose_list(self.object_list)
 
@@ -159,52 +164,54 @@ class Scene:
         # Create robot list
         self.robot_list = [
             RobotFactory.build(
-                robot_config["type"],
+                robot_config.type,
                 scene_uid=self.uuid,
                 default_config=self.default_config,
                 robot_config=robot_config,
             )
-            for robot_config in self.scene_config["robots"]
+            for robot_config in self.scene_config.robots
         ]
         for robot in self.robot_list:
             self.world.scene.add(robot.robot)
 
         # Load camera information
-        camera_info = self.scene_config["domain_randomization"]["cameras"]
-        if camera_info["type"] == "fixed":
+        camera_info = self.scene_config.domain_randomization.cameras
+        if camera_info.type == "fixed":
             camera_data = load_yaml(
                 os.path.join(
-                    self.default_config["current_dir"], camera_info["config_path"]
+                    self.default_config["current_dir"], camera_info.config_path
                 )
             )
         else:
-            raise ValueError(f"Unsupported camera type: {camera_info['type']}")
+            raise ValueError(f"Unsupported camera type: {camera_info.type}")
         if is_render:
             if "camera1" in camera_data:
                 camera_data["camera1"]["resolution"] = [640, 480]
 
         # Create camera list
         self.camera_list = create_camera_list(
-            camera_data, self.uuid, rendering_dt, only_depth_rep_for_camera, only_color_rep_for_camera
+            camera_data,
+            self.uuid,
+            rendering_dt,
+            only_depth_rep_for_camera,
+            only_color_rep_for_camera,
         )
 
     def _parse_articulation(self) -> None:
-        self.scene_config["generation_config"]["articulation"] = {}
-        for key in self.scene_config["object_config"]:
-            if self.scene_config["object_config"][key][
-                "type"
-            ] == "existed_object" and self.scene_config["object_config"][key].get(
-                "is_articulated", False
+        for key in self.scene_config.object_config:
+            if (
+                self.scene_config.object_config[key].type == "existed_object"
+                and self.scene_config.object_config[key].is_articulated
             ):
-                for uid in self.scene_config["object_config"][key]["uid_list"]:
+                for uid in self.scene_config.object_config[key].uid_list:
                     info = {}
-                    info["target_positions"] = self.scene_config["object_config"][key][
-                        "target_positions"
-                    ]
-                    info["is_articulated"] = self.scene_config["object_config"][key][
-                        "is_articulated"
-                    ]
-                    self.scene_config["generation_config"]["articulation"][uid] = info
+                    info["target_positions"] = self.scene_config.object_config[
+                        key
+                    ].target_positions
+                    info["is_articulated"] = self.scene_config.object_config[
+                        key
+                    ].is_articulated
+                    self.scene_config.generation_config.articulation[uid] = info
                     if self.articulation_data[uid]["is_articulated"]:
                         self.articulation_list[uid] = add_articulation_to_scene(
                             key, self.uuid, self.world
@@ -222,14 +229,16 @@ class Scene:
         for arti_id, articulation in self.articulation_list.items():
             if self.articulation_data[arti_id]["is_articulated"]:
                 if (
-                    arti_id in self.scene_config["generation_config"]["articulation"]
-                    and "target_positions"
-                    in self.scene_config["generation_config"]["articulation"][arti_id]
+                    arti_id in self.scene_config.generation_config.articulation
+                    and self.scene_config.generation_config.articulation[
+                        arti_id
+                    ]["target_positions"]
+                    is not None
                 ):
                     articulation._articulation_view.set_joint_positions(
-                        self.scene_config["generation_config"]["articulation"][arti_id][
-                            "target_positions"
-                        ]
+                        self.scene_config.generation_config.articulation[
+                            arti_id
+                        ]["target_positions"]
                     )
 
         for _ in range(10):
@@ -242,8 +251,8 @@ class Scene:
             for part_name, part_group in arti_parts.items():
                 part_prim_path = arti_prim_path + f"/Instance/{part_group}"
                 arti_part = f"{arti_id}_{part_name}"
-                self.object_list[arti_part] = XFormPrim(part_prim_path)
-                self.articulation_part_list[arti_part] = XFormPrim(part_prim_path)
+                self.object_list[arti_part] = relate_object_from_data(part_prim_path)
+                self.articulation_part_list[arti_part] = relate_object_from_data(part_prim_path)
             self.object_list.pop(arti_id)
 
     def _initialize_after_reset(
@@ -252,9 +261,9 @@ class Scene:
         save_pointcloud: bool = False,
     ) -> None:
 
-        for robot, robot_cfg in zip(self.robot_list, self.scene_config["robots"]):
+        for robot, robot_cfg in zip(self.robot_list, self.scene_config.robots):
             robot.initialize(
-                default_joint_positions=robot_cfg.get("default_joint_positions", None)
+                default_joint_positions=robot_cfg.default_joint_positions
             )
         for key, articulation in self.articulation_list.items():
             if self.articulation_data[key]["is_articulated"]:
@@ -265,10 +274,10 @@ class Scene:
                 os.path.join(
                     self.default_config["ASSETS_DIR"],
                     "mesh_data",
-                    self.scene_config["task_name"],
+                    self.scene_config.task_name,
                 ),
             )
-        if self.scene_config["domain_randomization"]["random_environment"]["has_wall"]:
+        if self.scene_config.domain_randomization.random_environment.has_wall:
             self.background["wall"], self.background["wall_textures"] = (
                 setup_walls_and_materials(self.uuid, self.world, self.object_list)
             )
@@ -332,17 +341,14 @@ class Scene:
     def initialize(
         self,
         default_config: dict,
-        scene_config: dict,
         physics_dt: float = 1 / 60.0,
         rendering_dt: float = 1 / 60.0,
         is_render: bool = False,
         save_pointcloud: bool = False,
         only_depth_rep_for_camera: bool = False,
         only_color_rep_for_camera: bool = False,
-        skip_warmup: bool = False,
     ):
         self.default_config = default_config
-        self.scene_config = scene_config
         self._initialize_load_infomation()
         self._initialize_before_reset(
             physics_dt=physics_dt,
@@ -363,21 +369,35 @@ class Scene:
             self._warmup_world()
         self.collect_meta_infos()
 
-    def build_metrics_manager(self, goal: list[list[dict]], skip_steps: int = 1, succ_cnts: int = 0):
-        ori_goal = goal
-        goal = [
-            [
-                {
-                    "type": "manip/default/sr_based_genmanip_relationship",
-                    "skip_steps": skip_steps,
-                    "succ_cnts": succ_cnts,
-                    "sub_goal_setting": cfg,
+    def build_metrics_manager(
+        self, goal: list, skip_steps: int = 1, succ_cnts: int = 0, never_reset: bool = False
+    ):
+        ori_goal = goal.copy()
+
+        def _transform_goal(goal: list | dict):
+            if isinstance(goal, list):
+                return [_transform_goal(g) for g in goal]
+            elif isinstance(goal, dict):
+                return {
+                    "type": goal.get(
+                        "type", "manip/default/sr_based_genmanip_relationship"
+                    ),
+                    "skip_steps": goal.get("skip_steps", skip_steps),
+                    "succ_cnts": goal.get("succ_cnts", succ_cnts),
+                    "never_reset": goal.get("never_reset", never_reset),
+                    "sub_goal_setting": goal,
                 }
-                for cfg in inner
-            ]
-            for inner in ori_goal
-        ]
-        self.metric_manager = MetricsManager(goal)
+
+        self.metric_manager = MetricsManager(_transform_goal(ori_goal))
+
+    def step(self, render: bool = True) -> float | None:
+        self.world.step(render=render)
+        sr = 0.0
+        if self.metric_manager is not None:
+            sr = self.metric_manager.step(self)
+            if os.environ.get("GENMANIP_DEBUG", "0") == "1":
+                print("Success rate: ", sr)
+        return sr
 
     def get_meta_infos(self) -> dict:
         return self.meta_infos

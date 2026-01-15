@@ -17,6 +17,7 @@ demonstration_configs:
       mode: auto
       robot: 0
     articulation: []
+    randomization_hack_flag: true
     goal:
     - - - obj1_uid:
           - drink1

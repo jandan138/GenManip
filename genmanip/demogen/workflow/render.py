@@ -40,11 +40,13 @@ from genmanip.utils.standalone.utils import (
     parse_demogen_config,
     setup_logger,
 )
+from genmanip.core.scene.scene_config import SceneConfig
 from genmanip.utils.usd_utils import (
     create_joint_xform_list,
     remove_colliders,
     set_camera_look_at,
 )
+from genmanip.utils.standalone.version_utils import process_archived_config
 
 
 class RenderWorkflow:
@@ -53,14 +55,14 @@ class RenderWorkflow:
         self.simulation_app = simulation_app
         self.current_dir = current_dir
         self.logger = setup_logger()
-        log_dir = os.path.join(current_dir, "logs", "demogen")
+        log_dir = os.path.join(current_dir, "logs", "render")
         mac_addr = uuid.getnode()
         timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         os.makedirs(log_dir, exist_ok=True)
 
         log_path = os.path.join(log_dir, f"{mac_addr}_{timestamp}.log")
 
-        logger_name = "DemogenWorkflow"
+        logger_name = "RenderWorkflow"
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.INFO)
 
@@ -81,7 +83,7 @@ class RenderWorkflow:
 
             self.logger.propagate = False
 
-        self.logger.info("===== Demogen Workflow started =====")
+        self.logger.info("===== Render Workflow started =====")
 
         self.default_config = load_default_config(
             self.current_dir, "__None__.json", "local" if self.args.local else "default"
@@ -111,13 +113,15 @@ class RenderWorkflow:
         self.simulation_app.close()
 
     def _process_task(self, demogen_config):
-        task_name = demogen_config["task_name"]
+        demogen_config = process_archived_config(demogen_config)
+        scene_config = SceneConfig(**demogen_config)
+        task_name = scene_config.task_name
 
         make_dir(
             os.path.join(self.default_config["DEMONSTRATION_DIR"], task_name, "render")
         )
 
-        scene = self._initialize_scene(demogen_config)
+        scene = self._initialize_scene(scene_config)
 
         for object in scene.object_list.values():
             remove_colliders(object.prim_path)
@@ -133,22 +137,21 @@ class RenderWorkflow:
         self.logger.info(f"rendering {len(dir_list)} trajectories for task {task_name}")
 
         for dir_name in dir_list:
-            self._process_single_trajectory(scene, demogen_config, dir_name)
+            self._process_single_trajectory(scene, scene_config, dir_name)
 
-        clear_scene(scene, demogen_config, self.current_dir)
+        clear_scene(scene, scene_config, self.current_dir)
 
-    def _initialize_scene(self, demogen_config):
-        scene = Scene(demogen_config)
+    def _initialize_scene(self, scene_config: SceneConfig):
+        scene = Scene(scene_config)
         scene.initialize(
             self.default_config,
-            demogen_config,
             physics_dt=1 / 600000.0,
             rendering_dt=1 / 600000.0,
             is_render=True,
             save_pointcloud=self.args.save_pointcloud,
         )
         scene.post_initialize()
-        if self.args.process_room_randomization:
+        if scene_config.domain_randomization.random_environment.room_randomization:
             with open(
                 os.path.join(
                     self.default_config["ASSETS_DIR"], "miscs/scene_list.json"
@@ -162,12 +165,12 @@ class RenderWorkflow:
                 scene_info,
                 self.default_config["ASSETS_DIR"],
                 scene.uuid,
-                demogen_config["table_uid"],
+                scene_config.table_uid,
             )
         return scene
 
-    def _process_single_trajectory(self, scene, demogen_config, dir_name):
-        task_name = demogen_config["task_name"]
+    def _process_single_trajectory(self, scene, scene_config: SceneConfig, dir_name):
+        task_name = scene_config.task_name
         traj_dir = os.path.join(
             self.default_config["DEMONSTRATION_DIR"], task_name, "trajectory", dir_name
         )
@@ -199,7 +202,7 @@ class RenderWorkflow:
                         f"render directory {dir_name} already exists or traj missing"
                     )
                 self._execute_rendering(
-                    scene, demogen_config, dir_name, traj_dir, render_dir
+                    scene, scene_config, dir_name, traj_dir, render_dir
                 )
 
                 executed = True
@@ -217,11 +220,16 @@ class RenderWorkflow:
             self.logger.error(f"error in rendering {dir_name}: {e}")
             self.logger.error(traceback.format_exc())
 
-    def _execute_rendering(self, scene, demogen_config, dir_name, traj_dir, render_dir):
+    def _execute_rendering(
+        self,
+        scene: Scene,
+        scene_config: SceneConfig,
+        dir_name: str,
+        traj_dir: str,
+        render_dir: str,
+    ):
         meta_info = load_dict_from_pkl(os.path.join(traj_dir, "meta_info.pkl"))
-
         input_camera_dict = self._setup_cameras(scene)
-
         recorder = RenderRecorder(
             input_camera_dict,
             scene.robot_list[0],
@@ -230,21 +238,20 @@ class RenderWorkflow:
             task_data=meta_info["task_data"],
             tcp_config=scene.tcp_configs["franka"],
             logger=self.logger,
+            record_depth=not self.args.without_depth,
         )
-
         recovery_scene_render(
             scene,
             meta_info["task_data"],
-            demogen_config,
             self.default_config,
-            remove_table=self.args.process_room_randomization,
+            remove_table=scene_config.domain_randomization.random_environment.room_randomization,
         )
         random_texture(
-            scene, self.default_config, demogen_config, table_without_collider=True
+            scene, self.default_config, scene_config, table_without_collider=True
         )
 
         data_list = parse_planning_result(
-            dir_name, self.default_config, demogen_config, scene.object_list
+            dir_name, self.default_config, scene_config.task_name, scene.object_list
         )
 
         if self.args.downsample > 1:
@@ -255,8 +262,32 @@ class RenderWorkflow:
         if has_joint_world_pose:
             joint_xform_list = create_joint_xform_list(scene.robot_list[0].robot)
 
+        def create_articulation_part_xform_list(data_frame: dict):
+            articulation_part_xform_list = {}
+            if not "articulation_info" in data_frame:
+                return articulation_part_xform_list
+            for articulation_id, articulation in data_frame[
+                "articulation_info"
+            ].items():
+                articulation_part_xform_list[articulation_id] = XFormPrim(
+                    articulation["prim_path"]
+                )
+                articulation_part_xform_list[articulation_id].set_world_pose(
+                    articulation["position"], articulation["orientation"]
+                )
+                articulation_part_xform_list[articulation_id].set_local_scale(
+                    articulation["scale"]
+                )
+            return articulation_part_xform_list
+
+        articulation_part_xform_list = create_articulation_part_xform_list(data_list[0])
+
         self._warmup_simulation(
-            scene, data_list[0], has_joint_world_pose, joint_xform_list
+            scene,
+            data_list[0],
+            has_joint_world_pose,
+            joint_xform_list,
+            articulation_part_xform_list,
         )
 
         self.logger.info(
@@ -288,6 +319,7 @@ class RenderWorkflow:
                 data,
                 has_joint_world_pose,
                 joint_xform_list,
+                articulation_part_xform_list,
                 recorder,
                 pointDict,
                 pointJointDict,
@@ -296,7 +328,9 @@ class RenderWorkflow:
             if self.args.render_first_frame:
                 break
 
-        recorder.save(without_depth=self.args.without_depth)
+        recorder.save()
+        recorder.release(trim=True)
+        del recorder
         gc.collect()
 
     def _set_cycle_camera(self, scene, azimuth=0.0):
@@ -329,11 +363,20 @@ class RenderWorkflow:
         return input_camera_dict
 
     def _warmup_simulation(
-        self, scene, initial_data, has_joint_world_pose, joint_xform_list
+        self,
+        scene,
+        initial_data,
+        has_joint_world_pose,
+        joint_xform_list,
+        articulation_part_xform_list,
     ):
         for _ in range(10):
             self._apply_state(
-                scene, initial_data, has_joint_world_pose, joint_xform_list
+                scene,
+                initial_data,
+                has_joint_world_pose,
+                joint_xform_list,
+                articulation_part_xform_list,
             )
             if self.args.add_cycle_camera:
                 self._set_cycle_camera(scene)
@@ -342,7 +385,14 @@ class RenderWorkflow:
             else:
                 scene.world.render()
 
-    def _apply_state(self, scene, data, has_joint_world_pose, joint_xform_list):
+    def _apply_state(
+        self,
+        scene,
+        data,
+        has_joint_world_pose,
+        joint_xform_list,
+        articulation_part_xform_list,
+    ):
         # Robot state
         if has_joint_world_pose:
             for joint_name, joint_xform in joint_xform_list.items():
@@ -350,9 +400,21 @@ class RenderWorkflow:
         else:
             scene.robot_list[0].robot.set_joint_positions(data["qpos"])
 
+        # Articulation state
+        for articulation_id, articulation in articulation_part_xform_list.items():
+            articulation.set_world_pose(
+                data["articulation_info"][articulation_id]["position"],
+                data["articulation_info"][articulation_id]["orientation"],
+            )
+            articulation.set_local_scale(
+                data["articulation_info"][articulation_id]["scale"]
+            )
+
         # Object state
         for key in scene.object_list:
             if key == "00000000000000000000000000000000":
+                continue
+            if key not in data["obj_info"]:
                 continue
             scene.object_list[key].set_world_pose(
                 data["obj_info"][key]["position"],
@@ -366,11 +428,18 @@ class RenderWorkflow:
         data,
         has_joint_world_pose,
         joint_xform_list,
+        articulation_part_xform_list,
         recorder,
         pointDict,
         pointJointDict,
     ):
-        self._apply_state(scene, data, has_joint_world_pose, joint_xform_list)
+        self._apply_state(
+            scene,
+            data,
+            has_joint_world_pose,
+            joint_xform_list,
+            articulation_part_xform_list,
+        )
         if has_joint_world_pose:
             scene.world.render()
         else:
@@ -422,4 +491,7 @@ class RenderWorkflow:
             "wall_texture"
         ] = False
         demogen_config["domain_randomization"]["random_environment"]["hdr"] = True
+        demogen_config["domain_randomization"]["random_environment"][
+            "room_randomization"
+        ] = True
         return demogen_config

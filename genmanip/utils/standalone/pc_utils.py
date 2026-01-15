@@ -133,7 +133,9 @@ def compute_near_area(
 def compute_lrfb_area(
     position: str, mesh1: o3d.geometry.TriangleMesh, mesh2: o3d.geometry.TriangleMesh
 ) -> Polygon:
-    from genmanip.core.metrics.metrics import XY_DISTANCE_CLOSE_THRESHOLD
+    from genmanip.extensions.metrics.default.sr_based_genmanip_relationship import (
+        XY_DISTANCE_CLOSE_THRESHOLD,
+    )
 
     aabb1 = compute_mesh_bbox(mesh1)
     aabb2 = compute_mesh_bbox(mesh2)

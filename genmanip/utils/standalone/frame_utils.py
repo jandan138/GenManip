@@ -34,7 +34,7 @@ def create_video_from_image_folder_with_mediapy(
         )
         for img in images
     ]
-    media.write_video(output_video_path, images_npy, fps=fps) # type: ignore[attr-defined]
+    media.write_video(output_video_path, images_npy, fps=fps)  # type: ignore[attr-defined]
 
 
 def create_video_from_image_list_with_mediapy(
@@ -44,7 +44,7 @@ def create_video_from_image_list_with_mediapy(
     frame_ending: str = ".png",
 ) -> None:
     # images: list of numpy arrays
-    media.write_video(output_video_path, image_list, fps=fps) # type: ignore[attr-defined]
+    media.write_video(output_video_path, image_list, fps=fps)  # type: ignore[attr-defined]
 
 
 def save_image_with_description(
@@ -87,7 +87,7 @@ def create_video_from_image_folder(
     first_image_path = os.path.join(image_folder, images[0])
     frame = cv2.imread(first_image_path)
     height, width, _ = frame.shape
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v") # type: ignore[attr-defined]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     for image in images:
         image_path = os.path.join(image_folder, image)
@@ -102,9 +102,10 @@ def create_video_from_image_list(
     fps: float = 30,
 ) -> None:
     height, width, _ = image_list[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v") # type: ignore[attr-defined]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     for image in image_list:
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         video.write(image)
     video.release()
 
@@ -113,7 +114,7 @@ def create_video_from_image_array(
     image_array: np.ndarray, output_video_path: str, fps: float = 30
 ) -> None:
     height, width, _ = image_array[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v") # type: ignore[attr-defined]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     for frame in image_array:
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)

@@ -82,7 +82,6 @@ for eval_config in eval_config_list:
     scene = Scene(scene_config=eval_config)
     scene.initialize(
         default_config,
-        eval_config,
         physics_dt=1 / 60,
         rendering_dt=1 / 60,
         only_depth_rep_for_camera=True,

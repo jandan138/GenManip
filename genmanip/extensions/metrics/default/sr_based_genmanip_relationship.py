@@ -5,8 +5,11 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+from typing import Any
+
 import numpy as np
 import open3d as o3d
+from pydantic import BaseModel, Field
 import scipy
 from shapely.geometry import Point
 from shapely.vectorized import contains
@@ -16,7 +19,8 @@ from omni.isaac.core.articulations import Articulation  # type: ignore
 
 from genmanip.core.metrics.base import BaseMetric
 from genmanip.core.metrics.utils import MetricFactory
-from genmanip.utils.pointcloud.pointcloud import get_current_pcList_by_meshList
+from genmanip.utils.pointcloud.pointcloud import get_current_pointCloud
+from genmanip.utils.pointcloud.utils import PointCloudInfo
 from genmanip.utils.usd_utils import get_pcd_from_mesh
 from genmanip.utils.standalone.object_utils.shelf import extract_shelf_planes, Shelf
 from genmanip.utils.standalone.pc_utils import get_xy_contour
@@ -32,37 +36,100 @@ INSIDE_PROPORTION_THRESH = 0.5
 ANGLE_THRESHOLD = 45
 
 
+class SRBasedGenmanipRelationshipConfig(BaseModel):
+    obj1_uid: str = Field(
+        ..., description="UID of the object to measure the relationship"
+    )
+    obj2_uid: str | None = Field(
+        default=None, description="UID of the object to measure the relationship"
+    )
+    position: str | None = Field(
+        default=None, description="Position of the object to measure the relationship"
+    )
+    another_obj2_uid: str | None = Field(
+        default=None,
+        description="UID of the another object to measure the relationship",
+    )
+    status: list[list[float]] | None = Field(
+        default=None, description="Status of the object to measure the relationship"
+    )
+
+
 @MetricFactory.register("manip/default/sr_based_genmanip_relationship")
 class SRBasedGenmanipRelationship(BaseMetric):
-    def __init__(self, skip_steps=1, succ_cnts=0, **kwargs):
-        super().__init__(skip_steps, succ_cnts, **kwargs)
-        self.goal_setting = kwargs["sub_goal_setting"]
+    def __init__(
+        self,
+        skip_steps: int = 1,
+        succ_cnts: int = 0,
+        sub_goal_setting: dict[str, Any] = {},
+        **kwargs,
+    ):
+        super().__init__(skip_steps, succ_cnts, sub_goal_setting, **kwargs)
+        self.goal_setting = SRBasedGenmanipRelationshipConfig(**sub_goal_setting)
+
+    @staticmethod
+    def get_target_pc_list(scene, target_uids):
+        pc_list = {}
+        for uid in target_uids:
+            if uid not in scene.object_list:
+                continue
+            if uid not in scene.cache_library.pointcloud_dict:
+                if uid in scene.cache_library.mesh_dict:
+                    mesh_info = scene.cache_library.mesh_dict[uid]
+                    num_points = (
+                        100000 if uid == "00000000000000000000000000000000" else 10000
+                    )
+                    try:
+                        pcd = get_pcd_from_mesh(mesh_info.mesh, num_points=num_points)
+                        points = np.asarray(pcd.points)
+                        pc_info = PointCloudInfo(
+                            points=points,
+                            scale=mesh_info.scale,
+                            trans=mesh_info.trans,
+                            quat=mesh_info.quat,
+                        )
+                        scene.cache_library.pointcloud_dict[uid] = pc_info
+                    except Exception as e:
+                        print(f"Failed to generate point cloud for {uid}: {e}")
+                        continue
+            if uid in scene.cache_library.pointcloud_dict:
+                pc_info = scene.cache_library.pointcloud_dict[uid]
+                pc_list[uid] = get_current_pointCloud(scene.object_list[uid], pc_info)
+        return pc_list
 
     def check_status(self, scene):
-        pclist = get_current_pcList_by_meshList(
-            scene.object_list, scene.cache_library.mesh_dict
-        )
         articulation_list = scene.articulation_list
+        if self.goal_setting.position:
+            target_uids = [self.goal_setting.obj1_uid]
+            if self.goal_setting.obj2_uid:
+                target_uids.append(self.goal_setting.obj2_uid)
+            if self.goal_setting.another_obj2_uid:
+                target_uids.append(self.goal_setting.another_obj2_uid)
 
-        if "position" in self.goal_setting:
-            if "another_obj2_uid" in self.goal_setting:
-                pcd3 = pclist[self.goal_setting["another_obj2_uid"]]
+            pclist = SRBasedGenmanipRelationship.get_target_pc_list(scene, target_uids)
+
+            if self.goal_setting.another_obj2_uid is not None:
+                pcd3 = pclist[self.goal_setting.another_obj2_uid]
             else:
                 pcd3 = None
+            if self.goal_setting.obj2_uid is None:
+                raise ValueError("obj2_uid is required for position relationship")
             check_status_flag = check_subgoal_finished_rigid(
-                self.goal_setting["position"],
-                pclist[self.goal_setting["obj1_uid"]],
-                pclist[self.goal_setting["obj2_uid"]],
+                self.goal_setting.position,
+                pclist[self.goal_setting.obj1_uid],
+                pclist[self.goal_setting.obj2_uid],
                 pcd3,
             )
-        elif "status" in self.goal_setting:
+        elif self.goal_setting.status is not None:
             check_status_flag = check_subgoal_finished_articulation(
-                self.goal_setting, articulation_list[self.goal_setting["obj1_uid"]]
+                self.goal_setting.status, articulation_list[self.goal_setting.obj1_uid]
             )
         else:
             check_status_flag = False
-
         return check_status_flag
+
+    def get_info(self):
+        return f"put {self.goal_setting.obj1_uid} to the {self.goal_setting.position} of {self.goal_setting.obj2_uid}"
 
 
 def assign_point_to_shelf(point: np.ndarray | list[float], shelves: list[Shelf]) -> int:
@@ -97,11 +164,10 @@ def calculate_xy_distance_between_two_point_clouds(
 
 
 def check_subgoal_finished_articulation(
-    subgoal: dict, articulation: Articulation
+    status_list: list[list[float]], articulation: Articulation
 ) -> bool:
-    subgoal_status = subgoal["status"]
     articulation_status = articulation._articulation_view.get_joints_state().positions
-    for status in subgoal_status:
+    for status in status_list:
         if compare_articulation_status(articulation_status.tolist(), status):
             return True
     return False
@@ -296,6 +362,17 @@ def infer_spatial_relationship(
 ) -> list[str]:
     relation_list = []
     if point_cloud_c is None:
+        dx = max(
+            0, min_points_a[0] - max_points_b[0], min_points_b[0] - max_points_a[0]
+        )
+        dy = max(
+            0, min_points_a[1] - max_points_b[1], min_points_b[1] - max_points_a[1]
+        )
+        aabb_xy_dist = np.sqrt(dx * dx + dy * dy)
+
+        if aabb_xy_dist > XY_DISTANCE_CLOSE_THRESHOLD * (1 + error_margin_percentage):
+            return []
+
         # 计算距离
         xy_dist = calculate_xy_distance_between_two_point_clouds(
             point_cloud_a, point_cloud_b
@@ -416,6 +493,24 @@ def is_point_in_convex_hull_fast(
     )
 
 
+def is_point_in_convex_hull_early(
+    points: np.ndarray,
+    hull: scipy.spatial.ConvexHull,
+    thresh_ratio: float = 0.5,
+    tol: float = 1e-12,
+) -> bool:
+    A = hull.equations[:, :-1]
+    b = hull.equations[:, -1]
+    required = int(np.ceil(thresh_ratio * len(points)))
+    cnt = 0
+    for p in points:
+        if np.all(A @ p + b <= tol):
+            cnt += 1
+            if cnt >= required:
+                return True
+    return False
+
+
 def is_inside(
     src_pts: np.ndarray,
     target_pts: np.ndarray,
@@ -429,11 +524,9 @@ def is_inside(
     num_src_pts = len(src_pts)
     thresh_obj_particles = thresh * num_src_pts
     if use_fast_method:
-        src_points_in_hull = is_point_in_convex_hull_fast(src_pts, hull)
+        is_inside = is_point_in_convex_hull_early(src_pts, hull, thresh_ratio=thresh)
+        return is_inside
     else:
         hull_vertices = target_pts[hull.vertices]
         src_points_in_hull = is_point_in_hull(src_pts, hull_vertices)
-    if src_points_in_hull.sum() > thresh_obj_particles:
-        return True
-    else:
-        return False
+        return src_points_in_hull.sum() > thresh_obj_particles

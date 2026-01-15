@@ -16,6 +16,7 @@ from genmanip.core.robot.dualarm_manip import DualArmEmbodiment, ManipDualArmRob
 from genmanip.core.robot.utils import RobotFactory
 from genmanip.utils.planner.curobo.base import CuroboPlanner
 from genmanip.utils.standalone.file_utils import load_yaml
+from genmanip.core.scene.scene_config import RobotConfig
 
 
 @RobotFactory.register("manip/lift2/R5a")
@@ -48,7 +49,7 @@ class Lift2Embodiment(DualArmEmbodiment):
         self.robot_view.set_max_joint_velocities([2.0] * 26)
 
     def create_robot(
-        self, scene_uid: str, default_config: dict, robot_config: dict
+        self, scene_uid: str, default_config: dict, robot_config: RobotConfig
     ) -> Robot:
         # Deactivate the franka robot
         prim = get_prim_at_path(f"/World/{scene_uid}/franka")
@@ -56,12 +57,12 @@ class Lift2Embodiment(DualArmEmbodiment):
             prim.SetActive(False)
 
         # Create the lift2 robot
-        if "position" in robot_config:
-            position = robot_config["position"]
+        if robot_config.position is not None:
+            position = robot_config.position
         else:
             position = np.array([-0.45, 0.0, 0.5])
-        if "orientation" in robot_config:
-            orientation = robot_config["orientation"]
+        if robot_config.orientation is not None:
+            orientation = robot_config.orientation
         else:
             orientation = np.array([1.0, 0.0, 0.0, 0.0])
         prim = create_prim(

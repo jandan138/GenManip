@@ -7,6 +7,7 @@ Licensed under the MIT License.
 
 import os
 import pickle
+from typing import Any
 
 import numpy as np
 
@@ -44,6 +45,7 @@ import socket
 
 from genmanip.utils.standalone.socket_utils import send_message, wait_message
 from genmanip.core.robot.base import BaseEmbodiment
+from genmanip.core.robot.dualarm_manip import DualArmEmbodiment
 
 from omni.isaac.sensor import Camera  # type: ignore
 
@@ -275,27 +277,42 @@ class Evaluator:
         self.current_joint_position = self.embodiment.robot.get_joint_positions()[
             self.embodiment.default_dof_indices
         ]
+        if isinstance(self.embodiment, DualArmEmbodiment):
+            self.current_base_position = self.embodiment.robot.get_joint_positions()[
+                self.embodiment.base_dof_indices
+            ]
+        else:
+            self.current_base_position = [0.0, 0.0, 0.0]
+        self.current_arm_position = self.current_joint_position[self.embodiment.default_arm_dof_indices]
+        self.current_gripper_position = self.current_joint_position[self.embodiment.default_gripper_dof_indices]
+
         camera_data = {}
         if not without_render:
             camera_data = get_eval_camera_data(self.camera_list)
         ee_pose = self.embodiment.fk_single(self.embodiment.robot.get_joint_positions())
+
         obs = {
-            "camera_data": camera_data,
             "instruction": self.instruction,
-            "joint_position_state": self.current_joint_position,
-            "ee_pose_state": tuple_to_list(ee_pose),
+            "camera_data": camera_data,
+            "state.joints": self.current_arm_position,
+            "state.gripper": self.current_gripper_position,
+            "state.base": self.current_base_position,
+            "state.ee_pose": tuple_to_list(ee_pose),
             "timestep": self.steps,
             "reset": self.steps == 0,
         }
+
+        for camera, img in camera_data.items():
+            obs[f"video.{camera}_view"] = img['rgb']
         return obs
 
-    def request_action(self, obs) -> np.ndarray:
+    def request_action(self, obs) -> dict[str, Any]:
         if self.send_port is None:
             raise ValueError("Send port is not set")
         if self.receive_port is None:
             raise ValueError("Receive port is not set")
         send_message(self.send_port, obs)
-        action = wait_message(self.receive_port)["action"]
+        action = wait_message(self.receive_port)
         return action
 
     def parse_action(self, action, control_type: str = "joint_position") -> np.ndarray:

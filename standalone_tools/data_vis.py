@@ -139,8 +139,8 @@ def parse_args():
         "--annotator_type",
         nargs="+",
         type=str,
-        required=True,
-        default=["step", "qpos", "arm_action", "ee_pose"],
+        required=False,
+        default=[],
         help="List of annotation types: st/step, qp/qpos, aa/arm_action, ep/ee_pose, "
         "bb2d/bbox2d, bb3d/bbox3d, tcp2d, atcp2d, atcp2dd, sm/semantic_mask, "
         "gp/grasp_point, ins/instruction, di/depth_image",
@@ -675,7 +675,7 @@ def annotate_semantic_mask(data, frame_data, i):
     for label in unique_labels:
         if label == 0:  # Skip background
             continue
-        if label in data["semantic_mask_id2labels"][i]:
+        if str(label) in data["semantic_mask_id2labels"][i]:
             if (
                 data["semantic_mask_id2labels"][i][str(label)]["class"]
                 == "defaultgroundplane"

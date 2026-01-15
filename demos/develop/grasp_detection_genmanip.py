@@ -1,10 +1,13 @@
-import os
-import random
-import sys
-import json
-import numpy as np
 import argparse
 import av
+from filelock import SoftFileLock
+import json
+import os
+from pathlib import Path
+import random
+import sys
+from tqdm import tqdm
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -20,44 +23,43 @@ from isaacsim import SimulationApp  # type: ignore
 
 simulation_app = SimulationApp({"headless": True})  # False
 
-from genmanip.utils.loader.scene import (
-    get_embodiment,
-    add_robot_to_scene,
-    load_world_xform_prim,
-    get_object_list,
-    create_camera_list,
-)
-from genmanip.utils.pointcloud.pointcloud import (
-    get_mesh_info_by_load,
-    get_current_meshList,
-    objectList2meshList,
-)
+from omni.isaac.core import World  # type: ignore
+from omni.isaac.core.utils.prims import delete_prim  # type: ignore
+
+from genmanip.core.robot.utils import RobotFactory
 from genmanip.demogen.random_place.random_place import (
     place_object_to_object_by_relation,
 )
-from genmanip.utils.usd_utils.camera_utils import set_camera_look_at, get_src
-from genmanip.utils.usd_utils import (
-    add_usd_to_world,
-    resize_object,
-    set_colliders,
-    resize_object_by_lwh,
+from genmanip.extensions.skills.default.pick.utils import (
+    prepare_grasp_motion_planning_payload,
 )
-from genmanip.demogen.planning.pick import prepare_grasp_motion_planning_payload
+from genmanip.extensions.skills.default.pick_and_place.utils import (
+    adjust_grasp_by_embodiment,
+)
+from genmanip.utils.annotation.object_pool import ObjectPool
 from genmanip.utils.anygrasp.anygrasp import get_init_grasp
+from genmanip.utils.loader.scene import (
+    create_camera_list,
+    get_object_list,
+    load_world_xform_prim,
+)
+from genmanip.utils.pointcloud.pointcloud import (
+    get_current_meshList,
+    get_mesh_info_by_load,
+    objectList2meshList,
+)
 from genmanip.utils.standalone.file_utils import load_yaml, load_default_config
 from genmanip.utils.standalone.pc_utils import compute_mesh_bbox, compute_aabb_lwh
 from genmanip.utils.standalone.utils import setup_logger
-from genmanip.demogen.planning.pick_and_place import adjust_grasp_by_embodiment
-from genmanip.utils.usd_utils import setup_physics_scene
-from genmanip.utils.annotation.object_pool import ObjectPool
-from omni.isaac.core.utils.prims import delete_prim  # type: ignore
-from omni.isaac.core import World  # type: ignore
-import numpy as np
-import random
-from tqdm import tqdm
-from filelock import SoftFileLock
-from pathlib import Path
-import json
+from genmanip.utils.usd_utils import (
+    add_usd_to_world,
+    get_src,
+    resize_object,
+    resize_object_by_lwh,
+    set_camera_look_at,
+    set_colliders,
+    setup_physics_scene,
+)
 
 
 UID_BLACKLIST = [
@@ -132,9 +134,11 @@ robot_config = {
     ],
 }
 robot_list = [
-    get_embodiment(
+    RobotFactory.build(
         "manip/franka/panda_hand",
-        add_robot_to_scene(uuid, "manip/franka/panda_hand", default_config),
+        scene_uid=uuid,
+        default_config=default_config,
+        robot_config={},
     )
 ]
 for robot in robot_list:

@@ -70,7 +70,7 @@ class CuroboPlanner:
             None,
             rotation_threshold=0.05,
             position_threshold=0.005,
-            num_seeds=20,
+            num_seeds=128,
             self_collision_check=True,
             self_collision_opt=False,
             tensor_args=self.tensor_args,
@@ -98,6 +98,11 @@ class CuroboPlanner:
         dof_names: list | None = None,
         grasp: bool = False,
     ) -> list[np.ndarray] | None:
+        print("goal pos:", ee_translation_goal)
+        print("goal quat:", ee_orientation_goal, "norm=", np.linalg.norm(ee_orientation_goal))
+        print("js len:", len(sim_js.positions), "names len:", len(self.ordered_js_names))
+        print("finite:", np.isfinite(sim_js.positions).all(), np.isfinite(ee_translation_goal).all(), np.isfinite(ee_orientation_goal).all())
+        
         if len(self.raw_js_names) == 0:
             self.raw_js_names = self.ordered_js_names
         ik_goal = Pose(
@@ -118,6 +123,11 @@ class CuroboPlanner:
         else:
             plan_config.pose_cost_metric = None
         result = self.motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, plan_config)
+        
+        for k in ["status", "message", "error_code", "reason", "valid", "feasible"]:
+            if hasattr(result, k):
+                print(k, getattr(result, k))
+
         if result.success is not None and result.success.item():
             cmd_plan = result.get_interpolated_plan()
             cmd_plan = cmd_plan.get_ordered_joint_state(self.raw_js_names)

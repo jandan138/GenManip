@@ -15,6 +15,7 @@ from typing import List
 
 from omni.isaac.core.robots.robot import Robot  # type: ignore
 
+from genmanip.core.scene.scene_config import RobotConfig
 from genmanip.core.robot.utils import RobotFactory
 from genmanip.utils.planner.curobo.base import CuroboPlanner
 from genmanip.utils.usd_utils.joint_utils import (
@@ -78,7 +79,7 @@ class BaseEmbodiment:
 
     @abstractmethod
     def create_robot(
-        self, scene_uid: str, default_config: dict, robot_config: dict
+        self, scene_uid: str, default_config: dict, robot_config: RobotConfig
     ) -> Robot:
         raise NotImplementedError("create_robot must be implemented in subclass")
 
@@ -235,3 +236,6 @@ class BaseEmbodiment:
 
     def reference_arm_type(self, target: np.ndarray) -> str:
         return "default"
+
+    def reset(self) -> None:
+        pass

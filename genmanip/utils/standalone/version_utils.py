@@ -29,9 +29,15 @@ def process_archived_robot_config(robot_config: dict) -> str:
 
 
 def process_archived_config(config: dict) -> dict:
-    assert "layout_config" in config, "Your config is out of date, please update it."
-    for robot_config in config["robots"]:
-        robot_config["type"] = process_archived_robot_config(robot_config)
-        if "config" in robot_config and "gripper_type" in robot_config["config"]:
-            robot_config["config"].pop("gripper_type")
+    if "robots" in config:
+        for robot_config in config["robots"]:
+            robot_config["type"] = process_archived_robot_config(robot_config)
+            if "config" in robot_config and "gripper_type" in robot_config["config"]:
+                robot_config["config"].pop("gripper_type")
+    if "generation_config" in config:
+        if isinstance(config["generation_config"]["articulation"], list):
+            articulation_config = {}
+            for articulation in config["generation_config"]["articulation"]:
+                articulation_config[articulation["uid"]] = articulation
+            config["generation_config"]["articulation"] = articulation_config
     return config

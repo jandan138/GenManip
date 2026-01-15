@@ -16,6 +16,7 @@ from genmanip.core.robot.singlearm_manip import SingleArmEmbodiment
 from genmanip.core.robot.utils import RobotFactory
 from genmanip.utils.planner.curobo.base import CuroboPlanner
 from genmanip.utils.standalone.file_utils import load_yaml
+from genmanip.core.scene.scene_config import RobotConfig
 
 
 @RobotFactory.register("manip/franka/panda_hand")
@@ -37,7 +38,7 @@ class FrankaNormalEmbodiment(SingleArmEmbodiment):
         self.robot_view.set_max_joint_velocities([2.0] * 9)
 
     def create_robot(
-        self, scene_uid: str, default_config: dict, robot_config: dict
+        self, scene_uid: str, default_config: dict, robot_config: RobotConfig
     ) -> Robot:
         # Create the franka robot
         robot = Franka(

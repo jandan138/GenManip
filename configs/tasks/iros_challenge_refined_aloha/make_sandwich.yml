@@ -18,6 +18,7 @@ demonstration_configs:
       robot: 0
     articulation: []
     reset_tcp: 0.2
+    randomization_hack_flag: true
     goal:
     - - - &id005
           obj1_uid:
@@ -258,6 +259,7 @@ demonstration_configs:
     action_path: *id004
     articulation: []
     reset_tcp: 0.2
+    randomization_hack_flag: true
     goal:
     - - - *id005
         - *id006
@@ -296,6 +298,7 @@ demonstration_configs:
     action_path: *id004
     articulation: []
     reset_tcp: 0.2
+    randomization_hack_flag: true
     goal:
     - - - *id005
         - obj1_uid:

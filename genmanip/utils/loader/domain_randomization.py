@@ -21,6 +21,7 @@ from omni.isaac.core.utils.prims import get_prim_at_path, delete_prim  # type: i
 from omni.isaac.sensor import Camera  # type: ignore
 from pxr import Usd  # type: ignore
 
+from genmanip.core.scene.scene_config import LayoutConfig, ObjectConfig, SceneConfig
 from genmanip.utils.loader.hardcode_rule import verify_cup_and_plate
 from genmanip.utils.loader.utils import (
     add_object_to_scene_from_preload_list,
@@ -60,6 +61,7 @@ from genmanip.utils.usd_utils import (
 from genmanip.core.robot.base import BaseEmbodiment
 from genmanip.utils.planner.mplib.utils import get_mplib_planner
 from genmanip.utils.standalone.file_utils import load_yaml
+from genmanip.utils.standalone.meta_utils import any_projection
 from genmanip.utils.standalone.robot_utils import (
     joint_positions_to_position_and_orientation,
 )
@@ -444,32 +446,27 @@ def random_wall_texture(scene: "Scene", default_config: dict) -> None:
 def random_texture_once(
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
     table_without_collider: bool = False,
 ) -> float:
     # randomize the dome light
-    if demogen_config["domain_randomization"]["random_environment"]["hdr"]:
+    if scene_config.domain_randomization.random_environment.hdr:
         light_path = random.choice(scene.assets_library.domelights_paths)
         create_dome_light(
             f"/World/{scene.uuid}/obj_defaultGroundPlane/GroundPlane/DomeLight",
             f"{default_config['ASSETS_DIR']}/miscs/hdrs/{light_path}",
         )
     # randomize table texture for the default table, table prim tree is under objaverse format
-    if demogen_config["domain_randomization"]["random_environment"][
-        "table_texture"
-    ] and not (
-        "table_type" in demogen_config["domain_randomization"]["random_environment"]
-        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
+    if (
+        scene_config.domain_randomization.random_environment.table_texture
+        and not scene_config.domain_randomization.random_environment.table_type
     ):
         random_objaverse_table_texture(scene, default_config)
     # randomize wall texture
-    if demogen_config["domain_randomization"]["random_environment"]["wall_texture"]:
+    if scene_config.domain_randomization.random_environment.wall_texture:
         random_wall_texture(scene, default_config)
     # randomize table and table texture for grutopia format table, table prim tree is under grutopia format
-    if (
-        "table_type" in demogen_config["domain_randomization"]["random_environment"]
-        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
-    ):
+    if scene_config.domain_randomization.random_environment.table_type:
         table_path = random.choice(scene.assets_library.table_paths)
         replace_table(
             scene.object_list,
@@ -477,9 +474,7 @@ def random_texture_once(
             scene.uuid,
             without_collider=table_without_collider,
         )
-        if demogen_config["domain_randomization"]["random_environment"][
-            "table_texture"
-        ]:
+        if scene_config.domain_randomization.random_environment.table_texture:
             change_table_mdl(
                 scene.object_list["00000000000000000000000000000000"].prim_path,
                 texture_path_list=[
@@ -490,23 +485,18 @@ def random_texture_once(
                 ],
             )
     # randomize camera pose
-    if (
-        "camera_randomization"
-        in demogen_config["domain_randomization"]["random_environment"]
-    ):
+    if scene_config.domain_randomization.camera_randomization is not None:
         current_dir = default_config["current_dir"]
         camera_data = load_yaml(
             os.path.join(
                 current_dir,
-                demogen_config["domain_randomization"]["cameras"]["config_path"],
+                scene_config.domain_randomization.cameras.config_path,
             )
         )
         random_camera_list_pose(
             scene.camera_list,
             camera_data,
-            demogen_config["domain_randomization"]["random_environment"][
-                "camera_randomization"
-            ],
+            scene_config.domain_randomization.camera_randomization,
         )
     # render the scene and get the light intensity
     for _ in range(10):
@@ -527,43 +517,36 @@ def random_texture_once(
 def random_texture_once_for_eval(
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
     table_without_collider: bool = True,
 ) -> float:
     # randomize the dome light
-    if demogen_config["domain_randomization"]["random_environment"]["hdr"]:
+    if scene_config.domain_randomization.random_environment.hdr:
         light_path = random.choice(scene.assets_library.domelights_paths)
         create_dome_light(
             f"/World/{scene.uuid}/obj_defaultGroundPlane/GroundPlane/DomeLight",
             f"{default_config['ASSETS_DIR']}/miscs/hdrs/{light_path}",
         )
     # randomize table texture for the default table, table prim tree is under objaverse format
-    if demogen_config["domain_randomization"]["random_environment"][
-        "table_texture"
-    ] and not (
-        "table_type" in demogen_config["domain_randomization"]["random_environment"]
-        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
+    if (
+        scene_config.domain_randomization.random_environment.table_texture
+        and not scene_config.domain_randomization.random_environment.table_type
     ):
         random_objaverse_table_texture(scene, default_config)
     # randomize wall texture
-    if demogen_config["domain_randomization"]["random_environment"]["wall_texture"]:
+    if scene_config.domain_randomization.random_environment.wall_texture:
         random_wall_texture(scene, default_config)
     # randomize table and table texture for grutopia format table, table prim tree is under grutopia format
-    if (
-        "table_type" in demogen_config["domain_randomization"]["random_environment"]
-        and demogen_config["domain_randomization"]["random_environment"]["table_type"]
-    ):
+    if scene_config.domain_randomization.random_environment.table_type:
         table_path = random.choice(scene.assets_library.table_paths)
         replace_table_for_eval(
             scene.object_list,
             table_path,
             scene.uuid,
-            real_table_uid=demogen_config["table_uid"],
+            real_table_uid=scene_config.table_uid,
             without_collider=table_without_collider,
         )
-        if demogen_config["domain_randomization"]["random_environment"][
-            "table_texture"
-        ]:
+        if scene_config.domain_randomization.random_environment.table_texture:
             change_table_mdl(
                 scene.object_list["00000000000000000000000000000000"].prim_path,
                 texture_path_list=[
@@ -591,7 +574,7 @@ def random_texture_once_for_eval(
 def random_texture(
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
     table_without_collider: bool = False,
 ) -> int:
     cnt = 0
@@ -600,7 +583,7 @@ def random_texture(
         light_intensity = random_texture_once(
             scene,
             default_config,
-            demogen_config,
+            scene_config,
             table_without_collider=table_without_collider,
         )
         # if the light intensity is >= 80, break the loop
@@ -617,7 +600,7 @@ def random_texture(
 def random_texture_for_eval(
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
 ) -> int:
     cnt = 0
     while cnt < 10:
@@ -625,7 +608,7 @@ def random_texture_for_eval(
         light_intensity = random_texture_once_for_eval(
             scene,
             default_config,
-            demogen_config,
+            scene_config,
         )
         if light_intensity >= 80:
             break
@@ -639,98 +622,89 @@ def random_texture_for_eval(
 def domain_randomization(
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
     task_data: dict,
     logger: logging.Logger,
 ) -> dict | int:
     # randomize robot base position
-    if demogen_config["domain_randomization"]["random_environment"][
-        "robot_base_position"
-    ]:
+    if scene_config.domain_randomization.random_environment.robot_base_position:
         for robot in scene.robot_list:
             if isinstance(
-                demogen_config["domain_randomization"]["random_environment"][
-                    "robot_base_position"
-                ],
+                scene_config.domain_randomization.random_environment.robot_base_position,
                 dict,
             ):
                 random_robot_pose(
                     robot.robot,
-                    demogen_config["domain_randomization"]["random_environment"][
-                        "robot_base_position"
-                    ]["random_range"],
+                    scene_config.domain_randomization.random_environment.robot_base_position.random_range,
                 )
             else:
                 random_robot_pose(robot.robot, 0.1)
     # randomize robot eepose
-    if demogen_config["domain_randomization"]["random_environment"].get(
-        "robot_eepose", False
-    ):
+    if scene_config.domain_randomization.random_environment.robot_eepose:
         for robot in scene.robot_list:
-            random_robot_eepose(
-                robot,
-                default_config["current_dir"],
-            )
+            random_robot_eepose(robot, default_config["current_dir"])
     # setup random table layout
     logger.info("Setup random table layout")
-    if demogen_config["layout_config"]["type"] == "random_all":
+    if scene_config.layout_config.type == "random_all":
         IS_OK = setup_random_tableset(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"]["ignored_objects"],
+            scene_config.layout_config.ignored_objects,
         )
-    elif demogen_config["layout_config"]["type"] == "random_all_buffered":
+    elif scene_config.layout_config.type == "random_all_buffered":
         IS_OK = setup_random_tableset_buffered(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"]["ignored_objects"],
+            scene_config.layout_config.ignored_objects,
             task_data["goal"][0][0]["obj1_uid"],
             task_data["goal"][0][0]["obj2_uid"],
         )
-    elif demogen_config["layout_config"]["type"] == "centric_random_range":
+    elif scene_config.layout_config.type == "centric_random_range":
         IS_OK = setup_random_tableset_by_centric_range(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"],
-            demogen_config["layout_config"]["ignored_objects"],
-            demogen_config["layout_config"].get("partial_ignore", {}),
+            scene_config.layout_config,
+            scene_config.layout_config.ignored_objects,
+            scene_config.layout_config.partial_ignore,
         )
-    elif demogen_config["layout_config"]["type"] == "random_obj1_range":
+    elif scene_config.layout_config.type == "random_obj1_range":
         IS_OK = setup_random_obj1_range(
             scene.object_list,
             scene.cache_library.mesh_dict,
             task_data,
-            demogen_config["layout_config"],
+            scene_config.layout_config,
             scene.meta_infos["world_pose_list"],
         )
-    elif demogen_config["layout_config"]["type"] == "random_custom_tableset":
+    elif scene_config.layout_config.type == "random_custom_tableset":
+        if scene_config.layout_config.custom_tableset is None:
+            raise ValueError("Custom tableset is not defined")
         IS_OK = setup_random_custom_tableset(
             scene.object_list,
             scene.articulation_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"]["custom_tableset"],
-            in_order=demogen_config["layout_config"].get("in_order", False),
+            scene_config.layout_config.custom_tableset,
+            in_order=scene_config.layout_config.in_order,
         )
-    elif demogen_config["layout_config"]["type"] == "random_all_range":
+    elif scene_config.layout_config.type == "random_all_range":
         IS_OK = setup_random_all_range(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"],
-            demogen_config["layout_config"]["ignored_objects"],
+            scene_config.layout_config,
+            scene_config.layout_config.ignored_objects,
         )
-    elif demogen_config["layout_config"]["type"] == "random_all_range_buffered":
+    elif scene_config.layout_config.type == "random_all_range_buffered":
         IS_OK = setup_random_all_range_buffered(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config["layout_config"],
-            demogen_config["layout_config"]["ignored_objects"],
+            scene_config.layout_config,
+            scene_config.layout_config.ignored_objects,
             task_data,
         )
-    elif demogen_config["layout_config"]["type"] == "scene_graph_placement":
+    elif scene_config.layout_config.type == "scene_graph_placement":
         IS_OK = setup_scene_graph_placement(
             scene.object_list,
             scene.cache_library.mesh_dict,
-            demogen_config,
+            scene_config,
         )
     else:
         IS_OK = 0
@@ -782,19 +756,18 @@ def reset_scene(scene: "Scene") -> None:
         robot.robot.set_joint_positions(joint_positions)
         robot.robot.set_joint_velocities(joint_velocities)
         robot.robot.set_world_pose(*robot_pose)
+    for robot in scene.robot_list:
+        robot.reset()
 
 
 def satisfy_replace_existed_object(
-    replace_object_config: dict,
+    replace_object_config: dict[str, ObjectConfig],
     key: str,
     replaced_uid: str,
     added_uid_list: list[str],
     object_config_key_list: list[str],
 ) -> bool:
-    if (
-        "option" in replace_object_config[key]
-        and "cup_plate_replace" in replace_object_config[key]["option"]
-    ):
+    if "cup_plate_replace" in replace_object_config[key].option:
         if verify_cup_and_plate(
             object_config_key_list,
             key,
@@ -808,9 +781,244 @@ def satisfy_replace_existed_object(
         return True
 
 
+def _layout_config_projection(
+    scene: "Scene",
+    layout_config: LayoutConfig,
+) -> LayoutConfig:
+    if layout_config.type == "random_custom_tableset":
+        custom_dict = {}
+        if isinstance(layout_config.custom_tableset, list):
+            if layout_config.custom_tableset is None:
+                raise ValueError("Custom tableset is not defined")
+            layout_config.custom_tableset = random.choice(layout_config.custom_tableset)
+        if not isinstance(layout_config.custom_tableset, dict):
+            raise ValueError("custom_tableset must be a dict")
+        for key in layout_config.custom_tableset:
+            custom_dict[scene.cache_library.meta_to_fine_projection[key]] = (
+                layout_config.custom_tableset[key]
+            )
+            if layout_config.custom_tableset[key]["type"] == "scene_graph":
+                custom_dict[scene.cache_library.meta_to_fine_projection[key]][
+                    "obj2_uid"
+                ] = scene.cache_library.meta_to_fine_projection[
+                    layout_config.custom_tableset[key]["obj2_uid"]
+                ]
+        layout_config.custom_tableset = custom_dict
+    return layout_config
+
+
+def _goal_config_projection(
+    scene: "Scene",
+    goal_config: dict,
+) -> dict:
+    if isinstance(goal_config, list):
+        for i in range(len(goal_config)):
+            goal_config[i] = _goal_config_projection(scene, goal_config[i])
+    else:
+        goal_config = any_projection(
+            goal_config, scene.cache_library.meta_to_fine_projection
+        )
+    return goal_config
+
+
+def _action_config_projection(
+    scene: "Scene",
+    action_config: list[dict],
+) -> list[dict]:
+    for i in range(len(action_config)):
+        action_config[i] = any_projection(
+            action_config[i],
+            scene.cache_library.meta_to_fine_projection,
+        )
+    return action_config
+
+
+def _add_additional_object_from_path_projection(
+    scene: "Scene",
+    replace_object_config: dict[str, ObjectConfig],
+    key: str,
+    scene_config: SceneConfig,
+    default_config: dict,
+) -> None:
+    # 5-3-0. get real uid of the object
+    if replace_object_config[key].uid != "":
+        replaced_uid = replace_object_config[key].uid
+    else:
+        replaced_uid = replace_object_config[key].path.split("/")[-1].split(".")[0]
+
+    # 5-3-1. add object to the scene
+    add_object_to_scene_from_preload_list(
+        replaced_uid, scene, default_config, scene_config
+    )
+
+    # 5-3-2. get the scale of the object
+    scale = get_object_scale(
+        replace_object_config, key, replaced_uid, scene.object_pool
+    )
+
+    # 5-3-3. resize the object by scale
+    # 5-3-3-1. if scale is in meter, and is float or list[float]
+    if scale is not None and replace_object_config[key].fixed_size is None:
+        resize_object_in_scene_by_uid(
+            replaced_uid, scene, default_config, scale, scene_config
+        )
+
+    # 5-3-3-2. if scale is relative to the original object, and is float or list[float]
+    elif replace_object_config[key].fixed_size is not None:
+        fixed_size = replace_object_config[key].fixed_size
+        if not isinstance(fixed_size, list):
+            scene.object_list[replaced_uid].set_local_scale([fixed_size] * 3)
+        else:
+            scene.object_list[replaced_uid].set_local_scale(fixed_size)
+        mesh_info = get_mesh_info_by_load(
+            scene.object_list[replaced_uid],
+            os.path.join(
+                default_config["ASSETS_DIR"],
+                "mesh_data",
+                scene_config.task_name,
+                os.path.dirname(
+                    scene.cache_library.preloaded_object_path_list[replaced_uid]
+                ),
+                f"{replaced_uid}.obj",
+            ),
+        )
+        if mesh_info is not None:
+            scene.cache_library.mesh_dict[replaced_uid] = mesh_info
+    # 5-3-3-3. if scale is not defined, raise error
+    else:
+        raise ValueError(
+            f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
+        )
+
+    # 5-3-3-4. adjust object scale by thickness if needed
+    if "adjust_thickness" in replace_object_config[key].option:
+        adjust_object_scale_by_thickness(
+            scene,
+            replaced_uid,
+            default_config,
+            scene_config,
+            0.06,
+        )
+
+    # 5-3-4. record the meta_to_fine_projection
+    scene.cache_library.meta_to_fine_projection[key] = replaced_uid
+
+
+def _existed_object_projection(
+    scene: "Scene",
+    replace_object_config: dict[str, ObjectConfig],
+    key: str,
+    replaced_uid: str,
+    default_config: dict,
+    scene_config: SceneConfig,
+) -> None:
+    # 5-1-1. activate object if it is not active
+    if not scene.cache_library.preloaded_object_list[replaced_uid].prim.IsActive():
+        scene.cache_library.preloaded_object_list[replaced_uid].prim.SetActive(True)
+
+    # 5-1-2. add object to object_list and compute mesh cache for the object
+    if replaced_uid not in scene.object_list:
+        scene.object_list[replaced_uid] = scene.cache_library.preloaded_object_list[
+            replaced_uid
+        ]
+        mesh_info = get_mesh_info_by_load(
+            scene.object_list[replaced_uid],
+            os.path.join(
+                default_config["ASSETS_DIR"],
+                "mesh_data",
+                scene_config.task_name,
+                f"{replaced_uid}.obj",
+            ),
+        )
+        if mesh_info is not None:
+            scene.cache_library.mesh_dict[replaced_uid] = mesh_info
+
+    fixed_size = replace_object_config[key].fixed_size
+    if fixed_size is not None:
+        resize_object_in_scene_by_uid(
+            replaced_uid,
+            scene,
+            default_config,
+            fixed_size,
+            scene_config,
+        )
+
+    # 5-1-3. record the meta_to_fine_projection
+    scene.cache_library.meta_to_fine_projection[key] = replaced_uid
+
+
+def _load_object_from_path_projection(
+    scene: "Scene",
+    replace_object_config: dict[str, ObjectConfig],
+    key: str,
+    replaced_uid: str,
+    default_config: dict,
+    scene_config: SceneConfig,
+) -> None:
+    # 5-2-1. add object to the scene
+    add_object_to_scene_from_preload_list(
+        replaced_uid, scene, default_config, scene_config
+    )
+
+    # 5-2-2. get the scale of the object
+    scale = get_object_scale(
+        replace_object_config, key, replaced_uid, scene.object_pool
+    )
+
+    # 5-2-3. resize the object by scale
+    # 5-2-3-1. if scale is in meter, and is float or list[float]
+    if scale is not None and replace_object_config[key].fixed_size is None:
+        resize_object_in_scene_by_uid(
+            replaced_uid, scene, default_config, scale, scene_config
+        )
+
+    # 5-2-3-2. if scale is relative to the original object, and is float or list[float]
+    elif replace_object_config[key].fixed_scale is not None:
+        if not isinstance(replace_object_config[key].fixed_scale, list):
+            scene.object_list[replaced_uid].set_local_scale(
+                [replace_object_config[key].fixed_scale] * 3
+            )
+        else:
+            scene.object_list[replaced_uid].set_local_scale(
+                replace_object_config[key].fixed_scale
+            )
+        mesh_info = get_mesh_info_by_load(
+            scene.object_list[replaced_uid],
+            os.path.join(
+                default_config["ASSETS_DIR"],
+                "mesh_data",
+                scene_config.task_name,
+                os.path.dirname(
+                    scene.cache_library.preloaded_object_path_list[replaced_uid]
+                ),
+                f"{replaced_uid}.obj",
+            ),
+        )
+        if mesh_info is not None:
+            scene.cache_library.mesh_dict[replaced_uid] = mesh_info
+    # 5-2-3-3. if scale is not defined, raise error
+    else:
+        raise ValueError(
+            f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
+        )
+
+    # 5-2-3-4. adjust object scale by thickness if needed
+    if "adjust_thickness" in replace_object_config[key].option:
+        adjust_object_scale_by_thickness(
+            scene,
+            replaced_uid,
+            default_config,
+            scene_config,
+            0.06,
+        )
+
+    # 5-2-4. record the meta_to_fine_projection
+    scene.cache_library.meta_to_fine_projection[key] = replaced_uid
+
+
 def build_up_scene(
     scene: "Scene",
-    demogen_config: dict,
+    scene_config: SceneConfig,
     default_config: dict,
     task_data: dict,
 ) -> "Scene":
@@ -831,7 +1039,7 @@ def build_up_scene(
             scene.cache_library.meta_to_fine_projection[key] = ""
 
     # 2. initialize configs
-    replace_object_config = demogen_config["object_config"]
+    replace_object_config = scene_config.object_config
     added_uid_list = []
     object_config_key_list = list(replace_object_config.keys())
     object_config_key_list.sort()
@@ -858,248 +1066,49 @@ def build_up_scene(
     for key, replaced_uid in scene.cache_library.meta_to_fine_projection.items():
         if (
             replaced_uid in scene.object_list
-            and replace_object_config[key]["type"] == "load_object_from_path"
+            and replace_object_config[key].type == "load_object_from_path"
         ):
             remove_object_from_scene_by_preload(replaced_uid, scene)
 
     # 5. add new object and resize it
     for key, replaced_uid in zip(object_config_key_list, added_uid_list):
         # 5-1. existed object
-        if replace_object_config[key]["type"] == "existed_object":
-            # 5-1-1. activate object if it is not active
-            if not scene.cache_library.preloaded_object_list[
-                replaced_uid
-            ].prim.IsActive():
-                scene.cache_library.preloaded_object_list[replaced_uid].prim.SetActive(
-                    True
-                )
-
-            # 5-1-2. add object to object_list and compute mesh cache for the object
-            if replaced_uid not in scene.object_list:
-                scene.object_list[replaced_uid] = (
-                    scene.cache_library.preloaded_object_list[replaced_uid]
-                )
-                mesh_info = get_mesh_info_by_load(
-                    scene.object_list[replaced_uid],
-                    os.path.join(
-                        default_config["ASSETS_DIR"],
-                        "mesh_data",
-                        demogen_config["task_name"],
-                        f"{replaced_uid}.obj",
-                    ),
-                )
-                if mesh_info is not None:
-                    scene.cache_library.mesh_dict[replaced_uid] = mesh_info
-
-            if "fixed_size" in replace_object_config[key]:
-                resize_object_in_scene_by_uid(
-                    replaced_uid,
-                    scene,
-                    default_config,
-                    replace_object_config[key]["fixed_size"],
-                    demogen_config,
-                )
-
-            # 5-1-3. record the meta_to_fine_projection
-            scene.cache_library.meta_to_fine_projection[key] = replaced_uid
-
+        if replace_object_config[key].type == "existed_object":
+            _existed_object_projection(
+                scene,
+                replace_object_config,
+                key,
+                replaced_uid,
+                default_config,
+                scene_config,
+            )
         # 5-2. load_object_from_path
-        elif replace_object_config[key]["type"] == "load_object_from_path":
-            # 5-2-1. add object to the scene
-            add_object_to_scene_from_preload_list(
-                replaced_uid, scene, default_config, demogen_config
+        elif replace_object_config[key].type == "load_object_from_path":
+            _load_object_from_path_projection(
+                scene,
+                replace_object_config,
+                key,
+                replaced_uid,
+                default_config,
+                scene_config,
             )
-
-            # 5-2-2. get the scale of the object
-            scale = get_object_scale(
-                replace_object_config, key, replaced_uid, scene.object_pool
-            )
-
-            # 5-2-3. resize the object by scale
-            # 5-2-3-1. if scale is in meter, and is float or list[float]
-            if scale is not None and "fixed_scale" not in replace_object_config[key]:
-                resize_object_in_scene_by_uid(
-                    replaced_uid, scene, default_config, scale, demogen_config
-                )
-
-            # 5-2-3-2. if scale is relative to the original object, and is float or list[float]
-            elif "fixed_scale" in replace_object_config[key]:
-                if not isinstance(replace_object_config[key]["fixed_scale"], list):
-                    scene.object_list[replaced_uid].set_local_scale(
-                        [replace_object_config[key]["fixed_scale"]] * 3
-                    )
-                else:
-                    scene.object_list[replaced_uid].set_local_scale(
-                        replace_object_config[key]["fixed_scale"]
-                    )
-                mesh_info = get_mesh_info_by_load(
-                    scene.object_list[replaced_uid],
-                    os.path.join(
-                        default_config["ASSETS_DIR"],
-                        "mesh_data",
-                        demogen_config["task_name"],
-                        os.path.dirname(
-                            scene.cache_library.preloaded_object_path_list[replaced_uid]
-                        ),
-                        f"{replaced_uid}.obj",
-                    ),
-                )
-                if mesh_info is not None:
-                    scene.cache_library.mesh_dict[replaced_uid] = mesh_info
-            # 5-2-3-3. if scale is not defined, raise error
-            else:
-                raise ValueError(
-                    f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
-                )
-
-            # 5-2-3-4. adjust object scale by thickness if needed
-            if (
-                "option" in replace_object_config[key]
-                and "adjust_thickness" in replace_object_config[key]["option"]
-            ):
-                adjust_object_scale_by_thickness(
-                    scene,
-                    replaced_uid,
-                    default_config,
-                    demogen_config,
-                    0.06,
-                )
-
-            # 5-2-4. record the meta_to_fine_projection
-            scene.cache_library.meta_to_fine_projection[key] = replaced_uid
-
         # 5-3. add_additional_object_from_path
-        elif replace_object_config[key]["type"] == "add_additional_object_from_path":
-            # 5-3-0. get real uid of the object
-            if "uid" in replace_object_config[key]:
-                replaced_uid = replace_object_config[key]["uid"]
-            else:
-                replaced_uid = (
-                    replace_object_config[key]["path"].split("/")[-1].split(".")[0]
-                )
-
-            # 5-3-1. add object to the scene
-            add_object_to_scene_from_preload_list(
-                replaced_uid, scene, default_config, demogen_config
+        elif replace_object_config[key].type == "add_additional_object_from_path":
+            _add_additional_object_from_path_projection(
+                scene, replace_object_config, key, scene_config, default_config
             )
-
-            # 5-3-2. get the scale of the object
-            scale = get_object_scale(
-                replace_object_config, key, replaced_uid, scene.object_pool
-            )
-
-            # 5-3-3. resize the object by scale
-            # 5-3-3-1. if scale is in meter, and is float or list[float]
-            if scale is not None and "fixed_scale" not in replace_object_config[key]:
-                resize_object_in_scene_by_uid(
-                    replaced_uid, scene, default_config, scale, demogen_config
-                )
-
-            # 5-3-3-2. if scale is relative to the original object, and is float or list[float]
-            elif "fixed_scale" in replace_object_config[key]:
-                if not isinstance(replace_object_config[key]["fixed_scale"], list):
-                    scene.object_list[replaced_uid].set_local_scale(
-                        [replace_object_config[key]["fixed_scale"]] * 3
-                    )
-                else:
-                    scene.object_list[replaced_uid].set_local_scale(
-                        replace_object_config[key]["fixed_scale"]
-                    )
-                mesh_info = get_mesh_info_by_load(
-                    scene.object_list[replaced_uid],
-                    os.path.join(
-                        default_config["ASSETS_DIR"],
-                        "mesh_data",
-                        demogen_config["task_name"],
-                        os.path.dirname(
-                            scene.cache_library.preloaded_object_path_list[replaced_uid]
-                        ),
-                        f"{replaced_uid}.obj",
-                    ),
-                )
-                if mesh_info is not None:
-                    scene.cache_library.mesh_dict[replaced_uid] = mesh_info
-            # 5-3-3-3. if scale is not defined, raise error
-            else:
-                raise ValueError(
-                    f"Object {replaced_uid} has no scale information, previous logic is archived, please add `fixed_scale: 1.0` to object config to keep object to its original scale"
-                )
-
-            # 5-3-3-4. adjust object scale by thickness if needed
-            if (
-                "option" in replace_object_config[key]
-                and "adjust_thickness" in replace_object_config[key]["option"]
-            ):
-                adjust_object_scale_by_thickness(
-                    scene,
-                    replaced_uid,
-                    default_config,
-                    demogen_config,
-                    0.06,
-                )
-
-            # 5-3-4. record the meta_to_fine_projection
-            scene.cache_library.meta_to_fine_projection[key] = replaced_uid
 
     # 6. replace the uid in the goal
-    for i in range(len(task_data["goal"])):
-        for j in range(len(task_data["goal"][i])):
-            if (
-                "obj1_uid" in task_data["goal"][i][j]
-                and task_data["goal"][i][j]["obj1_uid"]
-                in scene.cache_library.meta_to_fine_projection
-            ):
-                task_data["goal"][i][j]["obj1_uid"] = (
-                    scene.cache_library.meta_to_fine_projection[
-                        task_data["goal"][i][j]["obj1_uid"]
-                    ]
-                )
-            if (
-                "obj2_uid" in task_data["goal"][i][j]
-                and task_data["goal"][i][j]["obj2_uid"]
-                in scene.cache_library.meta_to_fine_projection
-            ):
-                task_data["goal"][i][j]["obj2_uid"] = (
-                    scene.cache_library.meta_to_fine_projection[
-                        task_data["goal"][i][j]["obj2_uid"]
-                    ]
-                )
-            if "ignored_uid" in task_data["goal"][i][j]:
-                for k in range(len(task_data["goal"][i][j]["ignored_uid"])):
-                    if (
-                        task_data["goal"][i][j]["ignored_uid"][k]
-                        in scene.cache_library.meta_to_fine_projection
-                    ):
-                        task_data["goal"][i][j]["ignored_uid"][k] = (
-                            scene.cache_library.meta_to_fine_projection[
-                                task_data["goal"][i][j]["ignored_uid"][k]
-                            ]
-                        )
+    if scene_config.generation_config.action_path.actions is not None:
+        scene_config.generation_config.action_path.actions = _action_config_projection(
+            scene, scene_config.generation_config.action_path.actions
+        )
+    task_data["goal"] = _goal_config_projection(scene, task_data["goal"])
 
     # 7. replace uid in layout config
-    if "layout_config" in demogen_config:
-        if demogen_config["layout_config"]["type"] == "random_custom_tableset":
-            custom_dict = {}
-            if isinstance(demogen_config["layout_config"]["custom_tableset"], list):
-                demogen_config["layout_config"]["custom_tableset"] = random.choice(
-                    demogen_config["layout_config"]["custom_tableset"]
-                )
-            for key in demogen_config["layout_config"]["custom_tableset"]:
-                custom_dict[scene.cache_library.meta_to_fine_projection[key]] = (
-                    demogen_config["layout_config"]["custom_tableset"][key]
-                )
-                if (
-                    demogen_config["layout_config"]["custom_tableset"][key]["type"]
-                    == "scene_graph"
-                ):
-                    custom_dict[scene.cache_library.meta_to_fine_projection[key]][
-                        "obj2_uid"
-                    ] = scene.cache_library.meta_to_fine_projection[
-                        demogen_config["layout_config"]["custom_tableset"][key][
-                            "obj2_uid"
-                        ]
-                    ]
-            demogen_config["layout_config"]["custom_tableset"] = custom_dict
+    scene_config.layout_config = _layout_config_projection(
+        scene, scene_config.layout_config
+    )
 
     # 8. add object_infos to task_data
     task_data["object_infos"] = {}

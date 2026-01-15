@@ -9,6 +9,7 @@ from typing import Optional, Sequence  # type: ignore
 
 import numpy as np
 import open3d as o3d
+from scipy.spatial.transform import Rotation as R
 
 import omni.usd  # type: ignore
 from omni.isaac.core.prims import XFormPrim, RigidPrim  # type: ignore
@@ -118,11 +119,28 @@ def get_world_pose_by_prim_path(
     prim_path: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     prim = get_prim_at_path(prim_path)
-    if not prim.IsValid():
-        print(f"Prim {prim_path} is not valid")
-        return np.array([0.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0, 0.0])
-    xform_prim = XFormPrim(prim_path)
-    return xform_prim.get_world_pose()
+    xformable = UsdGeom.Xformable(prim)
+    world_transform = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    world_transform = np.array(world_transform).T
+
+    position = world_transform[:3, 3]
+    rot_scale = world_transform[:3, :3]
+    scale = np.linalg.norm(rot_scale, axis=0)
+    rotation_matrix = rot_scale / scale
+    quat_xyzw = R.from_matrix(rotation_matrix).as_quat()
+    orientation = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+
+    return position, orientation
+
+
+def get_local_scale_by_prim_path(
+    prim_path: str,
+) -> np.ndarray:
+    prim = get_prim_at_path(prim_path)
+    xform = UsdGeom.Xformable(prim)
+    local_transformation: Gf.Matrix4d = xform.GetLocalTransformation()
+    scale: Gf.Vec3d = Gf.Vec3d(*(v.GetLength() for v in local_transformation.ExtractRotationMatrix()))
+    return scale
 
 
 def set_world_pose_by_prim_path(prim_path: str, world_pose: np.ndarray) -> None:

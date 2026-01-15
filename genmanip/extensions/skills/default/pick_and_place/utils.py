@@ -13,6 +13,108 @@ from genmanip.utils.standalone.transform_utils import (
     rot_orientation_by_axis,
 )
 
+
+def prepare_motion_planning_payload(
+    action_meta_info: dict,
+    steps: int = 30,
+    aug_distance: float = 0.0,
+    pre_grasp_distance: float = 0.08,
+    grasp_distance: float = 0,
+    post_grasp_distance: float = 0.16,
+    pre_place_distance: float = 0.16,
+    place_distance: float = 0.02,
+    post_place_distance: float = 0.08,
+) -> list[dict]:
+    action_list = []
+    if pre_grasp_distance is not None:
+        action_list.append(
+            {
+                "name": "pre_grasp",
+                "translation": adjust_translation_along_quaternion(
+                    action_meta_info["initial_grasp"]["position"],
+                    action_meta_info["initial_grasp"]["orientation"],
+                    pre_grasp_distance,
+                    aug_distance=aug_distance,
+                ),
+                "orientation": action_meta_info["initial_grasp"]["orientation"],
+                "steps": steps,
+                "grasp": False,
+            }
+        )
+    action_list.append(
+        {
+            "name": "grasp",
+            "translation": adjust_translation_along_quaternion(
+                action_meta_info["initial_grasp"]["position"],
+                action_meta_info["initial_grasp"]["orientation"],
+                grasp_distance,
+            ),
+            "orientation": action_meta_info["initial_grasp"]["orientation"],
+            "steps": steps,
+            "grasp": False,
+        }
+    )
+    if post_grasp_distance is not None:
+        action_list.append(
+            {
+                "name": "post_grasp",
+                "translation": adjust_translation_along_quaternion(
+                    action_meta_info["initial_grasp"]["position"],
+                    action_meta_info["initial_grasp"]["orientation"],
+                    post_grasp_distance,
+                    aug_distance=aug_distance,
+                ),
+                "orientation": action_meta_info["initial_grasp"]["orientation"],
+                "steps": steps,
+                "grasp": True,
+            }
+        )
+    if pre_place_distance is not None:
+        action_list.append(
+            {
+                "name": "pre_place",
+                "translation": adjust_translation_along_quaternion(
+                    action_meta_info["finial_grasp"]["position"],
+                    action_meta_info["finial_grasp"]["orientation"],
+                    pre_place_distance,
+                    aug_distance=aug_distance,
+                ),
+                "orientation": action_meta_info["finial_grasp"]["orientation"],
+                "steps": steps,
+                "grasp": True,
+            }
+        )
+    action_list.append(
+        {
+            "name": "place",
+            "translation": adjust_translation_along_quaternion(
+                action_meta_info["finial_grasp"]["position"],
+                action_meta_info["finial_grasp"]["orientation"],
+                place_distance,
+            ),
+            "orientation": action_meta_info["finial_grasp"]["orientation"],
+            "steps": steps,
+            "grasp": True,
+        }
+    )
+    if post_place_distance is not None:
+        action_list.append(
+            {
+                "name": "post_place",
+                "translation": adjust_translation_along_quaternion(
+                    action_meta_info["finial_grasp"]["position"],
+                    action_meta_info["finial_grasp"]["orientation"],
+                    post_place_distance,
+                    aug_distance=aug_distance,
+                ),
+                "orientation": action_meta_info["finial_grasp"]["orientation"],
+                "steps": steps,
+                "grasp": False,
+            }
+        )
+    return action_list
+
+
 def adjust_grasp_by_embodiment(
     grasp: dict,
     embodiment: BaseEmbodiment,

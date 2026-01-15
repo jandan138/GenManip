@@ -11,6 +11,8 @@ from pxr import PhysxSchema, Sdf, Usd, UsdPhysics  # type: ignore
 
 def remove_colliders(prim_path: str) -> None:
     prim = get_prim_at_path(prim_path)
+    if not prim.IsValid():
+        return
     schema_list = prim.GetAppliedSchemas()
     if "PhysicsCollisionAPI" in schema_list:
         prim.RemoveAPI(UsdPhysics.CollisionAPI)

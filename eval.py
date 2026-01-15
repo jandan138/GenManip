@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "-n",
         "--num_steps",
         type=int,
-        default=600,
+        default=None,
         help="Number of steps to run the evaluation",
     )
     parser.add_argument(
@@ -73,7 +73,7 @@ args = parse_args()
 
 simulation_app = SimulationApp({"headless": not args.local})
 
-from genmanip.core.evaluator.env import IsaacEvalEnv
+from genmanip.core.evaluator.archived_env import IsaacEvalEnv
 from genmanip.core.evaluator.utils import (
     parse_config_and_benchmark_id,
 )
@@ -100,6 +100,9 @@ def main():
             done = False
             while not done:
                 action = env.get_remote_action(obs)
+                if action is None:
+                    print("No action received from remote server")
+                    continue
                 obs, _, done, info = env.step(action)
 
             env.post_episode_process(None)

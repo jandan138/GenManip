@@ -5,6 +5,7 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+import json
 import os
 import pickle
 from typing import Any
@@ -13,6 +14,8 @@ import lmdb
 import numpy as np
 
 from omni.isaac.core.prims import XFormPrim  # type: ignore
+
+from genmanip.core.scene.scene_config import SceneConfig
 
 
 def get_scalar_data_from_lmdb(data_path: str, key: bytes) -> list[Any]:
@@ -30,29 +33,40 @@ def get_scalar_data_from_lmdb(data_path: str, key: bytes) -> list[Any]:
 def parse_planning_result(
     dir: str,
     default_config: dict,
-    demogen_config: dict,
+    task_name: str,
     object_list: dict[str, XFormPrim],
 ) -> list[dict]:
     data_list = []
     data_dir = os.path.join(
         default_config["DEMONSTRATION_DIR"],
-        demogen_config["task_name"],
+        task_name,
         "trajectory",
         dir,
     )
+    json_data = json.load(open(os.path.join(data_dir, "lmdb", "info.json"), "r"))
+    if "observation/articulation_mapping" in json_data:
+        articulation_mapping = json_data["observation/articulation_mapping"]
+    else:
+        articulation_mapping = {}
+
     qpos_data = get_scalar_data_from_lmdb(data_dir, b"observation/robot/qpos")
     qvel_data = get_scalar_data_from_lmdb(data_dir, b"observation/robot/qvel")
     arm_action_data = get_scalar_data_from_lmdb(data_dir, b"arm_action")
     gripper_action_data = get_scalar_data_from_lmdb(data_dir, b"gripper_action")
     gripper_close_data = get_scalar_data_from_lmdb(data_dir, b"gripper_close")
-    base_motion_data = get_scalar_data_from_lmdb(data_dir, b"base_motion")
+    try:
+        base_motion_data = get_scalar_data_from_lmdb(data_dir, b"base_motion")
+    except:
+        base_motion_data = [np.array([0.0, 0.0, 0.0])] * len(arm_action_data)
     name_data = get_scalar_data_from_lmdb(data_dir, b"name")
+
     try:
         joint_world_pose_data = get_scalar_data_from_lmdb(
             data_dir, b"observation/robot/joint_world_pose"
         )
     except:
         joint_world_pose_data = None
+
     for (
         qpos,
         qvel,
@@ -84,10 +98,18 @@ def parse_planning_result(
         data["base_motion"] = base_motion
         data["name"] = name
         data["obj_info"] = {}
+        data["articulation_info"] = {}
         if joint_world_pose is not None:
             data["joint_world_pose"] = joint_world_pose
         data_list.append(data)
+
     for key in object_list:
+        meta_data = pickle.load(open(os.path.join(data_dir, "meta_info.pkl"), "rb"))
+        if (
+            not f"observation/obj_pose/{key}/position".encode("utf-8")
+            in meta_data["keys"]["scalar_data"]
+        ):
+            continue
         position_data = get_scalar_data_from_lmdb(
             data_dir, f"observation/obj_pose/{key}/position".encode("utf-8")
         )
@@ -104,4 +126,43 @@ def parse_planning_result(
         )
         for data, scale in zip(data_list, scale_data):
             data["obj_info"][key]["scale"] = scale
+
+    for key in articulation_mapping.keys():
+        articulation_id = articulation_mapping[key]["articulation_id"]
+        part_name = articulation_mapping[key]["part_name"]
+        position_data = get_scalar_data_from_lmdb(
+            data_dir,
+            f"observation/articulation_part_pose/{articulation_id}/{part_name}/position".encode(
+                "utf-8"
+            ),
+        )
+        for data, position in zip(data_list, position_data):
+            data["articulation_info"][articulation_id + "/" + part_name] = {}
+            data["articulation_info"][articulation_id + "/" + part_name][
+                "position"
+            ] = position
+        orientation_data = get_scalar_data_from_lmdb(
+            data_dir,
+            f"observation/articulation_part_pose/{articulation_id}/{part_name}/orientation".encode(
+                "utf-8"
+            ),
+        )
+        for data, orientation in zip(data_list, orientation_data):
+            data["articulation_info"][articulation_id + "/" + part_name][
+                "orientation"
+            ] = orientation
+        scale_data = get_scalar_data_from_lmdb(
+            data_dir,
+            f"observation/articulation_part_pose/{articulation_id}/{part_name}/scale".encode(
+                "utf-8"
+            ),
+        )
+        for data, scale in zip(data_list, scale_data):
+            data["articulation_info"][articulation_id + "/" + part_name][
+                "scale"
+            ] = scale
+        for data in data_list:
+            data["articulation_info"][articulation_id + "/" + part_name][
+                "prim_path"
+            ] = articulation_mapping[articulation_id + "/" + part_name]["prim_path"]
     return data_list

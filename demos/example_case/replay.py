@@ -35,7 +35,7 @@ from genmanip.utils.standalone.utils import setup_logger
 from genmanip.core.evaluator.evaluator import parse_lmdb_data
 from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
 from genmanip.utils.standalone.utils import parse_eval_config
-from genmanip.demogen.planning.utils import (
+from genmanip.demogen.workflow.utils import (
     check_eval_finished,
     adjust_arm_gripper_action_by_embodiment,
 )
@@ -44,6 +44,8 @@ from genmanip.utils.loader.scene import recovery_scene
 from genmanip.utils.usd_utils import remove_colliders
 from genmanip.core.scene.scene import Scene
 from genmanip.core.robot.dualarm_manip import DualArmEmbodiment
+from genmanip.core.scene.scene_config import SceneConfig
+from genmanip.utils.standalone.version_utils import process_archived_config
 
 simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 logger = setup_logger()
@@ -51,17 +53,17 @@ default_config = load_default_config(current_dir, "default.json")
 eval_config_list = parse_eval_config(config)
 for eval_config in eval_config_list:
     make_dir(os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"]))
-    seed = check_eval_finished(eval_config, default_config)
+    scene_config = SceneConfig(**process_archived_config(eval_config))
+    seed = check_eval_finished(scene_config, default_config)
     if seed == -1:
         continue
     seed = str(seed).zfill(3)
     make_dir(
         os.path.join(default_config["EVAL_RESULT_DIR"], eval_config["task_name"], seed)
     )
-    scene = Scene(scene_config=eval_config)
+    scene = Scene(scene_config=scene_config)
     scene.initialize(
         default_config,
-        eval_config,
         physics_dt=1 / 30,
         rendering_dt=1 / 30,
         only_depth_rep_for_camera=True,
@@ -83,10 +85,11 @@ for eval_config in eval_config_list:
             )
         )
         layout = recovery_scene(
-            scene, None, meta_info["task_data"], eval_config, default_config
+            scene, None, meta_info["task_data"], scene_config.task_name, default_config
         )
         eval_config["generation_config"]["goal"] = meta_info["task_data"]["goal"]
-        remove_colliders(scene.object_list["defaultGroundPlane"].prim_path)
+        if "defaultGroundPlane" in scene.object_list:
+            remove_colliders(scene.object_list["defaultGroundPlane"].prim_path)
         for _ in range(50):
             scene.world.step()
         for i in range(len(planning_data["action"])):
@@ -109,7 +112,7 @@ for eval_config in eval_config_list:
                 joint_indices=scene.robot_list[0].default_dof_indices,
             )
             scene.world.step(render=True)
-        seed = check_eval_finished(eval_config, default_config)
+        seed = check_eval_finished(scene_config, default_config)
         if seed == -1:
             break
         seed = str(seed).zfill(3)
@@ -118,5 +121,5 @@ for eval_config in eval_config_list:
                 default_config["EVAL_RESULT_DIR"], eval_config["task_name"], seed
             )
         )
-    clear_scene(scene, eval_config, current_dir)
+    clear_scene(scene, scene_config, current_dir)
 simulation_app.close()

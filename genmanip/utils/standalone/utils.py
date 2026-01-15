@@ -70,88 +70,17 @@ def to_list(data: Any) -> list:
         res = [_ for _ in data]
     return res
 
-
-def process_subgoal(goal_list: dict, instruction: str) -> tuple[dict, str]:
-    obj1_uid_list = goal_list["obj1_uid"]
-    obj1_list = goal_list["obj1"]
-    obj2_uid_list = goal_list["obj2_uid"]
-    obj2_list = goal_list["obj2"]
-    position_list = goal_list["position"]
-    if not isinstance(obj1_uid_list, list):
-        obj1_uid_list = [obj1_uid_list]
-    if not isinstance(obj2_uid_list, list):
-        obj2_uid_list = [obj2_uid_list]
-    if not isinstance(obj1_list, list):
-        obj1_list = [obj1_list]
-    if not isinstance(obj2_list, list):
-        obj2_list = [obj2_list]
-    if not isinstance(position_list, list):
-        position_list = [position_list]
-    obj1_list_zip = list(zip(obj1_list, obj1_uid_list))
-    obj2_list_zip = list(zip(obj2_list, obj2_uid_list))
-    obj1, obj1_uid = random.choice(obj1_list_zip)
-    obj2, obj2_uid = random.choice(obj2_list_zip)
-    position = random.choice(position_list)
-    if len(obj1_list) > 1 or len(obj2_list) > 1 or len(position_list) > 1:
-        instruction = f"put the {obj1} on the {position} of the {obj2}"
-    else:
-        instruction = instruction
-    random_goal = {
-        "obj1": obj1,
-        "obj1_uid": obj1_uid,
-        "obj2": obj2,
-        "obj2_uid": obj2_uid,
-        "position": position,
-    }
-    return random_goal, instruction
-
-
-def process_goal_list_to_random_goal(task_data: dict) -> dict:
-    instruction = task_data["instruction"]
-    single_task_path = random.choice(task_data["goal"])
-    task_data["goal"] = [single_task_path]
-    has_list = False
-    for goal in task_data["goal"][0]:
-        if isinstance(goal["obj1"], list):
-            has_list = True
-            break
-        if isinstance(goal["obj2"], list):
-            has_list = True
-            break
-        if isinstance(goal["position"], list):
-            has_list = True
-            break
-        if isinstance(goal["obj1_uid"], list):
-            has_list = True
-            break
-        if isinstance(goal["obj2_uid"], list):
-            has_list = True
-            break
-    if has_list:
-        print("has list")
-        instruction = ""
-        for idx, goal in enumerate(task_data["goal"][0]):
-            random_goal, sub_instruction = process_subgoal(goal, instruction)
-            task_data["goal"][0][idx] = random_goal
-            if idx == 0:
-                instruction = sub_instruction
-            else:
-                instruction += ", and " + sub_instruction
-        task_data["instruction"] = instruction
-    return task_data
-
-
-def parse_demogen_config(config: dict) -> list:
+def parse_demogen_config(config: dict) -> list[dict]:
     demogen_config_list = config["demonstration_configs"]
     return demogen_config_list
 
 
-def parse_eval_config(config: dict) -> list:
+def parse_eval_config(config: dict) -> list[dict]:
     eval_config_list = config["evaluation_configs"]
     return eval_config_list
 
 
-def parse_evalgen_config(config: dict) -> list:
+def parse_evalgen_config(config: dict) -> list[dict]:
     evalgen_config_list = config["evaluation_configs"]
     return evalgen_config_list
 
@@ -180,16 +109,16 @@ def parse_usda(usda_path: str) -> str:
     return usda_path
 
 
-def check_usda_exist(default_config: dict, demogen_config: dict) -> bool:
+def check_usda_exist(default_config: dict, usd_name: str) -> bool:
     usd_path = parse_usda(
         os.path.join(
             default_config["ASSETS_DIR"],
-            f"{demogen_config['usd_name']}.usda",
+            f"{usd_name}.usda",
         )
     )
     usd_path = os.path.join(
         default_config["ASSETS_DIR"],
-        *demogen_config["usd_name"].split("/")[:-1],
+        *usd_name.split("/")[:-1],
         usd_path,
     )
     if not os.path.exists(usd_path):
@@ -216,9 +145,9 @@ def parse_restart_per_success(demogen_config: dict) -> int:
     if "restart_per_success" in demogen_config:
         return demogen_config["restart_per_success"]
     elif "num_episode" in demogen_config:
-        return demogen_config["num_episode"]
+        return 10**9
     elif "num_test" in demogen_config:
-        return demogen_config["num_test"]
+        return 10**9
     else:
         assert False, "demogen config is out of date, please update it."
 

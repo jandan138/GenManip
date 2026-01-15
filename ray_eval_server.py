@@ -12,6 +12,7 @@ from genmanip.core.evaluator.utils import (
     parse_config_and_benchmark_id,
 )
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -41,6 +42,12 @@ def parse_args() -> argparse.Namespace:
         help="The number of workers for the FastAPI server, not for the evaluator workers",
     )
     parser.add_argument(
+        "--run_id",
+        default=None,
+        type=str,
+        help="Run id for the evaluation",
+    )
+    parser.add_argument(
         "-l",
         "--local",
         action="store_true",
@@ -50,9 +57,16 @@ def parse_args() -> argparse.Namespace:
         "-n",
         "--num_steps",
         type=int,
-        default=600,
+        default=None,
         help="Number of steps to run the evaluation",
     )
+    parser.add_argument(
+        "-ira",
+        "--is_relative_action",
+        action="store_true",
+        help="Run in relative action mode, the action is relative to the last action",
+    )
+
     parser.add_argument(
         "-wor",
         "--without_render",
@@ -66,6 +80,7 @@ def parse_args() -> argparse.Namespace:
         help="Run in random randomization mode, enable randomization configs in eval config",
     )
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()

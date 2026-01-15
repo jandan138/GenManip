@@ -13,6 +13,7 @@ demonstration_configs:
       wall_texture: false
     rewrite_instruction: false
   generation_config: &id005
+    randomization_hack_flag: true
     action_path:
       mode: auto
       robot: 0

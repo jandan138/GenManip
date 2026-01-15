@@ -1,5 +1,9 @@
-logs
 __pycache__
+polygons.png
 /tmp
-images
-saved
+/saved
+.vscode
+logs/
+*.egg-info/
+AGENTS.md
+CLAUDE.md

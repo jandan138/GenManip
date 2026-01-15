@@ -17,6 +17,7 @@ demonstration_configs:
       mode: auto
       robot: 0
     articulation: []
+    randomization_hack_flag: true
     goal:
     - - - &id002
           allow_fixed_grasp: true
@@ -284,6 +285,7 @@ evaluation_configs:
   generation_config: &id019
     action_path: *id013
     articulation: []
+    randomization_hack_flag: true
     goal:
     - - - obj1_uid:
           - object1

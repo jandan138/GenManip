@@ -21,6 +21,7 @@ from genmanip.utils.usd_utils import (
     set_drive_damping_and_stiffness,
     set_drive_max_force,
 )
+from genmanip.core.scene.scene_config import RobotConfig
 
 
 @RobotFactory.register("manip/franka/robotiq")
@@ -40,7 +41,7 @@ class FrankaRobotiqEmbodiment(SingleArmEmbodiment):
         super().__init__(config, *args, **kwargs)
 
     def create_robot(
-        self, scene_uid: str, default_config: dict, robot_config: dict
+        self, scene_uid: str, default_config: dict, robot_config: RobotConfig
     ) -> Robot:
         # Get the position and orientation of the franka robot
         position, orientation = get_world_pose_by_prim_path(

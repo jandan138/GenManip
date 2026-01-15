@@ -70,6 +70,7 @@ def find_closest_grasp_to_mesh(
     distance_threshold: float = 0.09,
     angle_threshold: float | None = None,
     distance_only: bool = False,
+    idx: list[int] = [0],
 ) -> tuple[dict | None, np.ndarray | None]:
     grasp_points = np.array([grasp["translation"] for grasp in grasp_list])
     nearest_points, distances = compute_distance_list_from_point_list_to_mesh(
@@ -104,7 +105,11 @@ def find_closest_grasp_to_mesh(
             return None, None
 
         filtered_grasps.sort(key=lambda x: x[0]["score"], reverse=True)
-        closest_grasp, closest_distance = filtered_grasps[0]
+        _idx = [id for id in idx if id < len(filtered_grasps)]
+        if len(_idx) == 0:
+            return None, None
+        choose_idx = random.choice(_idx)
+        closest_grasp, closest_distance = filtered_grasps[choose_idx]
 
     return closest_grasp, closest_distance
 
@@ -235,6 +240,7 @@ def get_init_grasp(
     address: dict[str, list[str]] = {"127.0.0.1": ["5001"]},
     allow_fixed_grasp: bool = False,
     force_fixed_grasp: bool = False,
+    idx: list[int] = [0],
 ) -> dict:
     if force_fixed_grasp:
         top_point_of_mesh = mesh.get_max_bound()
@@ -247,7 +253,7 @@ def get_init_grasp(
     if world_grasp_list is None or len(world_grasp_list) == 0:
         raise Exception("server return empty grasp list")
     init_grasp, _ = find_closest_grasp_to_mesh(
-        mesh, world_grasp_list, distance_threshold=0.08
+        mesh, world_grasp_list, distance_threshold=0.08, idx=idx
     )
     if init_grasp is None:
         if allow_fixed_grasp:

@@ -1,16 +1,23 @@
+from datetime import datetime
 import os
 import logging
 import sys
 import time
 import threading
+import json
 from typing import Dict, Any, List
 
 import ray
 import torch
 
+from genmanip.core.evaluator.utils import parse_config_and_benchmark_id
+from genmanip.utils.standalone.file_utils import (
+    load_default_config,
+    make_dir,
+    save_dict_to_json,
+)
 from genmanip.utils.standalone.utils import parse_eval_config
 from genmanip.utils.standalone.version_utils import process_archived_config
-from genmanip.utils.standalone.file_utils import load_default_config
 
 GPU_MEMORY = torch.cuda.get_device_properties(0).total_memory
 JOB_MEMORY_GB = (
@@ -90,9 +97,13 @@ class IsaacWorker:
 
         self.logger.info("IsaacWorker init finished.")
 
-    def reset(self, seed: str, current_eval_config: dict):
+    def reset(
+        self, seed: str, current_eval_config: dict, default_config: dict | None = None
+    ):
         self.logger.info(f"Reset called with seed={seed}")
-        obs, self.current_task_info = self.env.reset(seed, current_eval_config)
+        obs, self.current_task_info = self.env.reset(
+            seed, current_eval_config, default_config
+        )
 
         if self.current_task_info is None:
             self.logger.info("No task info returned from env.reset()")
@@ -144,6 +155,11 @@ class IsaacWorkerPool:
     def __init__(self, args, config, current_dir, benchmark_id=None, world_size=None):
         self.workers: Dict[str, Any] = {}
         self.args = args
+        self.args.run_id = (
+            args.run_id
+            if args.run_id is not None
+            else datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
+        )
         self.config = config
         self.current_dir = current_dir
         self.world_size = (
@@ -172,14 +188,33 @@ class IsaacWorkerPool:
         task_seed_list = {}
         config_list = parse_eval_config(self.config)
         config_list = [process_archived_config(config) for config in config_list]
+
         for config in config_list:
             task_seed_list[config["task_name"]] = [
                 str(i).zfill(3) for i in range(config["num_test"])
             ]
         return config_list, task_seed_list
 
+    def load_config(self, config_path: str):
+        config, benchmark_id = parse_config_and_benchmark_id(
+            config_path, self.current_dir
+        )
+        self.config = config
+        self.default_config = load_default_config(
+            self.current_dir, "__None__.json", "local" if self.args.local else "default"
+        )
+        if benchmark_id is not None:
+            self.default_config["TASKS_DIR"] = os.path.join(
+                self.current_dir,
+                "saved/assets/collected_packages",
+                benchmark_id.split("/")[-1],
+                "tasks",
+            )
+        self.initialize()
+
     def create_workers(self, worker_ids: List[str]):
         with self.lock:
+
             # check if enough resources are avaliable
             max_workers = int(self.world_size / NUM_GPUS_REQUIRED_PER_JOB)
             new_worker_cnt = 0
@@ -201,6 +236,14 @@ class IsaacWorkerPool:
                 if w_id in self.workers:
                     ray.kill(self.workers[w_id], no_restart=True)
                     del self.workers[w_id]
+            # restore unfinished tasks
+            self.config_list, self.task_seed_list = self.get_task_seed_list()
+            for task_name, seed_list in self.task_seed_list.items():
+                self.task_seed_list[task_name] = list(
+                    filter(
+                        lambda seed: seed not in self.result_list[task_name], seed_list
+                    )
+                )
 
     def reset(self, worker_ids: List[str]):
         response = {}
@@ -214,7 +257,11 @@ class IsaacWorkerPool:
                 # No more tasks, return result
                 resp = {"obs": None, "metric": self.calculate_result()}
             else:
-                obs = ray.get(self.workers[w_id].reset.remote(task_seed, config))
+                obs = ray.get(
+                    self.workers[w_id].reset.remote(
+                        task_seed, config, self.default_config
+                    )
+                )
                 resp = {"obs": obs, "metric": None}
                 self.worker_to_task_map[w_id] = (config["task_name"], task_seed)
 
@@ -247,18 +294,27 @@ class IsaacWorkerPool:
         return response
 
     def handle_done(self, w_id, info):
-        # Normal done, post_process and record result
-        if "error" not in info and "info" in info and info["info"] != "Done":
-            success_rate = ray.get(self.workers[w_id].post_episode_process.remote())
-            self.result_list[self.get_task_name(w_id)][
-                self.get_task_seed(w_id)
-            ] = success_rate
+        with self.lock:
+            # Normal done, post_process and record result
+            if "error" not in info and "info" in info and info["info"] != "Done":
+                success_rate = ray.get(self.workers[w_id].post_episode_process.remote())
+                self.result_list[self.get_task_name(w_id)][
+                    self.get_task_seed(w_id)
+                ] = success_rate
 
         # Get next task
         config, task_seed = self.get_next_task()
         if config is None:
             # No more tasks, return result
             resp = {"obs": None, "metric": self.calculate_result()}
+
+            make_dir(
+                os.path.join(self.current_dir, "saved/eval_results", self.args.run_id)
+            )
+            result_file = os.path.join(
+                self.current_dir, "saved/eval_results", self.args.run_id, "result.json"
+            )
+            save_dict_to_json(resp["metric"], result_file)
         else:
             # More tasks, reset and get obs
             obs = ray.get(self.workers[w_id].reset.remote(task_seed, config))
@@ -271,6 +327,8 @@ class IsaacWorkerPool:
             if len(self.config_list) == 0:
                 self.done = True
                 return None, None
+
+            # remove empty task seed and task
             config = self.config_list[0]
             while len(self.task_seed_list[config["task_name"]]) == 0:
                 self.config_list.pop(0)
@@ -279,6 +337,7 @@ class IsaacWorkerPool:
                     self.done = True
                     return None, None
                 config = self.config_list[0]
+            # Caution: The task is popped out before get done, it is unsafe for interruption. We restore the unfinished tasks in kill_workers()
             task_seed = self.task_seed_list[config["task_name"]].pop(0)
             return config, task_seed
 

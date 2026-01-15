@@ -20,7 +20,9 @@ def rot_orientation_by_z_axis(ori: np.ndarray, angle: float) -> np.ndarray:
     return rot_orientation_by_axis(ori, "z", angle)
 
 
-def rot_orientation_by_axis(origin_ori: np.ndarray, axis: str, angle: float) -> np.ndarray:
+def rot_orientation_by_axis(
+    origin_ori: np.ndarray, axis: str, angle: float
+) -> np.ndarray:
     ori = R.from_quat(origin_ori[[1, 2, 3, 0]])
     ori = ori * R.from_euler(axis, angle, degrees=True)
     return ori.as_quat()[[3, 0, 1, 2]]
@@ -67,7 +69,9 @@ def compute_final_pose(
     return P_B1, Q_B1
 
 
-def compute_delta_eepose(pose1: tuple[np.ndarray, np.ndarray], pose2: tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+def compute_delta_eepose(
+    pose1: tuple[np.ndarray, np.ndarray], pose2: tuple[np.ndarray, np.ndarray]
+) -> tuple[np.ndarray, np.ndarray]:
     """
     return the delta eepose between two poses: pose1 - pose2
     """
@@ -105,3 +109,36 @@ def compute_pose2(
         @ current_pose1_transform
     )
     return transform_to_pose(current_pose2_transform)
+
+
+def pose_frame_to_world(
+    pose_in_frame: tuple[np.ndarray, np.ndarray],
+    frame_in_world: tuple[np.ndarray, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    pose_in_frame: T_frame_pose
+    frame_in_world: T_world_frame
+    return: T_world_pose
+    """
+    T_world_frame = pose_to_transform(frame_in_world)
+    T_frame_pose = pose_to_transform(pose_in_frame)
+
+    T_world_pose = T_world_frame @ T_frame_pose
+    return transform_to_pose(T_world_pose)
+
+
+def pose_world_to_frame(
+    pose_in_world: tuple[np.ndarray, np.ndarray],
+    frame_in_world: tuple[np.ndarray, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    pose_in_world: T_world_pose
+    frame_in_world: T_world_frame
+    return: T_frame_pose
+    """
+    T_world_frame = pose_to_transform(frame_in_world)
+    T_world_pose = pose_to_transform(pose_in_world)
+
+    T_frame_world = np.linalg.inv(T_world_frame)
+    T_frame_pose = T_frame_world @ T_world_pose
+    return transform_to_pose(T_frame_pose)

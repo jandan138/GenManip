@@ -5,6 +5,7 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+import ctypes
 from datetime import datetime
 import logging
 import os
@@ -17,6 +18,7 @@ import lmdb
 import numpy as np
 import shutil
 
+from omni.isaac.core.articulations import Articulation  # type: ignore
 from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.sensor import Camera  # type: ignore
 
@@ -147,8 +149,8 @@ class PlanningRecorder:
         max_size: int = 1,  # Size in TB
         name: str = "",
         task_data: dict = {},
-        tcp_config: dict = {},
         logger: logging.Logger | None = None,
+        articulation_list: dict[str, Articulation] = {},
     ) -> None:
         if name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
@@ -160,25 +162,33 @@ class PlanningRecorder:
         if self.logger is not None:
             self.logger.info(f"Generated data will be saved to: {self.data_dir}")
         self.max_size = int(max_size * 1024**4)
+        self.env = None
         self.json_data_logger = {}
         self.scalar_data_logger = {}
         self.color_image_logger = {}
         self.depth_image_logger = {}
         self.obj_mask_logger = {}
+
         self.cameras = cameras
         if "camera1" in self.cameras:
             self.cameras.pop("camera1")
         self.embodiment = embodiment
-        self.log_num_steps = 0
+
         self.task_data = task_data
-        self.tcp_config = tcp_config
-        # self.tcp_xform_list = create_tcp_xform_list(franka, self.tcp_config)
+        self.log_num_steps = 0
         self.frame_status = {}
-        self.load_static_info()
-        self.joint_xform_list = create_joint_xform_list(embodiment.robot)
-        self.object_list = object_list
         self.current_action = []
 
+        self.joint_xform_list = create_joint_xform_list(embodiment.robot)
+        self.object_list = object_list
+        self.articulation_list = articulation_list
+        self.articulation_part_list = {
+            key: create_joint_xform_list(articulation)
+            for key, articulation in articulation_list.items()
+        }
+        self.load_static_info()
+
+        # Initialize last action
         self.last_action = embodiment.robot.get_joint_positions()[
             embodiment.default_dof_indices
         ]
@@ -187,21 +197,20 @@ class PlanningRecorder:
         self.last_base_motion = np.array([0.0, 0.0, 0.0])
 
     def load_static_info(self) -> None:
-        for camera_name, camera in self.cameras.items():
-            intrinsics_matrix = get_intrinsic_matrix(camera)
-            self.add_json_data(
-                f"observation/{camera_name}/camera_params",
-                intrinsics_matrix.tolist(),
-            )
-        self.add_json_data(
-            f"observation/tcp_config",
-            self.tcp_config,
-        )
+        articulation_mapping = {}
+        for key in self.articulation_part_list:
+            for part_name, part_xform in self.articulation_part_list[key].items():
+                articulation_mapping[str(key + "/" + part_name)] = {
+                    "articulation_id": key,
+                    "part_name": part_name,
+                    "prim_path": str(part_xform.prim_path),
+                }
+        self.add_json_data(f"observation/articulation_mapping", articulation_mapping)
 
     def load_dynamic_info(
         self,
         action: np.ndarray | None,
-        gripper_action: float | None,
+        gripper_action: float | list[float] | None,
         arm: str | None = "default",
         name: str | list[str] | None = None,
         base_motion: np.ndarray = np.array([0.0, 0.0, 0.0]),
@@ -253,6 +262,37 @@ class PlanningRecorder:
                 f"observation/obj_pose/{key}/scale",
                 self.object_list[key].get_local_scale(),
             )
+        for key in self.articulation_list:
+            self.add_scalar_data(
+                f"observation/articulation_pose/{key}/position",
+                self.articulation_list[key].get_world_pose()[0],
+            )
+            self.add_scalar_data(
+                f"observation/articulation_pose/{key}/orientation",
+                self.articulation_list[key].get_world_pose()[1],
+            )
+            self.add_scalar_data(
+                f"observation/articulation_pose/{key}/scale",
+                self.articulation_list[key].get_local_scale(),
+            )
+            self.add_scalar_data(
+                f"observation/articulation_pose/{key}/qpos",
+                self.articulation_list[key].get_joint_positions(),
+            )
+        for key in self.articulation_part_list:
+            for part_name, part_xform in self.articulation_part_list[key].items():
+                self.add_scalar_data(
+                    f"observation/articulation_part_pose/{key}/{part_name}/position",
+                    part_xform.get_world_pose()[0],
+                )
+                self.add_scalar_data(
+                    f"observation/articulation_part_pose/{key}/{part_name}/orientation",
+                    part_xform.get_world_pose()[1],
+                )
+                self.add_scalar_data(
+                    f"observation/articulation_part_pose/{key}/{part_name}/scale",
+                    part_xform.get_local_scale(),
+                )
         self.add_scalar_data(
             f"observation/robot/qpos", self.embodiment.robot.get_joint_positions()
         )
@@ -356,6 +396,39 @@ class PlanningRecorder:
                 f"Save data with length {self.log_num_steps} to {self.data_dir}"
             )
         return True
+
+    def release(self, trim: bool = True) -> None:
+        if self.env is not None:
+            try:
+                self.env.close()
+            except Exception:
+                pass
+            self.env = None
+
+        self.json_data_logger.clear()
+        self.scalar_data_logger.clear()
+        self.color_image_logger.clear()
+        self.depth_image_logger.clear()
+        self.obj_mask_logger.clear()
+        self.frame_status.clear()
+
+        self.cameras = {}
+        self.tcp_xform_list = []
+        self.joint_xform_list = {}
+
+        import gc
+
+        gc.collect()
+
+        if not trim:
+            return
+        try:
+            libc = ctypes.CDLL("libc.so.6")
+            malloc_trim = getattr(libc, "malloc_trim", None)
+            if malloc_trim is not None:
+                malloc_trim(0)
+        except Exception:
+            pass
 
     def set_permissions(self, path: str) -> None:
         os.chmod(path, 0o777)

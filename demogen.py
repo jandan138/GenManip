@@ -35,13 +35,7 @@ def parse_args() -> argparse.Namespace:
         default="just for record",
         help="Helps to record user name for monitoring in htop/nvidia-smi/nvitop etc.",
     )
-    parser.add_argument(
-        "-l",
-        "--local",
-        default=False,
-        action="store_true",
-        help="Run in local mode, a quick command to enable Isaac Sim GUI and use local anygrasp server",
-    )
+    
     parser.add_argument(
         "--eval",
         default=False,
@@ -54,6 +48,21 @@ def parse_args() -> argparse.Namespace:
         default=False,
         action="store_true",
         help="Run in without planning mode, only generate layout and save first frame results, for vlm data generation",
+    )
+
+    parser.add_argument(
+        "-l",
+        "--local",
+        default=False,
+        action="store_true",
+        help="Run in local mode, a quick command to enable Isaac Sim GUI and use local anygrasp server",
+    )
+    parser.add_argument(
+        "-ad",
+        "--action_debug_mode",
+        default=False,
+        action="store_true",
+        help="Run in action debug mode, reload the task config from the first demonstration config every episode",
     )
     args = parser.parse_args()
     return args

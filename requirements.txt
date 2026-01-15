@@ -1,5 +1,6 @@
 concave_hull==0.0.9
 lmdb==1.6.2
+mediapy==1.2.4
 mplib==0.2.1
 open3d==0.19.0
 python-fcl==0.7.0.8

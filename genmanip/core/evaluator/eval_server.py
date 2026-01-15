@@ -17,8 +17,10 @@ class EvalServer:
 
     Routes:
         - /step: POST request to perform a step in the evaluation.
-        - /kill: POST request to kill specified workers.
         - /reset: POST request to reset the evaluation environment.
+        - /kill: POST request to kill specified workers.
+        - /create_workers: create workers by id
+        - /load_config: load a new task config
 
     Functions:
         - register_worker_pool(pool): Register a worker pool to handle evaluation tasks.
@@ -40,6 +42,7 @@ class EvalServer:
             ("/kill", self.kill, ["POST"]),
             ("/reset", self.reset, ["POST"]),
             ("/create_workers", self.create_workers, ["POST"]),
+            ("/load_config", self.load_config, ["POST"]),
         ]
 
         for path, handler, methods in route_config:
@@ -147,6 +150,20 @@ class EvalServer:
             body = await request.json()
             worker_ids = body["data"]["worker_ids"]
             await asyncio.to_thread(pool.create_workers, worker_ids)
+            return {"data": {"success": True}}
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
+        
+    async def load_config(self, request: Request):
+        """
+        body: {"data": {"config_path": ...}}
+        """
+        pool = request.app.state.pool
+        try:
+            body = await request.json()
+            config_path = body["data"]["config_path"]
+            await asyncio.to_thread(pool.load_config, config_path)
             return {"data": {"success": True}}
         except Exception as e:
             traceback.print_exc()

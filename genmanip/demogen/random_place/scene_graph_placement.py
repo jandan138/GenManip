@@ -9,10 +9,16 @@ from collections import defaultdict, deque
 import copy
 import random
 
+from genmanip.core.scene.scene_config import SceneConfig
 
-def process_scene_graph(demogen_config: dict, object_list_key: list[str]) -> list[dict]:
+
+def process_scene_graph(
+    scene_config: SceneConfig, object_list_key: list[str]
+) -> list[dict]:
     TABLE_UID = "00000000000000000000000000000000"
-    scene_graph = copy.deepcopy(demogen_config["layout_config"]["scene_graph"])
+    if scene_config.layout_config.scene_graph is None:
+        raise ValueError("Scene graph is not defined")
+    scene_graph = copy.deepcopy(scene_config.layout_config.scene_graph)
     on_table_uids = collect_on_table_uids(scene_graph)
     for uid in on_table_uids:
         scene_graph.append(

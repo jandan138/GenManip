@@ -102,15 +102,24 @@ class DualArmEmbodiment(BaseEmbodiment):
             self.robot.prim_path + self.default_lift_joint_path,
             1000000,
         )
+        self.initial_base_pose = self.robot.get_joint_positions()[
+            self.base_dof_indices
+        ].copy()
+        self.target_base_pose = self.robot.get_joint_positions()[self.base_dof_indices]
+
+    def reset(self) -> None:
+        self.target_base_pose = self.initial_base_pose.copy()
 
     def delta_move_to(self, delta_x, delta_y, delta_yaw):
         delta_x = np.clip(delta_x, -0.01, 0.01)
         delta_y = np.clip(delta_y, -0.01, 0.01)
-        delta_yaw = np.clip(delta_yaw, -0.01, 0.01)
-        current_pose = self.robot.get_joint_positions()[self.base_dof_indices]
-        new_pose = current_pose + [delta_x, delta_y, delta_yaw]
+        delta_yaw = np.clip(delta_yaw, -1, 1)
+
+        delta_yaw = np.deg2rad(delta_yaw)
+        self.target_base_pose += np.array([delta_x, delta_y, delta_yaw])
+
         self.robot_view.set_joint_position_targets(
-            new_pose,
+            self.target_base_pose,
             joint_indices=self.base_dof_indices,
         )
 
@@ -218,6 +227,8 @@ class DualArmEmbodiment(BaseEmbodiment):
             robot_p, robot_q = self.robot_base_left.get_world_pose()
         elif arm == "right":
             robot_p, robot_q = self.robot_base_right.get_world_pose()
+        elif arm == "default":
+            robot_p, robot_q = self.robot.get_world_pose()
         else:
             raise ValueError(f"Invalid arm: {arm}")
         goal_matrix = np.eye(4)

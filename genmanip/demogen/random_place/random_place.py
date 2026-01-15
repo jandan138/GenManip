@@ -25,6 +25,7 @@ from omni.isaac.core.prims import XFormPrim  # type: ignore
 from omni.isaac.core.articulations import Articulation  # type: ignore
 from omni.isaac.core import World  # type: ignore
 
+from genmanip.core.scene.scene_config import LayoutConfig, SceneConfig
 from genmanip.demogen.random_place.scene_graph_placement import process_scene_graph
 from genmanip.extensions.metrics.default.sr_based_genmanip_relationship import (
     check_subgoal_finished_rigid,
@@ -165,12 +166,6 @@ def place_object_to_object_by_relation(
         ).buffer(-extra_erosion)
     else:
         available_area = Polygon([(-10, -10), (10, -10), (10, 10), (-10, 10)])
-    object1_pc = pointcloud_list[object1_uid]
-    object1_bottom_point = object1_pc[np.argmin(object1_pc[:, 2])]
-    object1_xyr = get_max_distance_to_polygon(
-        get_xy_contour(pointcloud_list[object1_uid]),
-        Point(object1_bottom_point[0], object1_bottom_point[1]),
-    )
     if relation == "on" or relation == "top":
         IS_OK = randomly_place_object_on_object(
             pointcloud_list[object1_uid],
@@ -384,7 +379,7 @@ def randomly_place_object_on_object(
 def setup_random_tableset_by_centric_range(
     object_list: dict[str, XFormPrim],
     meshDict: dict[str, MeshInfo],
-    centric_random_range: dict,
+    centric_random_range: LayoutConfig,
     background_objects: list[str],
     partial_ignore: dict[str, list[str]] = {},
 ) -> int:
@@ -395,27 +390,27 @@ def setup_random_tableset_by_centric_range(
             or key in background_objects
         ):
             continue
-        if centric_random_range["angle_bilateral"]:
+        if centric_random_range.angle_bilateral:
             rotate_object_around_z(
                 object_list[key],
                 (
-                    -centric_random_range["angle"],
-                    centric_random_range["angle"],
+                    -centric_random_range.angle,
+                    centric_random_range.angle,
                 ),
             )
         else:
-            rotate_object_around_z(object_list[key], (0, centric_random_range["angle"]))
+            rotate_object_around_z(object_list[key], (0, centric_random_range.angle))
         meshlist = get_current_meshList(object_list, meshDict)
         aabb = compute_mesh_bbox(meshlist[key])
         available_polygon = bbox_to_polygon(
-            aabb.get_min_bound()[0] - centric_random_range["w"] / 2,
-            aabb.get_min_bound()[1] - centric_random_range["h"] / 2,
+            aabb.get_min_bound()[0] - centric_random_range.w / 2,
+            aabb.get_min_bound()[1] - centric_random_range.h / 2,
             aabb.get_max_bound()[0]
             - aabb.get_min_bound()[0]
-            + centric_random_range["w"],
+            + centric_random_range.w,
             aabb.get_max_bound()[1]
             - aabb.get_min_bound()[1]
-            + centric_random_range["h"],
+            + centric_random_range.h,
         )
         pclist = meshlist_to_pclist(meshlist)
         ignored_uid_list = [] if key not in partial_ignore else partial_ignore[key]
@@ -440,7 +435,7 @@ def setup_random_custom_tableset(
     object_list: dict[str, XFormPrim],
     articulation_list: dict[str, Articulation],
     meshDict: dict[str, MeshInfo],
-    custom_tableset_config: dict,
+    custom_tableset_config: dict[str, dict] | list[dict[str, dict]],
     in_order: bool = False,
 ) -> int:
     if isinstance(custom_tableset_config, list):
@@ -678,7 +673,7 @@ def setup_random_custom_tableset(
 def setup_random_all_range(
     object_list: dict[str, XFormPrim],
     meshDict: dict[str, MeshInfo],
-    random_all_range_config: dict,
+    random_all_range_config: LayoutConfig,
     background_objects: list[str],
 ) -> int:
     for key in object_list:
@@ -702,14 +697,14 @@ def setup_random_all_range(
             continue
         global_range = random_all_range_config
         available_polygon = bbox_to_polygon(
-            global_range["random_range_x"],
-            global_range["random_range_y"],
-            global_range["random_range_w"],
-            global_range["random_range_h"],
+            global_range.random_range_x,
+            global_range.random_range_y,
+            global_range.random_range_w,
+            global_range.random_range_h,
         )
         rotate_object_around_z(
             object_list[key],
-            (0, global_range["random_range_angle"]),
+            (0, global_range.random_range_angle),
         )
         pclist = get_current_pcList_by_meshList(object_list, meshDict)
         available_area = get_platform_available_area(
@@ -732,12 +727,12 @@ def setup_random_all_range(
 def setup_scene_graph_placement(
     object_list: dict[str, XFormPrim],
     meshDict: dict[str, MeshInfo],
-    demogen_config: dict,
+    scene_config: SceneConfig,
 ) -> int:
     object_list_key = list(object_list.keys())
     object_list_key.remove("00000000000000000000000000000000")
     object_list_key.remove("defaultGroundPlane")
-    scene_graph_list = process_scene_graph(demogen_config, object_list_key)
+    scene_graph_list = process_scene_graph(scene_config, object_list_key)
     for object_uid in object_list_key:
         object_list[object_uid].set_world_pose(position=[10.0, 0.0, 0.0])
     for edge_list in scene_graph_list:
@@ -787,7 +782,7 @@ def setup_scene_graph_placement(
 def setup_random_all_range_buffered(
     object_list: dict[str, XFormPrim],
     meshDict: dict[str, MeshInfo],
-    random_all_range_config: dict,
+    random_all_range_config: LayoutConfig,
     background_objects: list[str],
     task_data: dict,
     buffer_size: float = 0.05,
@@ -817,14 +812,14 @@ def setup_random_all_range_buffered(
     for key in obj1_uid_list:
         global_range = random_all_range_config
         available_polygon = bbox_to_polygon(
-            global_range["random_range_x"],
-            global_range["random_range_y"],
-            global_range["random_range_w"],
-            global_range["random_range_h"],
+            global_range.random_range_x,
+            global_range.random_range_y,
+            global_range.random_range_w,
+            global_range.random_range_h,
         )
         rotate_object_around_z(
             object_list[key],
-            (0, global_range["random_range_angle"]),
+            (0, global_range.random_range_angle),
         )
         pclist = get_current_pcList_by_meshList(object_list, meshDict)
         available_area = get_platform_available_area(
@@ -858,14 +853,14 @@ def setup_random_all_range_buffered(
     for key in obj2_uid_list:
         global_range = random_all_range_config
         available_polygon = bbox_to_polygon(
-            global_range["random_range_x"],
-            global_range["random_range_y"],
-            global_range["random_range_w"],
-            global_range["random_range_h"],
+            global_range.random_range_x,
+            global_range.random_range_y,
+            global_range.random_range_w,
+            global_range.random_range_h,
         )
         rotate_object_around_z(
             object_list[key],
-            (0, global_range["random_range_angle"]),
+            (0, global_range.random_range_angle),
         )
         pclist = get_current_pcList_by_meshList(object_list, meshDict)
         available_area = get_platform_available_area(
@@ -904,14 +899,14 @@ def setup_random_all_range_buffered(
             continue
         global_range = random_all_range_config
         available_polygon = bbox_to_polygon(
-            global_range["random_range_x"],
-            global_range["random_range_y"],
-            global_range["random_range_w"],
-            global_range["random_range_h"],
+            global_range.random_range_x,
+            global_range.random_range_y,
+            global_range.random_range_w,
+            global_range.random_range_h,
         )
         rotate_object_around_z(
             object_list[key],
-            (0, global_range["random_range_angle"]),
+            (0, global_range.random_range_angle),
         )
         pclist = get_current_pcList_by_meshList(object_list, meshDict)
         available_area = get_platform_available_area(
@@ -1045,7 +1040,7 @@ def setup_random_obj1_range(
     object_list: dict[str, XFormPrim],
     meshDict: dict[str, MeshInfo],
     task_data: dict,
-    obj1_random_range: dict,
+    obj1_random_range: LayoutConfig,
     world_pose_list: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> int:
     task_info = copy.deepcopy(task_data)
@@ -1063,14 +1058,14 @@ def setup_random_obj1_range(
             orientation=[0.5, 0.5, 0.5, 0.5],
         )
     available = bbox_to_polygon(
-        obj1_random_range["random_range_x"],
-        obj1_random_range["random_range_y"],
-        obj1_random_range["random_range_w"],
-        obj1_random_range["random_range_h"],
+        obj1_random_range.random_range_x,
+        obj1_random_range.random_range_y,
+        obj1_random_range.random_range_w,
+        obj1_random_range.random_range_h,
     )
     rotate_object_around_z(
         object_list[task_info["goal"][0][0]["obj1_uid"]],
-        (0, obj1_random_range["random_range_angle"]),
+        (0, obj1_random_range.random_range_angle),
     )
     pclist = get_current_pcList_by_meshList(object_list, meshDict)
     IS_OK = setup_target_scene_by_polygon(object_list, pclist, task_info, available)

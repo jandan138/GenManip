@@ -36,6 +36,12 @@ class MetricsManager:
             return False
         return [MetricsManager.init_false_list(e) for e in x]
 
+    def print_metrics_info(self, metrics: list):
+        for metric_list in metrics:
+            for metric in metric_list:
+                print(metric.get_info())
+            print("-" * 100)
+
     def get_next_metric(self) -> list | None:
         if not self.goal_setting:
             return None
@@ -43,10 +49,12 @@ class MetricsManager:
         next_metric_setting = self.goal_setting.pop(0)
         self.long_stride_idx += 1
 
-        return [
+        metrics = [
             [MetricFactory.build(cfg["type"], **cfg) for cfg in inner]
             for inner in next_metric_setting
         ]
+        self.print_metrics_info(metrics)
+        return metrics
 
     def step(self, scene) -> float | None:
         if self.cur_union_metric is None:
@@ -60,10 +68,11 @@ class MetricsManager:
                 metric.update(scene)
                 union_metrics[union_idx][collection_idx] = metric.status
 
-        if all(
-            union_metrics[i][j]
-            for i in range(len(union_metrics))
-            for j in range(len(union_metrics[i]))
+        if any(
+            [
+                all(metric.status for metric in collection_metrics)
+                for collection_metrics in self.cur_union_metric
+            ]
         ):
             self.cur_union_metric = self.get_next_metric()
 

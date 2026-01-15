@@ -1,4 +1,4 @@
-# GenManip Suite
+﻿# GenManip Suite
 
 **GenManip** is a comprehensive robotics simulation suite built on **NVIDIA Isaac Sim**, designed for research in **general robotic manipulation**.
 It provides an integrated platform for **data generation, benchmarking, and baseline development**, offering a unified workflow from precision scene design to large-scale dataset creation.
@@ -100,6 +100,3 @@ If you find our work useful, please cite:
 ```
 
 Know more about our CVPR paper version at branch [archived/cvpr2025](https://github.com/InternRobotics/GenManip/tree/archived/cvpr2025)
-
-
-

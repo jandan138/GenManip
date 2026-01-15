@@ -11,14 +11,16 @@ import numpy as np
 import os
 import random
 
+from genmanip.core.scene.scene_config import SceneConfig
 from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
+from genmanip.utils.standalone.meta_utils import any_random_choice_process
 
 
-def check_planning_finished(demogen_config, default_config):
+def check_planning_finished(task_name, num_episode, default_config):
     lock_file = os.path.join(
         os.path.join(
             default_config["DEMONSTRATION_DIR"],
-            demogen_config["task_name"],
+            task_name,
             "trajectory",
             "log_soft.lock",
         )
@@ -28,14 +30,14 @@ def check_planning_finished(demogen_config, default_config):
             log_pkl_path = os.path.join(
                 os.path.join(
                     default_config["DEMONSTRATION_DIR"],
-                    demogen_config["task_name"],
+                    task_name,
                     "trajectory",
                     "log.pkl",
                 )
             )
             if os.path.exists(log_pkl_path):
                 log = load_dict_from_pkl(log_pkl_path)
-                if "success" in log and log["success"] >= demogen_config["num_episode"]:
+                if "success" in log and log["success"] >= num_episode:
                     return True
             return False
     except:
@@ -44,22 +46,18 @@ def check_planning_finished(demogen_config, default_config):
         )
 
 
-def check_evalgen_finished(evalgen_config, default_config):
+def check_evalgen_finished(task_name, num_test, default_config):
     lock_file = os.path.join(
-        os.path.join(
-            default_config["TASKS_DIR"], evalgen_config["task_name"], "log_soft.lock"
-        )
+        os.path.join(default_config["TASKS_DIR"], task_name, "log_soft.lock")
     )
     try:
         with SoftFileLock(lock_file, timeout=600.0):
             log_pkl_path = os.path.join(
-                os.path.join(
-                    default_config["TASKS_DIR"], evalgen_config["task_name"], "log.pkl"
-                )
+                os.path.join(default_config["TASKS_DIR"], task_name, "log.pkl")
             )
             if os.path.exists(log_pkl_path):
                 log = load_dict_from_pkl(log_pkl_path)
-                if "success" in log and log["success"] >= evalgen_config["num_test"]:
+                if "success" in log and log["success"] >= num_test:
                     return True
             return False
     except:
@@ -68,19 +66,21 @@ def check_evalgen_finished(evalgen_config, default_config):
         )
 
 
-def check_eval_finished(eval_config, default_config):
+def check_eval_finished(scene_config: SceneConfig, default_config: dict) -> int:
+    if scene_config.num_test is None:
+        raise ValueError("Num test is not set")
     lock_file = os.path.join(
-        default_config["EVAL_RESULT_DIR"], eval_config["task_name"], "eval_soft.lock"
+        default_config["EVAL_RESULT_DIR"], scene_config.task_name, "eval_soft.lock"
     )
     try:
         with SoftFileLock(lock_file, timeout=600.0):
             task_dir = os.path.join(
                 default_config["EVAL_RESULT_DIR"],
-                eval_config["task_name"],
+                scene_config.task_name,
             )
             if os.path.exists(task_dir):
                 evaluation_num = len(os.listdir(task_dir)) - 1
-                if evaluation_num >= eval_config["num_test"]:
+                if evaluation_num >= scene_config.num_test:
                     if os.path.exists(lock_file):
                         os.remove(lock_file)
                     return -1
@@ -94,13 +94,6 @@ def check_eval_finished(eval_config, default_config):
         )
 
 
-def random_choice_from_object_or_list(object_or_list):
-    if isinstance(object_or_list, list):
-        return random.choice(object_or_list)
-    else:
-        return object_or_list
-
-
 def get_random_position_candidate() -> list[str]:
     return ["top", "near", "left", "right", "front", "back"]
 
@@ -108,65 +101,42 @@ def get_random_position_candidate() -> list[str]:
 def is_triple_layer_list(goal: list) -> bool:
     if (
         isinstance(goal, list)
+        and len(goal) > 0
         and isinstance(goal[0], list)
+        and len(goal[0]) > 0
         and isinstance(goal[0][0], list)
+        and len(goal[0][0]) > 0
     ):
         return True
     return False
 
 
-def corse_process_task_data(demogen_config: dict) -> dict:
+def corse_process_task_data(scene_config: SceneConfig) -> dict:
     task_data = {}
-    if is_triple_layer_list(demogen_config["generation_config"]["goal"]):
-        demogen_config["generation_config"]["goal"] = random.choice(
-            demogen_config["generation_config"]["goal"]
+    if scene_config.generation_config.randomization_hack_flag and is_triple_layer_list(
+        scene_config.generation_config.goal
+    ):
+        scene_config.generation_config.goal = random.choice(
+            scene_config.generation_config.goal
         )
-    task_data["goal"] = deepcopy(demogen_config["generation_config"]["goal"])
-    if "long_horizon_meta_info" in demogen_config:
-        task_data["long_horizon_meta_info"] = demogen_config["long_horizon_meta_info"]
-    for goal in task_data["goal"]:
-        for subgoal in goal:
-            assert demogen_config["mode"] != "benchmark" or (
-                (
-                    (
-                        isinstance(subgoal["obj1_uid"], list)
-                        and len(subgoal["obj1_uid"]) == 1
-                    )
-                    or (not isinstance(subgoal["obj1_uid"], list))
-                )
-                and (
-                    (
-                        isinstance(subgoal["obj2_uid"], list)
-                        and len(subgoal["obj2_uid"]) == 1
-                    )
-                    or (not isinstance(subgoal["obj2_uid"], list))
-                )
-            ), "obj1_uid and obj2_uid must be string or a list with only one element in benchmark mode"
-            if "obj1_uid" not in subgoal or "obj2_uid" not in subgoal:
-                continue
-            if "obj1" in subgoal:
-                if not isinstance(subgoal["obj1"], list):
-                    subgoal["obj1"] = [subgoal["obj1"]]
-            if not isinstance(subgoal["obj1_uid"], list):
-                subgoal["obj1_uid"] = [subgoal["obj1_uid"]]
-            obj1_idx = random_choice_from_object_or_list(
-                [i for i in range(len(subgoal["obj1_uid"]))]
+    task_data["goal"] = deepcopy(scene_config.generation_config.goal)
+
+    # process goal config
+    def _process_goal(goal: list | dict, is_benchmark: bool = False):
+        if isinstance(goal, list):
+            return [_process_goal(subgoal, is_benchmark) for subgoal in goal]
+        elif isinstance(goal, dict):
+            return any_random_choice_process(goal, is_benchmark=is_benchmark)
+
+    task_data["goal"] = _process_goal(
+        task_data["goal"], is_benchmark=scene_config.mode == "benchmark"
+    )
+
+    if scene_config.generation_config.action_path.actions is not None:
+        for subaction in scene_config.generation_config.action_path.actions:
+            subaction = any_random_choice_process(
+                subaction, is_benchmark=scene_config.mode == "benchmark"
             )
-            if "obj1" in subgoal:
-                subgoal["obj1"] = subgoal["obj1"][obj1_idx]
-            subgoal["obj1_uid"] = subgoal["obj1_uid"][obj1_idx]
-            if "obj2" in subgoal:
-                if not isinstance(subgoal["obj2"], list):
-                    subgoal["obj2"] = [subgoal["obj2"]]
-            if not isinstance(subgoal["obj2_uid"], list):
-                subgoal["obj2_uid"] = [subgoal["obj2_uid"]]
-            obj2_idx = random_choice_from_object_or_list(
-                [i for i in range(len(subgoal["obj2_uid"]))]
-            )
-            if "obj2" in subgoal:
-                subgoal["obj2"] = subgoal["obj2"][obj2_idx]
-            subgoal["obj2_uid"] = subgoal["obj2_uid"][obj2_idx]
-            subgoal["position"] = random_choice_from_object_or_list(subgoal["position"])
     return task_data
 
 
@@ -219,28 +189,33 @@ def concat_instruction(
     return instruction
 
 
-def rewrite_instruction(task_data: dict, demogen_config: dict) -> None:
-    if demogen_config["domain_randomization"].get("rewrite_instruction", False):
-        sequence = demogen_config["domain_randomization"].get("rewrite_sequece", None)
+def rewrite_instruction(task_data: dict, demogen_config: SceneConfig) -> None:
+    if demogen_config.domain_randomization.rewrite_instruction:
+        sequence = demogen_config.domain_randomization.rewrite_sequece
         task_data["instruction"] = concat_instruction(
             task_data,
             sequence,
-            record_arm_info=demogen_config["domain_randomization"].get(
-                "record_arm_info", False
-            ),
+            record_arm_info=demogen_config.domain_randomization.record_arm_info,
         )
     else:
-        task_data["instruction"] = demogen_config["instruction"]
+        task_data["instruction"] = demogen_config.instruction
 
 
-def get_action_list(task_data: dict, demogen_config: dict) -> dict:
-    task_data["task_path"] = random.choice(task_data["goal"])
-    if demogen_config["generation_config"].get("is_shuffle", False):
+def get_action_list(task_data: dict, demogen_config: SceneConfig) -> dict:
+    if demogen_config.generation_config.action_path.mode == "auto":
+        goal_data = deepcopy(task_data["goal"])
+        task_data["task_path"] = random.choice(goal_data)
+    elif demogen_config.generation_config.action_path.mode == "manual":
+        task_data["task_path"] = demogen_config.generation_config.action_path.actions
+    if (
+        demogen_config.generation_config.is_shuffle
+        and task_data["task_path"] is not None
+    ):
         random.shuffle(task_data["task_path"])
     return task_data
 
 
-def refine_task_data(task_data: dict, demogen_config: dict) -> dict:
+def refine_task_data(task_data: dict, demogen_config: SceneConfig) -> dict:
     rewrite_instruction(task_data, demogen_config)
     task_data = get_action_list(task_data, demogen_config)
     return task_data
@@ -252,6 +227,10 @@ def adjust_arm_gripper_action_by_embodiment(
     embodiment_name: str,
 ) -> np.ndarray:
     if embodiment_name == "aloha_split":
+        return np.concatenate(
+            [arm_action[:6], gripper_action[:2], arm_action[6:], gripper_action[2:]]
+        )
+    elif embodiment_name == "lift2":
         return np.concatenate(
             [arm_action[:6], gripper_action[:2], arm_action[6:], gripper_action[2:]]
         )

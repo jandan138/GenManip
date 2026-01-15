@@ -20,6 +20,7 @@ from genmanip.utils.pointcloud.pointcloud import (
 from genmanip.utils.usd_utils.prim_utils import resize_object, resize_object_by_lwh
 from genmanip.utils.standalone.pc_utils import compute_aabb_lwh, compute_mesh_bbox
 from genmanip.utils.annotation.object_pool import ObjectPool
+from genmanip.core.scene.scene_config import ObjectConfig, SceneConfig
 
 if TYPE_CHECKING:
     from genmanip.core.scene.scene import Scene
@@ -81,7 +82,7 @@ def add_object_to_scene_from_preload_list(
     uid: str,
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
 ) -> None:
     # Add the object from preloaded object list to object list
     scene.object_list[uid] = scene.cache_library.preloaded_object_list[uid]
@@ -96,7 +97,7 @@ def add_object_to_scene_from_preload_list(
             os.path.join(
                 default_config["ASSETS_DIR"],
                 "mesh_data",
-                demogen_config["task_name"],
+                scene_config.task_name,
                 os.path.dirname(scene.cache_library.preloaded_object_path_list[uid]),
                 f"{uid}.obj",
             ),
@@ -110,7 +111,7 @@ def add_object_to_scene_from_preload_list(
             os.path.join(
                 default_config["ASSETS_DIR"],
                 "mesh_data",
-                demogen_config["task_name"],
+                scene_config.task_name,
                 f"{uid}.obj",
             ),
         )
@@ -123,14 +124,14 @@ def replace_object_in_scene_by_uid(
     replaced_uid: str,
     scene: "Scene",
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
 ) -> None:
     # Remove the previous object from scene dict
     if previous_uid in scene.object_list:
         remove_object_from_scene_by_preload(previous_uid, scene)
     # Add the replaced object to scene dict
     add_object_to_scene_from_preload_list(
-        replaced_uid, scene, default_config, demogen_config
+        replaced_uid, scene, default_config, scene_config
     )
 
 
@@ -139,7 +140,7 @@ def resize_object_in_scene_by_uid(
     scene: "Scene",
     default_config: dict,
     scale: float | list[float],
-    demogen_config: dict,
+    scene_config: SceneConfig,
 ) -> None:
     # 1. Get the current mesh list from scene dict
     meshlist = get_current_meshList(scene.object_list, scene.cache_library.mesh_dict)
@@ -170,7 +171,7 @@ def resize_object_in_scene_by_uid(
             os.path.join(
                 default_config["ASSETS_DIR"],
                 "mesh_data",
-                demogen_config["task_name"],
+                scene_config.task_name,
                 os.path.dirname(scene.cache_library.preloaded_object_path_list[uid]),
                 f"{uid}.obj",
             ),
@@ -183,7 +184,7 @@ def resize_object_in_scene_by_uid(
             os.path.join(
                 default_config["ASSETS_DIR"],
                 "mesh_data",
-                demogen_config["task_name"],
+                scene_config.task_name,
                 f"{uid}.obj",
             ),
         )
@@ -195,7 +196,7 @@ def adjust_object_scale_by_thickness(
     scene: "Scene",
     uid: str,
     default_config: dict,
-    demogen_config: dict,
+    scene_config: SceneConfig,
     min_thickness: float,
 ) -> None:
     meshlist = get_current_meshList(scene.object_list, scene.cache_library.mesh_dict)
@@ -220,7 +221,7 @@ def adjust_object_scale_by_thickness(
             os.path.join(
                 default_config["ASSETS_DIR"],
                 "mesh_data",
-                demogen_config["task_name"],
+                scene_config.task_name,
                 os.path.dirname(scene.cache_library.preloaded_object_path_list[uid]),
                 f"{uid}.obj",
             ),
@@ -230,38 +231,37 @@ def adjust_object_scale_by_thickness(
 
 
 def get_object_scale(
-    replace_object_config: dict,
+    replace_object_config: dict[str, ObjectConfig],
     key: str,
     replaced_uid: str,
     object_pool: ObjectPool,
-) -> float | None:
-    if (
-        "option" in replace_object_config[key]
-        and "plain_replace" in replace_object_config[key]["option"]
-    ):
+) -> float | list[float] | None:
+    if "plain_replace" in replace_object_config[key].option:
         scale = None
     else:
         object_info = object_pool.get_object_info(replaced_uid)
         if object_info is None:
             scale = random.uniform(0.08, 0.12)
-        elif (
-            "option" in replace_object_config[key]
-            and "grep_min_scale" in replace_object_config[key]["option"]
-        ):
+        elif "grep_min_scale" in replace_object_config[key].option:
             scale = object_info["scale"][0]
         else:
             scale = random.uniform(
                 object_info["scale"][0],
                 object_info["scale"][1],
             )
-    if "clip_range" in replace_object_config[key] and scale is not None:
-        clip_range_min = replace_object_config[key]["clip_range"]["min"]
-        clip_range_max = replace_object_config[key]["clip_range"]["max"]
+    if replace_object_config[key].clip_range is not None and scale is not None:
+        clip_range = replace_object_config[key].clip_range
+        if clip_range is None:
+            raise ValueError(f"Clip range is not defined for object {key}")
+        clip_range_min = clip_range["min"]
+        clip_range_max = clip_range["max"]
         if not isinstance(clip_range_min, float):
             raise ValueError(f"Clip range min {clip_range_min} is not a float")
         if not isinstance(clip_range_max, float):
             raise ValueError(f"Clip range max {clip_range_max} is not a float")
         scale = np.clip(float(scale), clip_range_min, clip_range_max)
-    if "fixed_size" in replace_object_config[key]:
-        scale = replace_object_config[key]["fixed_size"]
+    if replace_object_config[key].fixed_size is not None:
+        scale = replace_object_config[key].fixed_size
+    # if scale is None:
+    #     raise ValueError(f"Scale is not defined for object {key}")
     return scale

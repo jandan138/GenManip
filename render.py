@@ -8,10 +8,13 @@ Licensed under the MIT License.
 import argparse
 import os
 import sys
+
+# early import to avoid conflict with isaacsim
 import pydantic
 import torch
 import numpy
 from pydantic import BaseModel, Field
+
 from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -40,6 +43,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run in local mode, a quick command to enable Isaac Sim GUI",
     )
+
+    # Rendering options
     parser.add_argument(
         "-r",
         "--render_first_frame",
@@ -47,11 +52,17 @@ def parse_args() -> argparse.Namespace:
         help="Only render the first frame",
     )
     parser.add_argument(
-        "-wod",
-        "--without_depth",
-        action="store_true",
-        help="Without render and save depth info",
+        "-d",
+        "--downsample",
+        type=int,
+        default=1,
+        help="Downsample the rendering frame rate",
     )
+    parser.add_argument(
+        "--high_quality", action="store_true", help="High quality rendering"
+    )
+
+    # Camera/Annotator options
     parser.add_argument(
         "-a",
         "--add_random_position_camera",
@@ -65,21 +76,19 @@ def parse_args() -> argparse.Namespace:
         help="Add cycle camera",
     )
     parser.add_argument(
-        "-d",
-        "--downsample",
-        type=int,
-        default=1,
-        help="Downsample the rendering frame rate",
-    )
-    parser.add_argument(
         "-p",
         "--save_pointcloud",
         action="store_true",
         help="Save pointcloud",
     )
     parser.add_argument(
-        "--high_quality", action="store_true", help="High quality rendering"
+        "-wod",
+        "--without_depth",
+        action="store_true",
+        help="Without render and save depth info",
     )
+
+    # Domain randomization options
     parser.add_argument(
         "-prr",
         "--process_room_randomization",

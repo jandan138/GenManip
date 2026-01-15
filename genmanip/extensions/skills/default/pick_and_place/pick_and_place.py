@@ -6,6 +6,7 @@ Licensed under the MIT License.
 """
 
 import os
+import random
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -18,6 +19,7 @@ from curobo.util.trajectory import get_smooth_trajectory
 
 from genmanip.core.robot.base import BaseEmbodiment
 from genmanip.core.robot.dualarm_manip import DualArmEmbodiment
+from genmanip.core.scene.scene_config import SceneConfig
 from genmanip.core.skill.base import BaseSkill, SkillConfig
 from genmanip.core.skill.utils import SkillFactory
 from genmanip.demogen.random_place.random_place import (
@@ -29,6 +31,7 @@ from genmanip.extensions.metrics.default.sr_based_genmanip_relationship import (
 )
 from genmanip.extensions.skills.default.pick_and_place.utils import (
     adjust_grasp_by_embodiment,
+    prepare_motion_planning_payload,
 )
 from genmanip.utils.anygrasp.anygrasp import get_init_grasp
 from genmanip.utils.loader.utils import collect_world_pose_list
@@ -79,21 +82,24 @@ class PickAndPlaceConfig(SkillConfig):
     )
     motion_config: dict = Field(default={}, description="Motion config")
     base_motion_list: dict = Field(default={}, description="Robot base move config")
+    grasp_idx: list[int] = Field(default=[0], description="Grasp index")
 
 
 @SkillFactory.register("pick_and_place")
 class PickAndPlaceSkill(BaseSkill):
-    def __init__(self, config_dict: dict, demogen_config: dict):
+    def __init__(self, config_dict: dict, scene_config: SceneConfig):
         self.config = PickAndPlaceConfig(**config_dict)
-        self.demogen_config = demogen_config
+        self.scene_config = scene_config
+        self.last_action = None
 
     def execute(
         self, scene: "Scene", recorder: PlanningRecorder, idx: str
     ) -> tuple[bool, str]:
         self._initialize(scene)
         action_meta_info = self._get_meta_info(scene)
-        if self.config.update_planner or self.demogen_config["generation_config"].get(
-            "update_planner", False
+        if (
+            self.config.update_planner
+            or self.scene_config.generation_config.update_planner
         ):
             self._update_planner(scene)
         _, arm = self._record_planning(
@@ -102,8 +108,8 @@ class PickAndPlaceSkill(BaseSkill):
             scene.robot_list[0],
             action_meta_info,
             idx_name=str(idx),
-            smooth=self.demogen_config["generation_config"].get("smooth", False),
-            reset_tcp=self.demogen_config["generation_config"].get("reset_tcp", -1),
+            smooth=self.scene_config.generation_config.smooth,
+            reset_tcp=self.scene_config.generation_config.reset_tcp,
             base_motion_list=self.config.base_motion_list,
         )
         return self._is_done(scene), arm
@@ -218,6 +224,7 @@ class PickAndPlaceSkill(BaseSkill):
             address=scene.default_config["ANYGRASP_ADDR"],
             allow_fixed_grasp=self.config.allow_fixed_grasp,
             force_fixed_grasp=self.config.force_fixed_grasp,
+            idx=self.config.grasp_idx,
         )
         initial_grasp["position"] = initial_grasp["translation"]
         initial_grasp.pop("translation")
@@ -309,111 +316,12 @@ class PickAndPlaceSkill(BaseSkill):
     def _update_planner(self, scene: "Scene") -> None:
         ignore_list = [
             f"obj_{self.config.obj1_uid}",
-            f"obj_{self.demogen_config['table_uid']}",
+            f"obj_{self.scene_config.table_uid}",
         ]
         ignore_list.extend(self.config.plan_ignored_list)
         if scene.robot_list[0].planner is None:
             raise ValueError("Planner is not set")
         scene.robot_list[0].planner.update(ignore_list=ignore_list)
-
-    def _prepare_motion_planning_payload(
-        self,
-        action_meta_info: dict,
-        steps: int = 30,
-        aug_distance: float = 0.0,
-        pre_grasp_distance: float = 0.08,
-        post_grasp_distance: float = 0.16,
-        pre_place_distance: float = 0.16,
-        post_place_distance: float = 0.08,
-    ) -> list[dict]:
-        action_list = []
-        if pre_grasp_distance is not None:
-            action_list.append(
-                {
-                    "name": "pre_grasp",
-                    "translation": adjust_translation_along_quaternion(
-                        action_meta_info["initial_grasp"]["position"],
-                        action_meta_info["initial_grasp"]["orientation"],
-                        pre_grasp_distance,
-                        aug_distance=aug_distance,
-                    ),
-                    "orientation": action_meta_info["initial_grasp"]["orientation"],
-                    "steps": steps,
-                    "grasp": False,
-                }
-            )
-        action_list.append(
-            {
-                "name": "grasp",
-                "translation": adjust_translation_along_quaternion(
-                    action_meta_info["initial_grasp"]["position"],
-                    action_meta_info["initial_grasp"]["orientation"],
-                    0.0,
-                ),
-                "orientation": action_meta_info["initial_grasp"]["orientation"],
-                "steps": steps,
-                "grasp": False,
-            }
-        )
-        if post_grasp_distance is not None:
-            action_list.append(
-                {
-                    "name": "post_grasp",
-                    "translation": adjust_translation_along_quaternion(
-                        action_meta_info["initial_grasp"]["position"],
-                        action_meta_info["initial_grasp"]["orientation"],
-                        post_grasp_distance,
-                        aug_distance=aug_distance,
-                    ),
-                    "orientation": action_meta_info["initial_grasp"]["orientation"],
-                    "steps": steps,
-                    "grasp": True,
-                }
-            )
-        if pre_place_distance is not None:
-            action_list.append(
-                {
-                    "name": "pre_place",
-                    "translation": adjust_translation_along_quaternion(
-                        action_meta_info["finial_grasp"]["position"],
-                        action_meta_info["finial_grasp"]["orientation"],
-                        pre_place_distance,
-                        aug_distance=aug_distance,
-                    ),
-                    "orientation": action_meta_info["finial_grasp"]["orientation"],
-                    "steps": steps,
-                    "grasp": True,
-                }
-            )
-        action_list.append(
-            {
-                "name": "place",
-                "translation": adjust_translation_along_quaternion(
-                    action_meta_info["finial_grasp"]["position"],
-                    action_meta_info["finial_grasp"]["orientation"],
-                    0.02,
-                ),
-                "orientation": action_meta_info["finial_grasp"]["orientation"],
-                "steps": steps,
-                "grasp": True,
-            }
-        )
-        if post_place_distance is not None:
-            action_list.append(
-                {
-                    "name": "post_place",
-                    "translation": adjust_translation_along_quaternion(
-                        action_meta_info["finial_grasp"]["position"],
-                        action_meta_info["finial_grasp"]["orientation"],
-                        post_place_distance,
-                        aug_distance=aug_distance,
-                    ),
-                    "orientation": action_meta_info["finial_grasp"]["orientation"],
-                    "steps": steps,
-                    "grasp": False,
-                }
-            )
-        return action_list
 
     def _record_planning(
         self,
@@ -423,7 +331,7 @@ class PickAndPlaceSkill(BaseSkill):
         action_meta_info: dict,
         idx_name: str,
         smooth: bool = True,
-        reset_tcp: tuple[np.ndarray, np.ndarray] | float | bool | None = None,
+        reset_tcp: tuple[list[float], list[float]] | float | bool | None = None,
         base_motion_list: dict = {},
     ) -> tuple[bool, str]:
         action_list = self._prepare_targets(action_meta_info, embodiment)
@@ -434,42 +342,61 @@ class PickAndPlaceSkill(BaseSkill):
         sim_js = embodiment.robot.get_joints_state()
 
         start_action = None
-        for idx, target in tqdm(enumerate(action_list)):
-            if isinstance(base_motion_list, dict) and str(idx) in base_motion_list:
+        _target = action_list[0]
+        with tqdm(total=len(action_list), desc=f"Planning {idx_name}") as tbar:
+            for idx, target in enumerate(action_list):
+                tbar.set_postfix_str(target["name"])
+                if isinstance(base_motion_list, dict) and str(idx) in base_motion_list:
+                    self._handle_complex_delta_move(
+                        scene,
+                        recorder,
+                        embodiment,
+                        data_list,
+                        idx_name,
+                        target,
+                        base_motion_list[str(idx)],
+                    )
+
+                # list of joint position on the planned trajectory point
+                trajectory_points = self._plan_step(embodiment, target, sim_js, smooth)
+
+                current_step_actions = []
+                for point in trajectory_points:
+                    action_data = self._create_action_data(
+                        embodiment, point, target, target["grasp"]
+                    )
+                    current_step_actions.append(action_data)
+                    sim_js.positions = embodiment.convert_action_to_joint_state(
+                        action_data["action"], self.config.arm
+                    )
+
+                if idx == 0 and len(data_list) == 0:
+                    start_action = current_step_actions[0]
+                data_list.extend(current_step_actions)
+
+                if self._is_grasp_changing(idx, action_list):
+                    transition_actions = self._generate_gripper_transition(
+                        embodiment,
+                        data_list[-1]["action"],
+                        target["name"],
+                        action_list[idx + 1]["grasp"],
+                    )
+                    data_list.extend(transition_actions)
+                tbar.update()
+                _target = target
+            if (
+                isinstance(base_motion_list, dict)
+                and str(len(action_list)) in base_motion_list
+            ):
                 self._handle_complex_delta_move(
                     scene,
                     recorder,
                     embodiment,
                     data_list,
                     idx_name,
-                    target,
-                    base_motion_list[str(idx)],
+                    _target,
+                    base_motion_list[str(len(action_list))],
                 )
-
-            trajectory_points = self._plan_step(embodiment, target, sim_js, smooth)
-
-            current_step_actions = []
-            for point in trajectory_points:
-                action_data = self._create_action_data(
-                    embodiment, point, target, target["grasp"]
-                )
-                current_step_actions.append(action_data)
-                sim_js.positions = embodiment.convert_action_to_joint_state(
-                    action_data["action"], self.config.arm
-                )
-
-            if idx == 0 and len(data_list) == 0:
-                start_action = current_step_actions[0]
-            data_list.extend(current_step_actions)
-
-            if self._is_grasp_changing(idx, action_list):
-                transition_actions = self._generate_gripper_transition(
-                    embodiment,
-                    data_list[-1]["action"],
-                    target["name"],
-                    action_list[idx + 1]["grasp"],
-                )
-                data_list.extend(transition_actions)
 
         if reset_tcp:
             if start_action is None:
@@ -483,11 +410,9 @@ class PickAndPlaceSkill(BaseSkill):
     def _prepare_targets(
         self, action_meta_info: dict, embodiment: BaseEmbodiment
     ) -> list[dict]:
-        action_list = self._prepare_motion_planning_payload(
+        action_list = prepare_motion_planning_payload(
             action_meta_info,
-            aug_distance=self.demogen_config["generation_config"].get(
-                "aug_distance", 0.0
-            ),
+            aug_distance=self.scene_config.generation_config.aug_distance,
             **self.config.motion_config,
         )
         for target in action_list:
@@ -499,6 +424,21 @@ class PickAndPlaceSkill(BaseSkill):
             self.config.arm = embodiment.reference_arm_type(
                 action_meta_info["initial_grasp"]["position"]
             )
+
+    def _randomize_move(self, op: dict) -> dict:
+        if isinstance(op["x"], list):
+            if len(op["x"]) != 2:
+                raise ValueError(f"If x is a list, it must be a list of two elements")
+            op["x"] = random.uniform(op["x"][0], op["x"][1])
+        if isinstance(op["y"], list):
+            if len(op["y"]) != 2:
+                raise ValueError(f"If y is a list, it must be a list of two elements")
+            op["y"] = random.uniform(op["y"][0], op["y"][1])
+        if isinstance(op["yaw"], list):
+            if len(op["yaw"]) != 2:
+                raise ValueError(f"If yaw is a list, it must be a list of two elements")
+            op["yaw"] = random.uniform(op["yaw"][0], op["yaw"][1])
+        return op
 
     def _handle_complex_delta_move(
         self,
@@ -515,7 +455,9 @@ class PickAndPlaceSkill(BaseSkill):
 
         self._excute_and_record(scene, recorder, embodiment, data_list, idx_name)
 
-        for op in ops:
+        _ops = ops.copy()
+        for op in _ops:
+            op = self._randomize_move(op)
             op_type = op.get("type", "align")
             if op_type == "align":
                 pose = embodiment._transform_goal_pose(
@@ -545,17 +487,19 @@ class PickAndPlaceSkill(BaseSkill):
 
     def _handle_dual_arm_base_move(
         self,
-        scene,
-        recorder,
-        embodiment,
-        idx_name,
+        scene: "Scene",
+        recorder: PlanningRecorder,
+        embodiment: DualArmEmbodiment,
+        idx_name: str,
         delta_move_config: dict = {"x": 0.0, "y": 0.0, "yaw": 0.0},
-    ):
+    ) -> None:
         max_xy = max(abs(delta_move_config["x"]), abs(delta_move_config["y"]))
         x_step = delta_move_config["x"] / max_xy * 0.01
         y_step = delta_move_config["y"] / max_xy * 0.01
         x_remaining = delta_move_config["x"]
         y_remaining = delta_move_config["y"]
+        motion_list = []
+
         while x_remaining != 0.0 or y_remaining != 0.0:
             if abs(x_step) > abs(x_remaining):
                 x_step = x_remaining
@@ -563,15 +507,25 @@ class PickAndPlaceSkill(BaseSkill):
                 y_step = y_remaining
             x_remaining -= x_step
             y_remaining -= y_step
-            embodiment.delta_move_to(x_step, y_step, 0.0)
+            motion_list.append((x_step, y_step, 0.0))
+
+        for motion in tqdm(motion_list, desc=f"Base motion executing {idx_name}"):
+            grasp_val = None
+            if self.last_action is not None:
+                embodiment.robot_view.set_joint_position_targets(
+                    self.last_action["action"],
+                    joint_indices=embodiment.default_dof_indices,
+                )
+                grasp_val = 1.0 if self.last_action["grasp"] else -1.0
+            embodiment.delta_move_to(*motion)
             recorder.load_dynamic_info(
-                None,
-                None,
-                arm=None,
-                base_motion=np.array([x_step, y_step, 0.0]),
+                self.last_action["action"] if self.last_action is not None else None,
+                grasp_val,
+                arm=self.config.arm,
+                base_motion=np.array([*motion]),
                 name=f"{idx_name}/move",
             )
-            scene.world.step(render=False)
+            scene.step(render=False)
             if os.environ.get("GENMANIP_DEBUG", "0") == "1":
                 scene.world.render()
 
@@ -582,7 +536,12 @@ class PickAndPlaceSkill(BaseSkill):
             arm=self.config.arm,
         )
         if results is None:
-            raise RuntimeError(f"Motion planning failed for target: {target['name']}")
+            eepose = embodiment._transform_goal_pose(
+                (target["translation"], target["orientation"]), self.config.arm
+            )
+            raise RuntimeError(
+                f"Motion planning failed for target: {target['name']}, target pose might be out of reach: {eepose}"
+            )
 
         if smooth:
             results = get_smooth_trajectory(
@@ -666,8 +625,7 @@ class PickAndPlaceSkill(BaseSkill):
         data_list: list[dict],
         idx_name: str,
     ) -> None:
-        while data_list:
-            action = data_list.pop(0)
+        for action in tqdm(data_list, desc=f"Arm action executing {idx_name}"):
             embodiment.robot_view.set_joint_position_targets(
                 action["action"], joint_indices=embodiment.default_dof_indices
             )
@@ -678,9 +636,11 @@ class PickAndPlaceSkill(BaseSkill):
                 arm=self.config.arm,
                 name=f"{idx_name}/{action['name']}",
             )
-            scene.world.step(render=False)
+            self.last_action = action
+            scene.step(render=False)
             if os.environ.get("GENMANIP_DEBUG", "0") == "1":
                 scene.world.render()
+        data_list.clear()
 
     def _is_done(self, scene: "Scene") -> bool:
         pclist = get_current_pcList_by_meshList(
