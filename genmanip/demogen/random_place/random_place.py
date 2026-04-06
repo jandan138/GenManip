@@ -13,6 +13,7 @@ We defined a place relation with the following parameters:
 """
 
 import copy
+import os
 import random
 
 import numpy as np
@@ -55,6 +56,22 @@ from genmanip.utils.standalone.pc_utils import (
     sample_points_in_convex_hull,
     visualize_polygons,
 )
+
+
+def _dump_polygon_debug(
+    polygons: list[BaseGeometry], reason: str = "layout_fail"
+) -> None:
+    if os.getenv("GENMANIP_DEBUG_POLYGONS", "0") != "1":
+        return
+    output_dir = os.getenv("GENMANIP_DEBUG_POLYGONS_DIR", "tmp/polygon_debug")
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"{reason}_{random.randint(0, 10**9 - 1):09d}.png"
+    output_path = os.path.join(output_dir, filename)
+    try:
+        visualize_polygons(polygons, output_path=output_path)
+        print(f"[DEBUG] polygon dump saved to: {output_path}")
+    except Exception as exc:
+        print(f"[DEBUG] failed to dump polygon debug image: {exc}")
 
 
 def rotate_object_around_z(object: XFormPrim, angle_range: tuple[float, float]) -> None:
@@ -338,6 +355,15 @@ def randomly_place_object_on_object(
                 object2_polygon, object1_polygon, object1_center, 10000
             )
             if len(valid_placements) == 0:
+                _dump_polygon_debug(
+                    [
+                        available_polygon,
+                        collider_polygon,
+                        object2_polygon,
+                        object1_polygon,
+                    ],
+                    reason="no_valid_placement",
+                )
                 return -1
     translation, angle = valid_placements[-1]
     position, orientation = object1.get_world_pose()
@@ -367,6 +393,15 @@ def randomly_place_object_on_object(
             )
         ]
         if len(cropped_object2_pc) == 0:
+            _dump_polygon_debug(
+                [
+                    available_polygon,
+                    collider_polygon,
+                    object2_polygon,
+                    object1_polygon,
+                ],
+                reason="empty_top_surface",
+            )
             return -1
     object2_pc_top = cropped_object2_pc[np.argmax(cropped_object2_pc[:, 2])][2]
     object1_to_object2_axis2 = object2_pc_top - object1_pc_bottom
@@ -405,12 +440,8 @@ def setup_random_tableset_by_centric_range(
         available_polygon = bbox_to_polygon(
             aabb.get_min_bound()[0] - centric_random_range.w / 2,
             aabb.get_min_bound()[1] - centric_random_range.h / 2,
-            aabb.get_max_bound()[0]
-            - aabb.get_min_bound()[0]
-            + centric_random_range.w,
-            aabb.get_max_bound()[1]
-            - aabb.get_min_bound()[1]
-            + centric_random_range.h,
+            aabb.get_max_bound()[0] - aabb.get_min_bound()[0] + centric_random_range.w,
+            aabb.get_max_bound()[1] - aabb.get_min_bound()[1] + centric_random_range.h,
         )
         pclist = meshlist_to_pclist(meshlist)
         ignored_uid_list = [] if key not in partial_ignore else partial_ignore[key]
@@ -437,6 +468,7 @@ def setup_random_custom_tableset(
     meshDict: dict[str, MeshInfo],
     custom_tableset_config: dict[str, dict] | list[dict[str, dict]],
     in_order: bool = False,
+    ignored_objects: list[str] = [],
 ) -> int:
     if isinstance(custom_tableset_config, list):
         custom_tableset_config = random.choice(custom_tableset_config)
@@ -445,11 +477,18 @@ def setup_random_custom_tableset(
         random.shuffle(custom_tableset_config_keys)
     for key in custom_tableset_config:
         if custom_tableset_config[key]["type"] == "centric_range":
+            if "position" in custom_tableset_config[key]:
+                object_list[key].set_world_pose(
+                    position=custom_tableset_config[key]["position"]
+                )
             continue
-        object_list[key].set_world_pose(
-            position=[10.0, 0.0, 0.0],
-            orientation=[0.5, 0.5, 0.5, 0.5],
-        )
+        if custom_tableset_config[key].get("keep_original_orientation", False):
+            object_list[key].set_world_pose(position=[10.0, 0.0, 0.0])
+        else:
+            object_list[key].set_world_pose(
+                position=[10.0, 0.0, 0.0],
+                orientation=[0.5, 0.5, 0.5, 0.5],
+            )
     for key in custom_tableset_config_keys:
         if key not in object_list and key not in articulation_list:
             continue
@@ -464,6 +503,9 @@ def setup_random_custom_tableset(
                 )
             if custom_tableset_config[key]["type"] == "centric_range":
                 centric_random_range = custom_tableset_config[key]
+                skip_on_table_check = centric_random_range.get(
+                    "skip_on_table_check", False
+                )
                 if centric_random_range["angle_bilateral"]:
                     rotate_object_around_z(
                         object_list[key],
@@ -478,21 +520,51 @@ def setup_random_custom_tableset(
                     )
                 meshlist = get_current_meshList(object_list, meshDict)
                 aabb = compute_mesh_bbox(meshlist[key])
-                available_polygon = bbox_to_polygon(
-                    aabb.get_min_bound()[0] - centric_random_range["w"] / 2,
-                    aabb.get_min_bound()[1] - centric_random_range["h"] / 2,
-                    aabb.get_max_bound()[0]
-                    - aabb.get_min_bound()[0]
-                    + centric_random_range["w"],
-                    aabb.get_max_bound()[1]
-                    - aabb.get_min_bound()[1]
-                    + centric_random_range["h"],
-                )
+                if skip_on_table_check:
+                    available_polygon = bbox_to_polygon(
+                        aabb.get_min_bound()[0] - centric_random_range["w"] / 2,
+                        aabb.get_min_bound()[1] - centric_random_range["h"] / 2,
+                        aabb.get_max_bound()[0]
+                        - aabb.get_min_bound()[0]
+                        + centric_random_range["w"],
+                        aabb.get_max_bound()[1]
+                        - aabb.get_min_bound()[1]
+                        + centric_random_range["h"],
+                    )
+                    random_point = None
+                    min_x, min_y, max_x, max_y = available_polygon.bounds
+                    for _ in range(1000):
+                        point = Point(
+                            random.uniform(min_x, max_x),
+                            random.uniform(min_y, max_y),
+                        )
+                        if available_polygon.contains(point):
+                            random_point = point
+                            break
+                    if random_point is None:
+                        return -1
+                    current_pose = object_list[key].get_world_pose()
+                    current_pose[0][0] = random_point.x
+                    current_pose[0][1] = random_point.y
+                    current_pose[0][2] += additional_height
+                    object_list[key].set_world_pose(current_pose[0], current_pose[1])
+                    continue
+                else:
+                    available_polygon = bbox_to_polygon(
+                        aabb.get_min_bound()[0] - centric_random_range["w"] / 2,
+                        aabb.get_min_bound()[1] - centric_random_range["h"] / 2,
+                        aabb.get_max_bound()[0]
+                        - aabb.get_min_bound()[0]
+                        + centric_random_range["w"],
+                        aabb.get_max_bound()[1]
+                        - aabb.get_min_bound()[1]
+                        + centric_random_range["h"],
+                    )
                 pclist = meshlist_to_pclist(meshlist)
                 available_area = get_platform_available_area(
                     pclist["00000000000000000000000000000000"],
                     pclist,
-                    [key, "00000000000000000000000000000000"],
+                    [key, "00000000000000000000000000000000"] + ignored_objects,
                     buffer_size=buffer_size,
                 )
                 IS_OK = randomly_place_object_on_object(
@@ -523,7 +595,7 @@ def setup_random_custom_tableset(
                 available_area = get_platform_available_area(
                     pclist["00000000000000000000000000000000"],
                     pclist,
-                    [key, "00000000000000000000000000000000"],
+                    [key, "00000000000000000000000000000000"] + ignored_objects,
                     buffer_size=buffer_size,
                 )
                 IS_OK = randomly_place_object_on_object(
@@ -540,25 +612,29 @@ def setup_random_custom_tableset(
                     return -1
             elif custom_tableset_config[key]["type"] == "fixed_global_range":
                 global_range = custom_tableset_config[key]
+                skip_on_table_check = global_range.get("skip_on_table_check", False)
                 available_polygon = bbox_to_polygon(-10, -10, 20, 20)
                 rotate_object_around_z(
                     object_list[key],
                     (0, global_range["random_range_angle"]),
                 )
-                pclist = get_current_pcList_by_meshList(object_list, meshDict)
-                available_area = get_platform_available_area(
-                    pclist["00000000000000000000000000000000"],
-                    pclist,
-                    [key, "00000000000000000000000000000000"],
-                    buffer_size=buffer_size,
-                )
-                IS_OK = randomly_place_object_on_object(
-                    pclist[key],
-                    pclist["00000000000000000000000000000000"],
-                    object_list[key],
-                    available_polygon=available_polygon,
-                    collider_polygon=available_area,
-                )
+                if not skip_on_table_check:
+                    pclist = get_current_pcList_by_meshList(object_list, meshDict)
+                    available_area = get_platform_available_area(
+                        pclist["00000000000000000000000000000000"],
+                        pclist,
+                        [key, "00000000000000000000000000000000"] + ignored_objects,
+                        buffer_size=buffer_size,
+                    )
+                    IS_OK = randomly_place_object_on_object(
+                        pclist[key],
+                        pclist["00000000000000000000000000000000"],
+                        object_list[key],
+                        available_polygon=available_polygon,
+                        collider_polygon=available_area,
+                    )
+                else:
+                    IS_OK = 0
                 # TODO: didnt check collision
                 current_pose = object_list[key].get_world_pose()
                 current_pose[0][0] = global_range["pos_x"]
@@ -596,7 +672,7 @@ def setup_random_custom_tableset(
                     available_area = get_platform_available_area(
                         pointcloud_list["00000000000000000000000000000000"],
                         pointcloud_list,
-                        [key, "00000000000000000000000000000000"],
+                        [key, "00000000000000000000000000000000"] + ignored_objects,
                         buffer_size=buffer_size,
                     )
                     IS_OK = randomly_place_object_on_object(
@@ -624,7 +700,7 @@ def setup_random_custom_tableset(
                 available_area = get_platform_available_area(
                     pclist["00000000000000000000000000000000"],
                     pclist,
-                    [key, "00000000000000000000000000000000"],
+                    [key, "00000000000000000000000000000000"] + ignored_objects,
                     buffer_size=buffer_size,
                 )
                 IS_OK = randomly_place_object_on_object(
@@ -1067,6 +1143,8 @@ def setup_random_obj1_range(
         object_list[task_info["goal"][0][0]["obj1_uid"]],
         (0, obj1_random_range.random_range_angle),
     )
+    if obj1_random_range.force_no_check:
+        return 0
     pclist = get_current_pcList_by_meshList(object_list, meshDict)
     IS_OK = setup_target_scene_by_polygon(object_list, pclist, task_info, available)
     return IS_OK

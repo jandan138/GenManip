@@ -28,17 +28,23 @@ parser.add_argument("-l", "--local", action="store_true")
 args = parser.parse_args()
 config = load_yaml(args.config)
 
+# Preload typing_extensions before SimulationApp adjusts sys.path.
+# Isaac Sim can prefer its older prebundle; preloading ensures pydantic sees
+# the newer typing_extensions with Sentinel.
+import typing_extensions  # noqa: F401
+
 simulation_app = SimulationApp({"headless": not args.local})
 
 from genmanip.utils.standalone.file_utils import load_default_config
 from genmanip.utils.standalone.utils import setup_logger
-from genmanip.core.evaluator.evaluator import parse_lmdb_data
+from genmanip.core.evaluator.utils import parse_lmdb_data
 from genmanip.utils.standalone.file_utils import load_dict_from_pkl, make_dir
 from genmanip.utils.standalone.utils import parse_eval_config
 from genmanip.demogen.workflow.utils import (
     check_eval_finished,
     adjust_arm_gripper_action_by_embodiment,
 )
+from genmanip.utils.loader.domain_randomization import reset_scene
 from genmanip.utils.loader.scene import clear_scene
 from genmanip.utils.loader.scene import recovery_scene
 from genmanip.utils.usd_utils import remove_colliders
@@ -84,8 +90,9 @@ for eval_config in eval_config_list:
                 f"{seed}",
             )
         )
+        reset_scene(scene)
         layout = recovery_scene(
-            scene, None, meta_info["task_data"], scene_config.task_name, default_config
+            scene, meta_info["task_data"], scene_config.task_name, default_config
         )
         eval_config["generation_config"]["goal"] = meta_info["task_data"]["goal"]
         if "defaultGroundPlane" in scene.object_list:

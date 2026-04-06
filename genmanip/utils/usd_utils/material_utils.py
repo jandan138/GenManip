@@ -37,6 +37,27 @@ def create_omni_pbr(
     return omni_pbr
 
 
+def set_mdl(prim_path: str, asset_path: str) -> None:
+    if not asset_path.endswith(".mdl"):
+        raise ValueError(f"Asset path must end with .mdl: {asset_path}")
+    prim = get_prim_at_path(prim_path)
+    prim.GetAttribute("info:mdl:sourceAsset").Set(asset_path)
+    prim.GetAttribute("info:mdl:sourceAsset:subIdentifier").Set(
+        asset_path.split("/")[-1].split(".")[0]
+    )
+
+
+def set_texture(prim_path: str, asset_path: str) -> None:
+    if (
+        not asset_path.endswith(".png")
+        and not asset_path.endswith(".jpg")
+        and not asset_path.endswith(".jpeg")
+    ):
+        raise ValueError(f"Asset path must end with .png, .jpg, or .jpeg: {asset_path}")
+    prim = get_prim_at_path(prim_path)
+    prim.GetAttribute("inputs:texture").Set(asset_path)
+
+
 def change_material_info(
     prim_path: str,
     texture_path: str | None = None,
@@ -63,7 +84,12 @@ def change_material_info(
                                     tex.GetAttribute("inputs:scale").Set(
                                         Gf.Vec2f(scale[0], scale[1])
                                     )
-                            except Exception as e:
+                            except (
+                                AttributeError,
+                                RuntimeError,
+                                TypeError,
+                                ValueError,
+                            ) as e:
                                 print(f"Error changing material info: {e}")
 
 
@@ -81,5 +107,5 @@ def change_table_mdl(prim_path: str, texture_path_list: list[str]) -> None:
                         grandgrandchild.GetAttribute(
                             "info:mdl:sourceAsset:subIdentifier"
                         ).Set(texture_path.split("/")[-1].split(".")[0])
-                    except Exception as e:
+                    except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                         print(f"Error changing table mdl: {e}")

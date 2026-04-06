@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import pickle
 import copy
+import tempfile
 
 import csv
 from huggingface_hub import HfApi
@@ -129,6 +130,32 @@ def save_dict_to_json(data, file_path: str) -> None:
     # print(f"JSON saved: {file_path}")
 
 
+def save_dict_to_json_atomic(data: dict, file_path: str) -> None:
+    """Atomically save dict to JSON using write-then-rename pattern.
+
+    This function writes to a temporary file first, then atomically renames
+    it to the target path. This prevents data corruption if the process
+    crashes mid-write.
+    """
+    dir_path = os.path.dirname(file_path) or "."
+    fd, tmp_path = tempfile.mkstemp(suffix=".tmp", prefix=".json_", dir=dir_path)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, file_path)  # Atomic on POSIX
+    except (OSError, TypeError, ValueError):
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            # Temp file may already be removed after write failure.
+            pass
+        except OSError as exc:
+            print(f"Warning: failed to remove temporary file {tmp_path}: {exc}")
+        raise
+
+
 def save_dict_as_yaml(data: dict, file_path: str) -> None:
     with open(file_path, "w", encoding="utf-8") as yaml_file:
         yaml.dump(data, yaml_file, allow_unicode=True, default_flow_style=False)
@@ -157,7 +184,7 @@ def check_glb_properties(file_path: str) -> tuple[bool, int] | tuple[None, None]
                     if material and getattr(material, "normalTexture", None):
                         has_normal_map = True
         return has_normal_map, total_vertex_count
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         print(f"Error processing {file_path}: {e}")
         return None, None
 
@@ -228,10 +255,11 @@ def record_log(log_path: str, info: str) -> None:
             else:
                 failed_log[info] += 1
             save_dict_as_pkl(failed_log, log_pkl_path)
-    except:
-        raise Exception(
-            f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
-        )
+    except Timeout as exc:
+        raise TimeoutError(
+            "Filelock timeout, try to delete the lock file by python "
+            "standalone_tools/cleanup_lockfiles.py"
+        ) from exc
 
 
 def report_log(log_path: str) -> dict:

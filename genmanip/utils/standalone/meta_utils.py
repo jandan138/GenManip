@@ -33,10 +33,14 @@ def any_projection(
     **kwargs,
 ) -> dict:
     # scene graph projection
-    if "obj1_uid" in any_dict and "obj2_uid" in any_dict and "position" in any_dict:
+    if (
+        "obj1_uid" in any_dict and "obj2_uid" in any_dict and "position" in any_dict
+    ) or ("obj1_uid" in any_dict and "status" in any_dict):
         return scene_graph_projection(any_dict, meta_to_fine_projection)
     elif "type" in any_dict and any_dict["type"] == "custom_motion":
         return custom_motion_projection(any_dict, meta_to_fine_projection)
+    elif "type" in any_dict and any_dict["type"] == "move_to":
+        return move_to_projection(any_dict, meta_to_fine_projection)
     elif any_dict.get("type", None) == "manip/default/sr_based_genmanip_axis_align":
         return axis_align_projection(any_dict, meta_to_fine_projection)
     elif any_dict.get("type", None) == "manip/default/sr_based_genmanip_range":
@@ -75,16 +79,22 @@ def scene_graph_projection(
     return scene_graph
 
 
+def move_to_projection(
+    move_to: dict,
+    meta_to_fine_projection: dict,
+) -> dict:
+    safe_projection("rel_object_uid", move_to, meta_to_fine_projection)
+    return move_to
+
+
 def custom_motion_projection(
     custom_motion: dict,
     meta_to_fine_projection: dict,
 ) -> dict:
-    for info in custom_motion["motion_list"].values():
-        if (
-            "rel_object_uid" in info
-            and info["rel_object_uid"] in meta_to_fine_projection
-        ):
-            info["rel_object_uid"] = meta_to_fine_projection[info["rel_object_uid"]]
+    for info_list in custom_motion["motion_list"].values():
+        for info in info_list:
+            safe_projection("rel_object_uid", info, meta_to_fine_projection)
+            safe_projection("debug_rel_object_uid", info, meta_to_fine_projection)
     return custom_motion
 
 

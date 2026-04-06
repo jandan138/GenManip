@@ -112,7 +112,7 @@ class DemoGenWorkflow:
         for demogen_config in self.demogen_config_list:
             try:
                 self._process_single_task(demogen_config)
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, OSError) as e:
                 self.logger.error(
                     f"Error processing task {demogen_config.get('task_name')}: {e}"
                 )
@@ -169,7 +169,14 @@ class DemoGenWorkflow:
                         ][0]
                         process_archived_config(demogen_config_)
                         scene_config = SceneConfig(**demogen_config_)
-                    except Exception as e:
+                    except (
+                        FileNotFoundError,
+                        IndexError,
+                        KeyError,
+                        OSError,
+                        TypeError,
+                        ValueError,
+                    ) as e:
                         self.logger.error(f"Error loading task config: {e}")
                         self.logger.error(traceback.format_exc())
                         continue
@@ -252,6 +259,8 @@ class DemoGenWorkflow:
 
         self.task_data = collect_task_data(
             scene.object_list,
+            scene.articulation_list,
+            scene.articulation_part_list,
             scene.robot_list,
             load_yaml(
                 os.path.join(
@@ -282,6 +291,9 @@ class DemoGenWorkflow:
             gc.collect()
             return "retry"
 
+        # for _ in range(100):
+        #     scene.world.step(render=True)
+
         for _ in range(100):
             scene.world.step(render=False)
 
@@ -308,8 +320,8 @@ class DemoGenWorkflow:
         if len(self.task_data["goal"]) == 0 or len(self.task_data["goal"][0]) == 0:
             finished = True
         else:
-            sr = scene.step(render=False)
-            finished = sr == 1
+            score = scene.step(render=False)
+            finished = score == 1
 
         rewrite_instruction(self.task_data, scene_config)
 
@@ -342,8 +354,8 @@ class DemoGenWorkflow:
                     str(idx),
                 )
                 if not is_success:
-                    raise Exception("Subgoal not completed")
-            except Exception as e:
+                    raise RuntimeError("Subgoal not completed")
+            except (RuntimeError, ValueError, TypeError, KeyError, IndexError) as e:
                 self.logger.error(str(e))
                 self.logger.error(traceback.format_exc())
                 record_log(save_dir, str(e))

@@ -1,5 +1,6 @@
+from typing import Any
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CameraConfig(BaseModel):
@@ -26,6 +27,12 @@ class RobotBasePositionConfig(BaseModel):
     )
 
 
+class RandomVisualConfig(BaseModel):
+    prim_path: str = Field(default="", description="Prim path of the visual")
+    type: str = Field(default="", description="Type of the visual")
+    assets_pattern: str = Field(default="", description="Assets pattern of the visual")
+
+
 class RandomEnvironmentConfig(BaseModel):
     has_wall: bool = Field(default=False, description="Whether to have a wall")
     hdr: bool = Field(default=False, description="Whether to have a HDR environment")
@@ -47,6 +54,9 @@ class RandomEnvironmentConfig(BaseModel):
     room_randomization: bool = Field(
         default=False, description="Whether to have a random room environment"
     )
+    random_visuals: list[RandomVisualConfig] = Field(
+        default=[], description="List of random visuals"
+    )
 
 
 class ActionPathConfig(BaseModel):
@@ -64,6 +74,9 @@ class ObjectConfig(BaseModel):
     )
     fixed_scale: float | list[float] | None = Field(
         default=None, description="Fixed scale of the object"
+    )
+    relative_scale: float | list[float] | None = Field(
+        default=None, description="Relative scale of the object"
     )
     clip_range: dict[str, float] | None = Field(
         default=None, description="Clip range of the object"
@@ -87,6 +100,7 @@ class ObjectConfig(BaseModel):
     is_not_rigid: bool = Field(
         default=False, description="Whether the object is not rigid"
     )
+    mass: float | None = Field(default=None, description="Mass of the object")
 
     # For articulated object
     is_articulated: bool = Field(
@@ -94,6 +108,9 @@ class ObjectConfig(BaseModel):
     )
     target_positions: list[float] | None = Field(
         default=None, description="Target positions of the object"
+    )
+    articulation_info: dict | None = Field(
+        default=None, description="Articulation information of the object"
     )
 
 
@@ -160,6 +177,10 @@ class LayoutConfig(BaseModel):
     random_range_w: float = Field(default=0.5 * np.inf, description="Random range w")
     random_range_h: float = Field(default=0.5 * np.inf, description="Random range h")
     random_range_angle: float = Field(default=0.0, description="Random range angle")
+    force_no_check: bool = Field(
+        default=False,
+        description="Force random_obj1_range placement to succeed without validity checks",
+    )
 
     # For random centric range
     angle_bilateral: bool = Field(
@@ -196,6 +217,9 @@ class SceneConfig(BaseModel):
     object_config: dict[str, ObjectConfig] = Field(
         default={}, description="Object configurations"
     )
+    physics_scene_config: dict[str, Any] = Field(
+        default={}, description="physicsScene configurations"
+    )
     preprocess_config: list[dict] = Field(
         default=[], description="Preprocess configurations"
     )
@@ -208,3 +232,21 @@ class SceneConfig(BaseModel):
     num_test: int | None = Field(default=None, description="Number of tests")
     num_steps: int = Field(default=600, description="Number of steps")
     instruction: str = Field(default="", description="Instruction")
+    physics_dt: float = Field(default=1 / 30, description="physics_dt")
+    rendering_dt: float = Field(default=1 / 30, description="physics_dt")
+    env_vars: dict[str, str] = Field(default={}, description="Environment variables")
+
+    @model_validator(mode="after")
+    def fill_physics_scene_defaults(self):
+        DEFAULT_PHYSICS_SCENE_CONFIG = {
+            "EnableGPUDynamics": False,
+            "EnableStabilization": True,
+            "EnableCCD": False,
+            "BroadphaseType": "GPU",
+            "SolverType": "TGS",
+            "GpuTotalAggregatePairsCapacity": 10 * 1024 * 1024,
+            "GpuFoundLostAggregatePairsCapacity": 10 * 1024 * 1024,
+        }
+        for k, v in DEFAULT_PHYSICS_SCENE_CONFIG.items():
+            self.physics_scene_config.setdefault(k, v)
+        return self

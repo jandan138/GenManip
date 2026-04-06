@@ -66,6 +66,7 @@ import numpy as np
 import numpy as np
 from pathlib import Path
 import os
+import json
 import random
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -457,7 +458,8 @@ def get_meta_data(data_path, camera_name, annotator_type):
         try:
             grasp_point = meta_info["task_data"]["grasp_point"]["0"][camera_name]
             data["grasp_point"] = grasp_point
-        except:
+        except (KeyError, TypeError, IndexError):
+            print(f"Missing grasp_point for {camera_name}; continuing")
             data["grasp_point"] = None
 
     if "ins" in annotator_type:
@@ -531,7 +533,8 @@ def get_meta_data(data_path, camera_name, annotator_type):
             ]
             # Immediately release memory
             del all_depth_images
-        except:
+        except (FileNotFoundError, KeyError, ValueError, TypeError):
+            print(f"No depth image found for {camera_name}; skipping depth_range")
             data["depth_range"] = None
 
     # Log loaded data types for debugging
@@ -1340,7 +1343,14 @@ def process_single_dataset(
         else:
             return False, dataset_name, output_path, "Video processing failed"
 
-    except Exception as e:
+    except (
+        FileNotFoundError,
+        KeyError,
+        OSError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as e:
         error_msg = f"Error processing {dataset_name}: {str(e)}"
         print(f"[Worker {worker_id}] {error_msg}")
         return False, dataset_name, output_path, error_msg
@@ -1461,7 +1471,14 @@ def _process_with_pyav(
         output_container.close()
         return True
 
-    except Exception as e:
+    except (
+        AttributeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        cv2.error,
+        RuntimeError,
+    ) as e:
         print(f"[Worker {worker_id}] PyAV encoding failed for {dataset_name}: {e}")
         return False
 
@@ -1519,7 +1536,7 @@ def _process_with_opencv(
         video_writer.release()
         return True
 
-    except Exception as e:
+    except (AttributeError, KeyError, cv2.error, TypeError, ValueError, OSError) as e:
         print(f"[Worker {worker_id}] OpenCV encoding failed for {dataset_name}: {e}")
         return False
 

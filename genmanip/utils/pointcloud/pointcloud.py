@@ -6,9 +6,10 @@ Licensed under the MIT License.
 """
 
 from copy import deepcopy
-from filelock import SoftFileLock
+from filelock import SoftFileLock, Timeout
 import os
 from pathlib import Path
+import uuid
 
 import numpy as np
 import open3d as o3d
@@ -24,8 +25,16 @@ from genmanip.utils.pointcloud.transform import (
     transform_between_point_clouds,
 )
 from genmanip.utils.pointcloud.utils import MeshInfo, PointCloudInfo
+from genmanip.utils.usd_utils.transform_utils import (
+    quat_wxyz_to_xyzw,
+    resolve_prim_local_transform,
+)
 from genmanip.utils.usd_utils import get_mesh_from_prim
 from genmanip.utils.standalone.pc_utils import get_pcd_from_mesh
+
+MESH_FILELOCK_TIMEOUT_SECONDS = float(
+    os.environ.get("GENMANIP_MESH_FILELOCK_TIMEOUT", "60.0")
+)
 
 
 def get_current_mesh(
@@ -91,55 +100,86 @@ def get_current_pointCloutList(
     return updatedPointCloudList
 
 
+def _read_cached_mesh(
+    mesh_path: str, remove_if_corrupted: bool = False
+) -> o3d.geometry.TriangleMesh | None:
+    if not os.path.exists(mesh_path):
+        return None
+    try:
+        return o3d.io.read_triangle_mesh(mesh_path)
+    except (RuntimeError, OSError, ValueError):
+        if remove_if_corrupted:
+            try:
+                os.remove(mesh_path)
+            except FileNotFoundError:
+                # Mesh file may be removed by another cleanup step.
+                pass
+            except OSError as exc:
+                print(
+                    f"Warning: failed to remove corrupted mesh file {mesh_path}: {exc}"
+                )
+        return None
+
+
+def _build_mesh_from_prim(object: XFormPrim) -> o3d.geometry.TriangleMesh | None:
+    try:
+        mesh = get_mesh_from_prim(object.prim)
+    except (RuntimeError, TypeError, ValueError, AttributeError):
+        return None
+    scale = object.get_local_scale()
+    trans, quat = object.get_local_pose()
+    quat = quat[[1, 2, 3, 0]]
+    return inverse_transform_mesh(mesh, scale, quat, trans)
+
+
+def _write_mesh_atomically(mesh_path: str, mesh: o3d.geometry.TriangleMesh) -> None:
+    base, ext = os.path.splitext(mesh_path)
+    temp_path = f"{base}.tmp-{uuid.uuid4().hex}{ext}"
+    try:
+        o3d.io.write_triangle_mesh(temp_path, mesh)
+        os.replace(temp_path, mesh_path)
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                # File can disappear between existence check and remove in concurrent use.
+                pass
+            except OSError as exc:
+                print(
+                    f"Warning: failed to cleanup temporary mesh file {temp_path}: {exc}"
+                )
+                pass
+
+
 def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> MeshInfo | None:
-    lock = SoftFileLock(mesh_path + "_soft.lock", timeout=600.0)
-    mesh = None
+    # Fast path: avoid lock contention when cache already exists.
+    mesh = _read_cached_mesh(mesh_path)
+    if mesh is not None:
+        mesh_info = MeshInfo()
+        mesh_info.mesh = get_world_mesh(mesh, object.prim_path)
+        mesh_info.trans, mesh_info.quat = object.get_world_pose()
+        mesh_info.quat = mesh_info.quat[[1, 2, 3, 0]]
+        mesh_info.scale = np.array([1, 1, 1])
+        return mesh_info
+
+    lock = SoftFileLock(mesh_path + "_soft.lock", timeout=MESH_FILELOCK_TIMEOUT_SECONDS)
     try:
         with lock:
-            if os.path.exists(mesh_path):
-                try:
-                    mesh = o3d.io.read_triangle_mesh(mesh_path)
-                except:
-                    os.remove(mesh_path)
-            if not os.path.exists(mesh_path):
-                if not os.path.exists(mesh_path):
-                    Path(mesh_path).parent.mkdir(parents=True, exist_ok=True)
-                    try:
-                        mesh = get_mesh_from_prim(object.prim)
-                    except:
-                        return None
-                    scale = object.get_local_scale()
-                    trans, quat = object.get_local_pose()
-                    quat = quat[[1, 2, 3, 0]]
-                    mesh = inverse_transform_mesh(mesh, scale, quat, trans)
-                    print(f"save mesh to {mesh_path}")
-                    o3d.io.write_triangle_mesh(mesh_path, mesh)
-    except:
-        os.remove(mesh_path + "_soft.lock")
-        try:
-            with lock:
-                if os.path.exists(mesh_path):
-                    try:
-                        mesh = o3d.io.read_triangle_mesh(mesh_path)
-                    except:
-                        os.remove(mesh_path)
-                if not os.path.exists(mesh_path):
-                    if not os.path.exists(mesh_path):
-                        Path(mesh_path).parent.mkdir(parents=True, exist_ok=True)
-                        try:
-                            mesh = get_mesh_from_prim(object.prim)
-                        except:
-                            return None
-                        scale = object.get_local_scale()
-                        trans, quat = object.get_local_pose()
-                        quat = quat[[1, 2, 3, 0]]
-                        mesh = inverse_transform_mesh(mesh, scale, quat, trans)
-                        print(f"save mesh to {mesh_path}")
-                        o3d.io.write_triangle_mesh(mesh_path, mesh)
-        except:
-            raise Exception(
-                f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
-            )
+            mesh = _read_cached_mesh(mesh_path, remove_if_corrupted=True)
+            if mesh is None:
+                Path(mesh_path).parent.mkdir(parents=True, exist_ok=True)
+                mesh = _build_mesh_from_prim(object)
+                if mesh is None:
+                    return None
+                print(f"save mesh to {mesh_path}")
+                _write_mesh_atomically(mesh_path, mesh)
+    except Timeout:
+        # In large distributed runs, fallback to local mesh build instead of stalling.
+        mesh = _read_cached_mesh(mesh_path)
+        if mesh is None:
+            mesh = _build_mesh_from_prim(object)
+
     if mesh is None:
         raise Exception(f"Failed to load mesh from {mesh_path}")
     mesh_info = MeshInfo()
@@ -153,7 +193,7 @@ def get_mesh_info_by_load(object: XFormPrim, mesh_path: str) -> MeshInfo | None:
 def get_mesh_info(object: XFormPrim) -> MeshInfo | None:
     try:
         mesh = get_mesh_from_prim(object.prim)
-    except:
+    except (RuntimeError, ValueError, TypeError, AttributeError):
         return None
     scale = object.get_local_scale()
     trans, quat = object.get_local_pose()
@@ -173,16 +213,13 @@ def get_world_mesh(
     prim = get_prim_at_path(prim_path)
     mesh = deepcopy(mesh)
     while get_prim_path(prim) != "/":
-        scale = np.array(prim.GetAttribute("xformOp:scale").Get())
-        trans = np.array(prim.GetAttribute("xformOp:translate").Get())
-        quat = prim.GetAttribute("xformOp:orient").Get()
-        if quat is not None:
-            r = quat.GetReal()
-            i, j, k = quat.GetImaginary()
-            quat = np.array([i, j, k, r])
-        else:
-            quat = np.array([0, 0, 0, 1])
-        mesh = forward_transform_mesh(mesh, scale, quat, trans)
+        local_transform = resolve_prim_local_transform(prim)
+        mesh = forward_transform_mesh(
+            mesh,
+            local_transform.scale,
+            quat_wxyz_to_xyzw(local_transform.quat_wxyz),
+            local_transform.translation,
+        )
         prim = get_prim_parent(prim)
     return mesh
 
@@ -212,7 +249,7 @@ def meshlist_to_pclist(
                 pointcloudlist[key] = np.asarray(
                     get_pcd_from_mesh(meshlist[key], num_points=10000).points
                 )
-        except:
+        except (RuntimeError, ValueError):
             continue
     return pointcloudlist
 
@@ -229,7 +266,7 @@ def mesh_info2pointCloud_info(mesh_info: MeshInfo) -> PointCloudInfo | None:
             trans=trans,
             quat=quat,
         )
-    except:
+    except (RuntimeError, ValueError, TypeError, AttributeError):
         return None
 
 

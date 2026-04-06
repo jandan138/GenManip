@@ -11,6 +11,7 @@ import numpy as np
 import open3d as o3d
 from pydantic import BaseModel, Field
 import scipy
+from scipy.spatial import QhullError
 from shapely.geometry import Point
 from shapely.vectorized import contains
 from sklearn.neighbors import NearestNeighbors
@@ -50,7 +51,7 @@ class SRBasedGenmanipRelationshipConfig(BaseModel):
         default=None,
         description="UID of the another object to measure the relationship",
     )
-    status: list[list[float]] | None = Field(
+    status: list | None = Field(
         default=None, description="Status of the object to measure the relationship"
     )
 
@@ -89,7 +90,7 @@ class SRBasedGenmanipRelationship(BaseMetric):
                             quat=mesh_info.quat,
                         )
                         scene.cache_library.pointcloud_dict[uid] = pc_info
-                    except Exception as e:
+                    except (RuntimeError, ValueError, AttributeError) as e:
                         print(f"Failed to generate point cloud for {uid}: {e}")
                         continue
             if uid in scene.cache_library.pointcloud_dict:
@@ -99,7 +100,7 @@ class SRBasedGenmanipRelationship(BaseMetric):
 
     def check_status(self, scene):
         articulation_list = scene.articulation_list
-        if self.goal_setting.position:
+        if self.goal_setting.position is not None:
             target_uids = [self.goal_setting.obj1_uid]
             if self.goal_setting.obj2_uid:
                 target_uids.append(self.goal_setting.obj2_uid)
@@ -167,9 +168,11 @@ def check_subgoal_finished_articulation(
     status_list: list[list[float]], articulation: Articulation
 ) -> bool:
     articulation_status = articulation._articulation_view.get_joints_state().positions
-    for status in status_list:
-        if compare_articulation_status(articulation_status.tolist(), status):
-            return True
+    if any(
+        compare_articulation_status(articulation_status.tolist(), status)
+        for status in status_list
+    ):
+        return True
     return False
 
 
@@ -504,7 +507,7 @@ def is_point_in_convex_hull_early(
     required = int(np.ceil(thresh_ratio * len(points)))
     cnt = 0
     for p in points:
-        if np.all(A @ p + b <= tol):
+        if (A @ p + b <= tol).all():
             cnt += 1
             if cnt >= required:
                 return True
@@ -519,7 +522,7 @@ def is_inside(
 ) -> bool:
     try:
         hull = scipy.spatial.ConvexHull(target_pts)
-    except:
+    except (QhullError, ValueError):
         return False
     num_src_pts = len(src_pts)
     thresh_obj_particles = thresh * num_src_pts

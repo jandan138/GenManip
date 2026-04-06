@@ -3,7 +3,7 @@ from typing import List, Literal, Tuple, Any
 from pydantic import BaseModel, Field, field_validator
 
 from pxr import Usd, UsdGeom, Gf
-from omni.isaac.core.utils.stage import get_current_stage 
+from omni.isaac.core.utils.stage import get_current_stage
 
 from genmanip.core.metrics.base import BaseMetric
 from genmanip.core.metrics.utils import MetricFactory
@@ -17,7 +17,8 @@ class OrientationConstraint(BaseModel):
         ..., description="World axis vector or axis name (e.g. +X, -y, Z)"
     )
     angle_range: Tuple[int, int] = Field(
-        ..., description="Allowed angle range in degrees: (min, max), 0 <= min < max < 180"
+        ...,
+        description="Allowed angle range in degrees: (min, max), 0 <= min < max < 180",
     )
 
     # ---------- axis parsing ----------
@@ -69,9 +70,7 @@ class OrientationConstraint(BaseModel):
     def validate_angle_range(cls, v):
         min_a, max_a = v
         if not (0 <= min_a < max_a < 180):
-            raise ValueError(
-                "angle_range must satisfy 0 <= min < max < 180"
-            )
+            raise ValueError("angle_range must satisfy 0 <= min < max < 180")
         return v
 
 
@@ -85,9 +84,7 @@ class OrientationConstraintSpec(BaseModel):
 
 
 class MatchLocalWorldOrientationConfig(BaseModel):
-    obj_uid: str = Field(
-        ..., description="UID of the object"
-    )
+    obj_uid: str = Field(..., description="UID of the object")
     constraint_spec: OrientationConstraintSpec = Field(
         ..., description="Orientation matching constraints"
     )
@@ -95,16 +92,18 @@ class MatchLocalWorldOrientationConfig(BaseModel):
 
 @MetricFactory.register("manip/default/match_local_world_orientation")
 class MatchLocalWorldOrientation(BaseMetric):
-    def __init__(self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs):
+    def __init__(
+        self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs
+    ):
         super().__init__(skip_steps, succ_cnts, sub_goal_setting, **kwargs)
 
         self.setting = MatchLocalWorldOrientationConfig(**sub_goal_setting)
         self.operator = self.setting.constraint_spec.type == "AND"
 
     def check_status(self, scene):
-        obj_xform_prim  = scene.object_list[self.setting.obj_uid]
+        obj_xform_prim = scene.object_list[self.setting.obj_uid]
         obj_xformable = UsdGeom.Xformable(obj_xform_prim.prim)
-        
+
         time = Usd.TimeCode.Default()
         world_transform: Gf.Matrix4d = obj_xformable.ComputeLocalToWorldTransform(time)
         R = world_transform.ExtractRotationMatrix().GetTranspose()
@@ -113,10 +112,7 @@ class MatchLocalWorldOrientation(BaseMetric):
 
         for _c in self.setting.constraint_spec.constraints:
             _f = self.check_angle_constraint_usd(
-                R,
-                _c.local_axis,
-                _c.world_axis,
-                _c.angle_range
+                R, _c.local_axis, _c.world_axis, _c.angle_range
             )
             results.append(_f)
 
@@ -152,9 +148,9 @@ class MatchLocalWorldOrientation(BaseMetric):
 
     @staticmethod
     def normalize(v):
-        l = math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
-        return (v[0]/l, v[1]/l, v[2]/l)
+        l = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+        return (v[0] / l, v[1] / l, v[2] / l)
 
     @staticmethod
     def dot(a, b):
-        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]

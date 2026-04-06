@@ -65,7 +65,11 @@ def reset_articulation_positions(scene: "Scene") -> None:
     articulation_pose_list = scene.meta_infos["articulation_pose_list"]
     for articulation_id, articulation in articulation_list.items():
         if scene.articulation_data[articulation_id]["is_articulated"]:
-            articulation.set_joint_positions(articulation_pose_list[articulation_id])
+            articulation_joint_positions = articulation_pose_list[articulation_id]
+            articulation.set_joint_positions(articulation_joint_positions)
+            articulation.set_joint_velocities(
+                np.zeros_like(articulation_joint_positions)
+            )
 
 
 def remove_object_from_scene_by_preload(uid: str, scene: "Scene") -> None:
@@ -89,6 +93,17 @@ def add_object_to_scene_from_preload_list(
     # Activate the object in object list
     if not scene.object_list[uid].prim.IsActive():
         scene.object_list[uid].prim.SetActive(True)
+    # Restore object scale to the pre-scale baseline so per-episode scaling
+    # (e.g., relative_scale) will not accumulate across resets.
+    preload_meta = scene.cache_library.preload_object_meta_info.setdefault(uid, {})
+    if "base_local_scale" not in preload_meta:
+        preload_meta["base_local_scale"] = (
+            scene.object_list[uid].get_local_scale().tolist()
+        )
+    else:
+        scene.object_list[uid].set_local_scale(
+            np.array(preload_meta["base_local_scale"])
+        )
     # Compute the object's mesh information
     if uid in scene.cache_library.preloaded_object_path_list:
         # if object is in preloaded object path list, object mesh path should be in the same folder as the object path in `mesh_data`, like `mesh_data/task_name/folder_name/uid.obj` while usd is in `object_usd/folder_name/uid.usd`

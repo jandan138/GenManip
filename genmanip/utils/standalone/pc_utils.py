@@ -388,8 +388,7 @@ def get_platform_available_area(
     if visualize:
         polygons = []
         for key, pc in pc_list.items():
-            if key not in filtered_uid:
-                polygons.append(get_xy_contour(pc, contour_type="concave_hull"))
+            polygons.append(get_xy_contour(pc, contour_type="concave_hull"))
         visualize_polygons(polygons)
     for key in pc_list:
         if key not in filtered_uid:

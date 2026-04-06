@@ -56,7 +56,7 @@ def parse_planning_result(
     gripper_close_data = get_scalar_data_from_lmdb(data_dir, b"gripper_close")
     try:
         base_motion_data = get_scalar_data_from_lmdb(data_dir, b"base_motion")
-    except:
+    except Exception:
         base_motion_data = [np.array([0.0, 0.0, 0.0])] * len(arm_action_data)
     name_data = get_scalar_data_from_lmdb(data_dir, b"name")
 
@@ -64,7 +64,7 @@ def parse_planning_result(
         joint_world_pose_data = get_scalar_data_from_lmdb(
             data_dir, b"observation/robot/joint_world_pose"
         )
-    except:
+    except Exception:
         joint_world_pose_data = None
 
     for (

@@ -56,10 +56,10 @@ def parse_gpt_response(response: str) -> dict | list:
             raise ValueError(
                 "The operations format in GPT response is not a list or dict."
             )
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError, TypeError, IndexError) as e:
         logging.error("Unable to parse GPT response into JSON.")
         logging.debug(f"Original response content: {response}")
-        raise e
+        raise
 
 
 def prepare_gpt_payload(

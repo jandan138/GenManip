@@ -118,4 +118,4 @@ def visualize_shelves(shelves: list[Shelf]) -> None:
         )
         line_set.colors = o3d.utility.Vector3dVector([shelf.color for _ in lines])
         geometries.append(line_set)
-    o3d.visualization.draw_geometries(geometries) # type: ignore
+    o3d.visualization.draw_geometries(geometries)  # type: ignore

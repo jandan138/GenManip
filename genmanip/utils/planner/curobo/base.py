@@ -5,6 +5,8 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+import os
+
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.types.base import TensorDeviceType
@@ -23,6 +25,7 @@ import torch
 
 from omni.isaac.core.utils.types import JointsState as SimJointState  # type: ignore
 from omni.isaac.core.utils.stage import get_current_stage  # type: ignore
+
 
 class CuroboPlanner:
     def __init__(self, robot_cfg: dict, robot_prim_path: str) -> None:
@@ -98,11 +101,27 @@ class CuroboPlanner:
         dof_names: list | None = None,
         grasp: bool = False,
     ) -> list[np.ndarray] | None:
-        print("goal pos:", ee_translation_goal)
-        print("goal quat:", ee_orientation_goal, "norm=", np.linalg.norm(ee_orientation_goal))
-        print("js len:", len(sim_js.positions), "names len:", len(self.ordered_js_names))
-        print("finite:", np.isfinite(sim_js.positions).all(), np.isfinite(ee_translation_goal).all(), np.isfinite(ee_orientation_goal).all())
-        
+        if os.environ.get("GENMANIP_VERBOSE") == "1":
+            print("goal pos:", ee_translation_goal)
+            print(
+                "goal quat:",
+                ee_orientation_goal,
+                "norm=",
+                np.linalg.norm(ee_orientation_goal),
+            )
+            print(
+                "js len:",
+                len(sim_js.positions),
+                "names len:",
+                len(self.ordered_js_names),
+            )
+            print(
+                "finite:",
+                np.isfinite(sim_js.positions).all(),
+                np.isfinite(ee_translation_goal).all(),
+                np.isfinite(ee_orientation_goal).all(),
+            )
+
         if len(self.raw_js_names) == 0:
             self.raw_js_names = self.ordered_js_names
         ik_goal = Pose(
@@ -123,17 +142,18 @@ class CuroboPlanner:
         else:
             plan_config.pose_cost_metric = None
         result = self.motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, plan_config)
-        
-        for k in ["status", "message", "error_code", "reason", "valid", "feasible"]:
-            if hasattr(result, k):
-                print(k, getattr(result, k))
+
+        if os.environ.get("GENMANIP_VERBOSE") == "1":
+            for k in ["status", "message", "error_code", "reason", "valid", "feasible"]:
+                if hasattr(result, k):
+                    print(k, getattr(result, k))
 
         if result.success is not None and result.success.item():
             cmd_plan = result.get_interpolated_plan()
             cmd_plan = cmd_plan.get_ordered_joint_state(self.raw_js_names)
             position_list = []
             for idx in range(len(cmd_plan.position)):
-                joint_positions = cmd_plan.position[idx].cpu().numpy() # type: ignore
+                joint_positions = cmd_plan.position[idx].cpu().numpy()  # type: ignore
                 position_list.append(joint_positions[: self.dof_len])
             return position_list
         else:
@@ -153,7 +173,7 @@ class CuroboPlanner:
         )
         if not ik_result.success.item():
             return None
-        return ik_result.js_solution.position.cpu().numpy().squeeze() # type: ignore
+        return ik_result.js_solution.position.cpu().numpy().squeeze()  # type: ignore
 
     def fk_single(self, joint_positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         joint_positions_tensor = torch.from_numpy(

@@ -6,7 +6,8 @@ Licensed under the MIT License.
 """
 
 from copy import deepcopy
-from filelock import SoftFileLock
+from filelock import SoftFileLock, Timeout
+import pickle
 import numpy as np
 import os
 import random
@@ -36,12 +37,16 @@ def check_planning_finished(task_name, num_episode, default_config):
                 )
             )
             if os.path.exists(log_pkl_path):
-                log = load_dict_from_pkl(log_pkl_path)
+                try:
+                    log = load_dict_from_pkl(log_pkl_path)
+                except (OSError, EOFError, ValueError, TypeError, pickle.PickleError) as exc:
+                    print(f"Warning: failed to read planning log {log_pkl_path}: {exc}")
+                    return False
                 if "success" in log and log["success"] >= num_episode:
                     return True
             return False
-    except:
-        raise Exception(
+    except Timeout:
+        raise RuntimeError(
             f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
         )
 
@@ -56,12 +61,16 @@ def check_evalgen_finished(task_name, num_test, default_config):
                 os.path.join(default_config["TASKS_DIR"], task_name, "log.pkl")
             )
             if os.path.exists(log_pkl_path):
-                log = load_dict_from_pkl(log_pkl_path)
+                try:
+                    log = load_dict_from_pkl(log_pkl_path)
+                except (OSError, EOFError, ValueError, TypeError, pickle.PickleError) as exc:
+                    print(f"Warning: failed to read evalgen log {log_pkl_path}: {exc}")
+                    return False
                 if "success" in log and log["success"] >= num_test:
                     return True
             return False
-    except:
-        raise Exception(
+    except Timeout:
+        raise RuntimeError(
             f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
         )
 
@@ -88,8 +97,8 @@ def check_eval_finished(scene_config: SceneConfig, default_config: dict) -> int:
                     make_dir(os.path.join(task_dir, str(evaluation_num).zfill(3)))
                     return evaluation_num
             return 0
-    except:
-        raise Exception(
+    except Timeout:
+        raise RuntimeError(
             f"Filelock timeout, try to delete the lock file by python standalone_tools/cleanup_lockfiles.py"
         )
 

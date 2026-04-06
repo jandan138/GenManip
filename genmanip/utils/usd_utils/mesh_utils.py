@@ -10,6 +10,10 @@ import open3d as o3d
 
 from pxr import UsdGeom, Usd  # type: ignore
 
+from .transform_utils import (
+    apply_local_transform_to_points,
+    resolve_prim_local_transform,
+)
 from genmanip.utils.standalone.pc_utils import (
     compute_mesh_bbox,
     compute_mesh_center,
@@ -19,25 +23,8 @@ from genmanip.utils.standalone.pc_utils import (
 
 
 def recursive_parse(prim: Usd.Prim) -> tuple[list, list, list, list, list, list]:
-    translation = prim.GetAttribute("xformOp:translate").Get()
-    if translation is None:
-        translation = np.zeros(3)
-    else:
-        translation = np.array(translation)
-    scale = prim.GetAttribute("xformOp:scale").Get()
-    if scale is None:
-        scale = np.ones(3)
-    else:
-        scale = np.array(scale)
-    orient = prim.GetAttribute("xformOp:orient").Get()
-    if orient is None:
-        orient = np.zeros([4, 1])
-        orient[0] = 1.0
-    else:
-        r = orient.GetReal()
-        i, j, k = orient.GetImaginary()
-        orient = np.array([r, i, j, k]).reshape(4, 1)
-    rotation_matrix = o3d.geometry.get_rotation_matrix_from_quaternion(orient)
+    local_transform = resolve_prim_local_transform(prim)
+
     points_total = []
     faceuv_total = []
     normals_total = []
@@ -46,7 +33,7 @@ def recursive_parse(prim: Usd.Prim) -> tuple[list, list, list, list, list, list]
     mesh_total = []
     if prim.IsA(UsdGeom.Mesh):
         mesh_path = str(prim.GetPath()).split("/")[-1]
-        if not mesh_path == "SM_Dummy":
+        if mesh_path != "SM_Dummy":
             mesh_total.append(mesh_path)
             points = prim.GetAttribute("points").Get()
             normals = prim.GetAttribute("normals").Get()
@@ -80,6 +67,50 @@ def recursive_parse(prim: Usd.Prim) -> tuple[list, list, list, list, list, list]
             faceuv_total += faceuv
             normals_total += normals
             points_total += points
+    elif prim.IsA(UsdGeom.Cube):
+        size_attr = prim.GetAttribute("size").Get()
+        half_size = float(size_attr) / 2 if size_attr is not None else 0.5
+        points = [
+            np.array([-half_size, -half_size, -half_size]),
+            np.array([half_size, -half_size, -half_size]),
+            np.array([half_size, half_size, -half_size]),
+            np.array([-half_size, half_size, -half_size]),
+            np.array([-half_size, -half_size, half_size]),
+            np.array([half_size, -half_size, half_size]),
+            np.array([half_size, half_size, half_size]),
+            np.array([-half_size, half_size, half_size]),
+        ]
+        faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        faceVertexIndices = [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            0,
+            4,
+            7,
+            3,
+            1,
+            5,
+            6,
+            2,
+            3,
+            2,
+            6,
+            7,
+            0,
+            1,
+            5,
+            4,
+        ]
+        points_total += points
+        faceVertexCounts_total += faceVertexCounts
+        faceVertexIndices_total += faceVertexIndices
+        mesh_total.append(str(prim.GetPath()).split("/")[-1])
     else:
         children = prim.GetChildren()
         for child in children:
@@ -94,13 +125,8 @@ def recursive_parse(prim: Usd.Prim) -> tuple[list, list, list, list, list, list]
             normals_total += normals
             points_total += points
             mesh_total += mesh_list
-    new_points = []
-    for i, p in enumerate(points_total):
-        pn = np.array(p)
-        pn *= scale
-        pn = np.matmul(rotation_matrix, pn)
-        pn += translation
-        new_points.append(pn)
+
+    new_points = apply_local_transform_to_points(points_total, local_transform)
     return (
         new_points,
         faceuv_total,

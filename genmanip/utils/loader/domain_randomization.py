@@ -7,6 +7,7 @@ Licensed under the MIT License.
 
 import os
 import random
+import re
 from typing import TYPE_CHECKING
 
 import cv2
@@ -22,6 +23,7 @@ from omni.isaac.sensor import Camera  # type: ignore
 from pxr import Usd  # type: ignore
 
 from genmanip.core.scene.scene_config import LayoutConfig, ObjectConfig, SceneConfig
+from genmanip.utils.loader.asset_search import get_asset_search_root
 from genmanip.utils.loader.hardcode_rule import verify_cup_and_plate
 from genmanip.utils.loader.utils import (
     add_object_to_scene_from_preload_list,
@@ -57,6 +59,8 @@ from genmanip.utils.usd_utils import (
     get_prim_bbox,
     resize_object_by_lwh,
     set_colliders,
+    set_mdl,
+    set_texture,
 )
 from genmanip.core.robot.base import BaseEmbodiment
 from genmanip.utils.planner.mplib.utils import get_mplib_planner
@@ -71,6 +75,29 @@ if TYPE_CHECKING:
 
 
 import logging
+
+
+# add a debug function to hold the scene when layout generation fails, to help debug the layout failure issue by observing the scene in Isaac Sim GUI and checking the logs
+# export GENMANIP_DEBUG_LAYOUT_FAIL_STEPS=100000
+def _debug_hold_on_layout_failure(scene: "Scene", logger: logging.Logger) -> None:
+    steps_raw = os.getenv("GENMANIP_DEBUG_LAYOUT_FAIL_STEPS", "0")
+    try:
+        steps = int(steps_raw)
+    except ValueError:
+        logger.warning(
+            "Invalid GENMANIP_DEBUG_LAYOUT_FAIL_STEPS=%s; skip debug hold.",
+            steps_raw,
+        )
+        return
+    if steps <= 0:
+        return
+    logger.warning(
+        "Layout failed, entering debug render loop for %d steps "
+        "(GENMANIP_DEBUG_LAYOUT_FAIL_STEPS).",
+        steps,
+    )
+    for _ in range(steps):
+        scene.world.step(render=True)
 
 
 def random_camera_pose(
@@ -151,16 +178,16 @@ def random_robot_pose(robot: Robot, random_range: float | dict) -> None:
     robot.set_world_pose(position=new_position)
 
 
-def random_robot_eepose(robot: BaseEmbodiment, current_dir: str) -> int:
+def random_robot_eepose(embodiment: BaseEmbodiment, current_dir: str) -> int:
     assert (
-        robot.embodiment_name == "franka"
+        embodiment.embodiment_name == "franka"
     ), "Only franka robot is supported for random robot eepose"
-    franka_robot = robot.robot
+    robot = embodiment.robot
     planner = get_mplib_planner(
-        franka_robot, robot_type=robot.embodiment_name, current_dir=current_dir
+        robot, robot_type=embodiment.embodiment_name, current_dir=current_dir
     )
     position, orientation = joint_positions_to_position_and_orientation(
-        franka_robot.get_joint_positions()
+        robot.get_joint_positions()
     )
     position += np.array(
         [
@@ -182,7 +209,7 @@ def random_robot_eepose(robot: BaseEmbodiment, current_dir: str) -> int:
     orientation = rot.as_quat()[[3, 0, 1, 2]]
     joint_positions = planner.IK(
         Pose(p=position.astype(float), q=orientation.astype(float)),
-        franka_robot.get_joint_positions()[:9],
+        robot.get_joint_positions()[:9],
         return_closest=True,
     )
     if joint_positions[0] != "Success":
@@ -193,8 +220,8 @@ def random_robot_eepose(robot: BaseEmbodiment, current_dir: str) -> int:
         joint_positions = joint_positions[1]
         if joint_positions is None:
             return -1
-        franka_robot.set_joint_positions(
-            np.concatenate([joint_positions[1][:7], robot.gripper_open]),
+        robot.set_joint_positions(
+            np.concatenate([joint_positions[1][:7], embodiment.gripper_open]),
         )
         return 0
 
@@ -210,8 +237,8 @@ def replace_table(
     # Disable the default table
     try:
         object_list["00000000000000000000000000000000"].prim.SetActive(False)
-    except:
-        pass
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        print(f"Warning: failed to deactivate default table before replacement: {exc}")
     # Get the new table uid from table path, table path is like "/path/to/folder/table_uid/instance.usd"
     table_uid = table_path.split("/")[-2]
     # If the new table is already in the scene, use the existing prim
@@ -244,7 +271,7 @@ def replace_table(
         )
         if not without_collider:
             set_colliders(object_list["00000000000000000000000000000000"].prim_path)
-    except:
+    except (AttributeError, RuntimeError, ValueError, OSError):
         delete_prim(object_list["00000000000000000000000000000000"].prim_path)
         object_list["00000000000000000000000000000000"] = object
         object_list["00000000000000000000000000000000"].prim.SetActive(True)
@@ -273,8 +300,10 @@ def replace_table_for_eval(
             object_list["00000000000000000000000000000000"].prim.GetAttribute(
                 "visibility"
             ).Set("invisible")
-    except:
-        pass
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        print(
+            f"Warning: failed to update default table visibility during eval setup: {exc}"
+        )
     # Get the new table uid from table path, table path is like "/path/to/folder/table_uid/instance.usd"
     table_uid = table_path.split("/")[-2]
     # If the new table is already in the scene, use the existing prim
@@ -306,7 +335,7 @@ def replace_table_for_eval(
         )
         if not without_collider:
             set_colliders(object_list["00000000000000000000000000000000"].prim_path)
-    except:
+    except (AttributeError, RuntimeError, ValueError, OSError):
         delete_prim(object_list["00000000000000000000000000000000"].prim_path)
         object_list["00000000000000000000000000000000"] = object
         object_list["00000000000000000000000000000000"].prim.SetActive(True)
@@ -684,6 +713,7 @@ def domain_randomization(
             scene.cache_library.mesh_dict,
             scene_config.layout_config.custom_tableset,
             in_order=scene_config.layout_config.in_order,
+            ignored_objects=scene_config.layout_config.ignored_objects,
         )
     elif scene_config.layout_config.type == "random_all_range":
         IS_OK = setup_random_all_range(
@@ -709,8 +739,12 @@ def domain_randomization(
     else:
         IS_OK = 0
     if IS_OK == -1:
+        _debug_hold_on_layout_failure(scene, logger)
         logger.error("Random table layout failed")
         return IS_OK
+
+    # randomize visuals
+    task_data["random_visuals"] = random_visuals(default_config, scene_config)
 
     # clean prim velocity because the prim velocity may not zero from the previous scene
     for key in scene.object_list:
@@ -744,6 +778,51 @@ def domain_randomization(
     return 0
 
 
+def find_match_assets(assets_dir: str, path_pattern: str) -> list[str]:
+    normalized_pattern, search_root = get_asset_search_root(assets_dir, path_pattern)
+    compiled_pattern = re.compile(normalized_pattern)
+    assets_list = []
+    for root, _, files in os.walk(search_root):
+        for file in files:
+            asset_path = os.path.join(root, file)
+            relative_path = os.path.relpath(asset_path, assets_dir)
+            normalized_relative_path = relative_path.replace(os.sep, "/")
+            if compiled_pattern.match(file) or compiled_pattern.match(
+                normalized_relative_path
+            ):
+                assets_list.append(asset_path)
+    return assets_list
+
+
+def random_visuals(
+    default_config: dict, scene_config: SceneConfig
+) -> dict[str, dict[str, str]]:
+    result = {}
+    for visual in scene_config.domain_randomization.random_environment.random_visuals:
+        asset_list = find_match_assets(
+            default_config["ASSETS_DIR"], visual.assets_pattern
+        )
+        if len(asset_list) == 0:
+            raise ValueError(f"No match assets found for {visual.assets_pattern}")
+        asset_path = random.choice(asset_list)
+        if visual.type == "mdl":
+            set_mdl(visual.prim_path, asset_path)
+        elif visual.type == "dome_light":
+            create_dome_light(visual.prim_path, asset_path)
+        elif visual.type == "texture":
+            set_texture(visual.prim_path, asset_path)
+        else:
+            raise ValueError(f"Invalid visual type: {visual.type}")
+        normalized_asset_path = os.path.relpath(
+            asset_path, default_config["ASSETS_DIR"]
+        )
+        result[visual.prim_path] = {
+            "type": visual.type,
+            "asset_path": normalized_asset_path,
+        }
+    return result
+
+
 def reset_scene(scene: "Scene") -> None:
     reset_object_xyz(scene.object_list, scene.meta_infos["world_pose_list"])
     reset_articulation_positions(scene)
@@ -754,6 +833,7 @@ def reset_scene(scene: "Scene") -> None:
         scene.meta_infos["robot_pose_list"],
     ):
         robot.robot.set_joint_positions(joint_positions)
+        robot.robot._articulation_view.set_joint_position_targets(joint_positions)
         robot.robot.set_joint_velocities(joint_velocities)
         robot.robot.set_world_pose(*robot_pose)
     for robot in scene.robot_list:
@@ -858,18 +938,36 @@ def _add_additional_object_from_path_projection(
 
     # 5-3-3. resize the object by scale
     # 5-3-3-1. if scale is in meter, and is float or list[float]
-    if scale is not None and replace_object_config[key].fixed_size is None:
+    if scale is not None and replace_object_config[key].fixed_scale is None:
         resize_object_in_scene_by_uid(
             replaced_uid, scene, default_config, scale, scene_config
         )
 
     # 5-3-3-2. if scale is relative to the original object, and is float or list[float]
-    elif replace_object_config[key].fixed_size is not None:
-        fixed_size = replace_object_config[key].fixed_size
-        if not isinstance(fixed_size, list):
-            scene.object_list[replaced_uid].set_local_scale([fixed_size] * 3)
-        else:
-            scene.object_list[replaced_uid].set_local_scale(fixed_size)
+    elif (
+        replace_object_config[key].fixed_scale is not None
+        or replace_object_config[key].relative_scale is not None
+    ):
+        scale = scene.object_list[replaced_uid].get_local_scale()
+        if replace_object_config[key].relative_scale is not None:
+            if not isinstance(replace_object_config[key].relative_scale, list):
+                scale = scale * replace_object_config[key].relative_scale
+            elif isinstance(replace_object_config[key].relative_scale, list):
+                scale = scale * replace_object_config[key].relative_scale
+            else:
+                raise ValueError(
+                    f"Invalid relative scale type: {type(replace_object_config[key].relative_scale)}"
+                )
+        elif replace_object_config[key].fixed_scale is not None:
+            if not isinstance(replace_object_config[key].fixed_scale, list):
+                scale = [replace_object_config[key].fixed_scale] * 3
+            elif isinstance(replace_object_config[key].fixed_scale, list):
+                scale = replace_object_config[key].fixed_scale
+            else:
+                raise ValueError(
+                    f"Invalid fixed scale type: {type(replace_object_config[key].fixed_scale)}"
+                )
+        scene.object_list[replaced_uid].set_local_scale(scale)
         mesh_info = get_mesh_info_by_load(
             scene.object_list[replaced_uid],
             os.path.join(
@@ -967,21 +1065,36 @@ def _load_object_from_path_projection(
 
     # 5-2-3. resize the object by scale
     # 5-2-3-1. if scale is in meter, and is float or list[float]
-    if scale is not None and replace_object_config[key].fixed_size is None:
+    if scale is not None and replace_object_config[key].fixed_scale is None:
         resize_object_in_scene_by_uid(
             replaced_uid, scene, default_config, scale, scene_config
         )
 
     # 5-2-3-2. if scale is relative to the original object, and is float or list[float]
-    elif replace_object_config[key].fixed_scale is not None:
-        if not isinstance(replace_object_config[key].fixed_scale, list):
-            scene.object_list[replaced_uid].set_local_scale(
-                [replace_object_config[key].fixed_scale] * 3
-            )
-        else:
-            scene.object_list[replaced_uid].set_local_scale(
-                replace_object_config[key].fixed_scale
-            )
+    elif (
+        replace_object_config[key].fixed_scale is not None
+        or replace_object_config[key].relative_scale is not None
+    ):
+        scale = scene.object_list[replaced_uid].get_local_scale()
+        if replace_object_config[key].relative_scale is not None:
+            if not isinstance(replace_object_config[key].relative_scale, list):
+                scale = scale * replace_object_config[key].relative_scale
+            elif isinstance(replace_object_config[key].relative_scale, list):
+                scale = scale * replace_object_config[key].relative_scale
+            else:
+                raise ValueError(
+                    f"Invalid relative scale type: {type(replace_object_config[key].relative_scale)}"
+                )
+        elif replace_object_config[key].fixed_scale is not None:
+            if not isinstance(replace_object_config[key].fixed_scale, list):
+                scale = [replace_object_config[key].fixed_scale] * 3
+            elif isinstance(replace_object_config[key].fixed_scale, list):
+                scale = replace_object_config[key].fixed_scale
+            else:
+                raise ValueError(
+                    f"Invalid fixed scale type: {type(replace_object_config[key].fixed_scale)}"
+                )
+        scene.object_list[replaced_uid].set_local_scale(scale)
         mesh_info = get_mesh_info_by_load(
             scene.object_list[replaced_uid],
             os.path.join(

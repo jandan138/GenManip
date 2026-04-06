@@ -21,6 +21,8 @@ from typing import Literal
 from pathlib import Path
 import shutil
 
+TARGET_VIDEO_SIZE = (640, 480)  # (width, height)
+
 ROBOT = "lift2"
 ROBOT_CONFIGS = {
     "aloha_split": {
@@ -57,8 +59,10 @@ ROBOT_CONFIGS = {
             "joint_9",
             "joint_10",
             "joint_11",
-            "gripper_1",
-            "gripper_2",
+            "gripper_1_left",
+            "gripper_1_right",
+            "gripper_2_left",
+            "gripper_2_right",
         ],
         "joint_indices": [
             12,
@@ -123,8 +127,10 @@ ROBOT_CONFIGS = {
             "gripper_2_right",
         ],
         "motors_action_gripper": [
-            "gripper_1",
-            "gripper_2",
+            "gripper_1_left",
+            "gripper_1_right",
+            "gripper_2_left",
+            "gripper_2_right",
         ],
         "joint_indices": [10, 12, 14, 16, 18, 20, 9, 11, 13, 15, 17, 19],
         "gripper_indices": [23, 24, 21, 22],
@@ -133,6 +139,7 @@ ROBOT_CONFIGS = {
             "top_camera",
             "left_camera",
             "right_camera",
+            "overlook_camera",
         ],
     },
     "franka_robotiq": {
@@ -165,7 +172,12 @@ ROBOT_CONFIGS = {
             "gripper_6",
         ],
         "motors_action_gripper": [
-            "gripper",
+            "gripper_1",
+            "gripper_2",
+            "gripper_3",
+            "gripper_4",
+            "gripper_5",
+            "gripper_6",
         ],
         "joint_indices": [0, 1, 2, 3, 4, 5, 6],
         "gripper_indices": [7, 8, 9, 10, 11, 12],
@@ -202,7 +214,8 @@ ROBOT_CONFIGS = {
             "gripper_2",
         ],
         "motors_action_gripper": [
-            "gripper",
+            "gripper_1",
+            "gripper_2",
         ],
         "joint_indices": [0, 1, 2, 3, 4, 5, 6],
         "gripper_indices": [7, 8],
@@ -397,7 +410,7 @@ def create_dataset(
     for cam in cameras:
         features[f"video.{cam}_view"] = {
             "dtype": mode,
-            "shape": (3, 480, 640),  # (channels, height, width)
+            "shape": (3, TARGET_VIDEO_SIZE[1], TARGET_VIDEO_SIZE[0]),  # (C, H, W)
             "names": [
                 "channels",
                 "height",
@@ -433,185 +446,108 @@ def process_single_dataset(
     action_joints_delta: np.ndarray,
     state_gripper: np.ndarray,
     action_gripper: np.ndarray,
-    state_base: np.ndarray | list[None],
-    action_base_delta: np.ndarray | list[None],
+    state_base: np.ndarray | None,
+    action_base: np.ndarray | None,
+    action_base_delta: np.ndarray | None,
     state_ee_pose: np.ndarray,
     action_ee_pose: np.ndarray,
     action_ee_pose_delta: np.ndarray,
-    video_dict: dict[str, np.ndarray],
+    txn,
+    camera_key_indices: dict[str, list[bytes]],
     instruction: str,
 ) -> LeRobotDataset:
     num_frames = state_joints.shape[0]
-    abs_base_motion = np.array([0.0, 0.0, 0.0]) if state_base[0] is not None else None
 
     for i in tqdm(range(num_frames), desc="Processing frames"):
         frame = {
-            "state.joints": state_joints[i].astype(np.float32),
-            "action.joints": action_joints[i].astype(np.float32),
-            "action.joints_delta": action_joints_delta[i].astype(np.float32),
-            "state.gripper": state_gripper[i].astype(np.float32),
-            "action.gripper": np.atleast_1d(action_gripper[i]).astype(np.float32),
-            "state.ee_pose": state_ee_pose[i].astype(np.float32),
-            "action.ee_pose": action_ee_pose[i].astype(np.float32),
-            "action.ee_pose_delta": action_ee_pose_delta[i].astype(np.float32),
+            "state.joints": state_joints[i],
+            "action.joints": action_joints[i],
+            "action.joints_delta": action_joints_delta[i],
+            "state.gripper": state_gripper[i],
+            "action.gripper": action_gripper[i],
+            "state.ee_pose": state_ee_pose[i],
+            "action.ee_pose": action_ee_pose[i],
+            "action.ee_pose_delta": action_ee_pose_delta[i],
         }
-        if state_base[i] is not None:
-            frame["state.base"] = state_base[i].astype(np.float32)  # type: ignore
-        if action_base_delta[i] is not None:
-            frame["action.base_delta"] = action_base_delta[i].astype(np.float32)  # type: ignore
-        if abs_base_motion is not None:
-            frame["action.base"] = abs_base_motion.astype(np.float32)
-        for camera, img_array in video_dict.items():
-            frame[f"video.{camera}_view"] = img_array[i]
+        if state_base is not None:
+            frame["state.base"] = state_base[i]
+        if action_base_delta is not None:
+            frame["action.base_delta"] = action_base_delta[i]
+        if action_base is not None:
+            frame["action.base"] = action_base[i]
+        for camera_name, key_index in camera_key_indices.items():
+            frame[f"video.{camera_name}_view"] = _decode_color_frame(
+                txn, key_index[i], target_size=TARGET_VIDEO_SIZE
+            )
         dataset.add_frame(frame, task=instruction)
-        if abs_base_motion is not None and action_base_delta[i] is not None:
-            abs_base_motion += action_base_delta[i].astype(np.float32)  # type: ignore
     dataset.save_episode()
 
     return dataset
 
 
-def get_scalar_data_from_lmdb(data_path, key):
-    """Retrieve scalar data from LMDB database.
+def _load_meta_info(data_path: str) -> dict:
+    with open(f"{data_path}/meta_info.pkl", "rb") as f:
+        return pickle.load(f)
 
-    Loads and deserializes scalar data (e.g., joint positions, actions) from
-    the LMDB storage format used in robotics datasets.
 
-    Args:
-        data_path (str): Path to dataset directory containing LMDB files
-        key (bytes): LMDB key for the desired data
-
-    Returns:
-        Any: Deserialized data object (typically numpy arrays or lists)
-    """
-    meta_info = pickle.load(open(f"{data_path}/meta_info.pkl", "rb"))
-    lmdb_env = lmdb.open(
-        f"{data_path}/lmdb", readonly=True, lock=False, readahead=False, meminit=False
+def _open_lmdb_env(data_path: str):
+    return lmdb.open(
+        f"{data_path}/lmdb",
+        readonly=True,
+        lock=False,
+        readahead=True,
+        meminit=False,
     )
-    key_index = meta_info["keys"]["scalar_data"].index(key)
-    key_key = meta_info["keys"]["scalar_data"][key_index]
-    with lmdb_env.begin(write=False) as txn:
-        data = pickle.loads(txn.get(key_key))
-    return data
 
 
-def get_json_data_from_lmdb(data_path):
-    """Retrieve JSON metadata from LMDB database.
-
-    Loads camera parameters and other metadata stored as JSON in the dataset.
-
-    Args:
-        data_path (str): Path to dataset directory containing LMDB files
-
-    Returns:
-        dict: Deserialized JSON data containing camera parameters and metadata
-    """
-    lmdb_env = lmdb.open(
-        f"{data_path}/lmdb", readonly=True, lock=False, readahead=False, meminit=False
-    )
-    with lmdb_env.begin(write=False) as txn:
-        data = pickle.loads(txn.get(b"json_data"))
-    return data
+def _get_scalar_data(txn, scalar_key_set: set[bytes], key: bytes):
+    if key not in scalar_key_set:
+        raise ValueError(f"Missing scalar key in meta_info: {key!r}")
+    value = txn.get(key)
+    if value is None:
+        raise KeyError(f"Missing LMDB value for scalar key: {key!r}")
+    return pickle.loads(value)
 
 
-def get_color_image_from_lmdb(data_path, key):
-    """Load all color images from LMDB database (deprecated - memory intensive).
+def _decode_color_frame(
+    txn, frame_key: bytes, target_size: tuple[int, int]
+) -> np.ndarray:
+    value = txn.get(frame_key)
+    if value is None:
+        raise KeyError(f"Missing LMDB value for frame key: {frame_key!r}")
 
-    Warning: This function loads all images into memory at once and should be
-    avoided for large datasets. Use get_frame_data() instead.
+    img = cv2.imdecode(pickle.loads(value), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError(f"Failed to decode color frame for key: {frame_key!r}")
 
-    Args:
-        data_path (str): Path to dataset directory
-        key (str): Key pattern for color images
-
-    Returns:
-        list: List of color images as numpy arrays
-    """
-    meta_info = pickle.load(open(f"{data_path}/meta_info.pkl", "rb"))
-    lmdb_env = lmdb.open(
-        f"{data_path}/lmdb", readonly=True, lock=False, readahead=False, meminit=False
-    )
-    key_index = meta_info["keys"][key]
-    color_image = []
-    target_size = (640, 480)
-    with lmdb_env.begin(write=False) as txn:
-        for key in key_index:
-            # Decode the compressed image bytes to numpy array (BGR color)
-            img = cv2.imdecode(pickle.loads(txn.get(key)), cv2.IMREAD_COLOR)
-
-            # Rescale to exactly 480x640 (stretches if aspect ratio differs)
-            img_resized = cv2.resize(img, target_size, interpolation=cv2.INTER_LINEAR)
-
-            color_image.append(img_resized)
-    return color_image
+    if (img.shape[1], img.shape[0]) != target_size:
+        img = cv2.resize(img, target_size, interpolation=cv2.INTER_LINEAR)
+    return img
 
 
 def ee_pose_list_to_np(ee_pose_action_list) -> np.ndarray:
-    # ee_pose_action_list: length T
-    out = []
-    for ee in ee_pose_action_list:
-        if len(ee[0]) == 3 and len(ee[1]) == 4:
-            p0 = np.asarray(ee[0], dtype=np.float32).reshape(
-                3,
-            )
-            q0 = np.asarray(ee[1], dtype=np.float32).reshape(
-                4,
-            )
-            out.append(np.concatenate([p0, q0], axis=0))  # (7,)
-        elif len(ee) == 2:
-            # ee = ((pos0, quat0), (pos1, quat1))
-            (p0, q0), (p1, q1) = ee
+    num_frames = len(ee_pose_action_list)
+    if num_frames == 0:
+        raise ValueError("ee_pose_action_list is empty")
 
-            p0 = np.asarray(p0, dtype=np.float32).reshape(
-                3,
-            )
-            q0 = np.asarray(q0, dtype=np.float32).reshape(
-                4,
-            )
-            p1 = np.asarray(p1, dtype=np.float32).reshape(
-                3,
-            )
-            q1 = np.asarray(q1, dtype=np.float32).reshape(
-                4,
-            )
-            out.append(np.concatenate([p0, q0, p1, q1], axis=0))  # (14,)
-    return np.stack(out, axis=0).astype(np.float32)  # (T, 14)
+    first = ee_pose_action_list[0]
+    if len(first) == 2 and len(first[0]) == 3 and len(first[1]) == 4:
+        out = np.empty((num_frames, 7), dtype=np.float32)
+        for i, (pos, quat) in enumerate(ee_pose_action_list):
+            out[i, :3] = pos
+            out[i, 3:] = quat
+        return out
 
+    if len(first) == 2:
+        out = np.empty((num_frames, 14), dtype=np.float32)
+        for i, ((p0, q0), (p1, q1)) in enumerate(ee_pose_action_list):
+            out[i, :3] = p0
+            out[i, 3:7] = q0
+            out[i, 7:10] = p1
+            out[i, 10:14] = q1
+        return out
 
-def get_all_data_from_lmdb(data_path: str, cameras: list[str]):
-    state_joints_all = get_scalar_data_from_lmdb(data_path, b"observation/robot/qpos")
-
-    action_joints = get_scalar_data_from_lmdb(data_path, b"arm_action")
-    action_joints_delta = get_scalar_data_from_lmdb(data_path, b"delta_arm_action")
-
-    action_gripper = get_scalar_data_from_lmdb(data_path, b"gripper_close")
-
-    try:
-        action_base_delta = get_scalar_data_from_lmdb(data_path, b"base_motion")
-    except:
-        action_base_delta = [None] * len(action_joints)
-
-    state_ee_pose = get_scalar_data_from_lmdb(
-        data_path, b"observation/robot/ee_pose_state"
-    )
-    action_ee_pose = get_scalar_data_from_lmdb(data_path, b"ee_pose_action")
-    action_ee_pose_delta = get_scalar_data_from_lmdb(data_path, b"delta_ee_pose_action")
-    camera_dict = {}
-    for camera_name in cameras:
-        camera_dict[camera_name] = get_color_image_from_lmdb(
-            data_path, f"observation/{camera_name}/color_image"
-        )
-    return (
-        state_joints_all,
-        action_joints,
-        action_joints_delta,
-        action_gripper,
-        action_base_delta,
-        state_ee_pose,
-        action_ee_pose,
-        action_ee_pose_delta,
-        camera_dict,
-    )
+    raise ValueError(f"Unsupported ee pose format: {first!r}")
 
 
 def parse_args():
@@ -635,12 +571,13 @@ def _validate_episode_data(
     action_joints_delta: np.ndarray,
     state_gripper: np.ndarray,
     action_gripper: np.ndarray,
-    state_base: np.ndarray | list[None],
-    action_base_delta: np.ndarray | list[None],
+    state_base: np.ndarray | None,
+    action_base: np.ndarray | None,
+    action_base_delta: np.ndarray | None,
     state_ee_pose: np.ndarray,
     action_ee_pose: np.ndarray,
     action_ee_pose_delta: np.ndarray,
-    video_dict: dict[str, np.ndarray],
+    camera_frame_counts: dict[str, int],
 ) -> None:
     num_frames = state_joints.shape[0]
     series = {
@@ -649,28 +586,23 @@ def _validate_episode_data(
         "state_gripper": state_gripper,
         "action_gripper": action_gripper,
         "state_base": state_base,
+        "action_base": action_base,
         "action_base_delta": action_base_delta,
         "state_ee_pose": state_ee_pose,
         "action_ee_pose": action_ee_pose,
         "action_ee_pose_delta": action_ee_pose_delta,
     }
     for name, arr in series.items():
-        if isinstance(arr, list):
-            if len(arr) != num_frames:
-                raise ValueError(
-                    f"Frame count mismatch: {name} has {len(arr)}, expected {num_frames}."
-                )
-        elif isinstance(arr, np.ndarray):
-            if arr.shape[0] != num_frames:
-                raise ValueError(
-                    f"Frame count mismatch: state_joints has {num_frames}, "
-                    f"{name} has {arr.shape[0]}."
-                )
-    for camera_name, frames in video_dict.items():
-        if len(frames) != num_frames:
+        if arr is not None and arr.shape[0] != num_frames:
+            raise ValueError(
+                f"Frame count mismatch: state_joints has {num_frames}, "
+                f"{name} has {arr.shape[0]}."
+            )
+    for camera_name, frame_count in camera_frame_counts.items():
+        if frame_count != num_frames:
             raise ValueError(
                 f"Video frame count mismatch for {camera_name}: "
-                f"expected {num_frames}, got {len(frames)}."
+                f"expected {num_frames}, got {frame_count}."
             )
 
 
@@ -680,79 +612,115 @@ def add_single_episode_to_dataset(
     robot_type: str,
 ):
     cameras = ROBOT_CONFIGS[robot_type]["cameras"]
-    (
-        state_joints_all,
-        action_joints,
-        action_joints_delta,
-        action_gripper,
-        action_base_delta,
-        state_ee_pose,
-        action_ee_pose,
-        action_ee_pose_delta,
-        camera_dict,
-    ) = get_all_data_from_lmdb(lmdb_path, cameras)
     joint_indices = ROBOT_CONFIGS[robot_type]["joint_indices"]
     gripper_indices = ROBOT_CONFIGS[robot_type]["gripper_indices"]
     base_indices = ROBOT_CONFIGS[robot_type]["base_indices"]
 
-    instruction = pickle.load(open(f"{lmdb_path}/meta_info.pkl", "rb"))["task_data"][
-        "instruction"
-    ]
+    meta_info = _load_meta_info(lmdb_path)
+    instruction = meta_info["task_data"]["instruction"]
+    camera_key_indices = {
+        camera_name: meta_info["keys"][f"observation/{camera_name}/color_image"]
+        for camera_name in cameras
+    }
+    camera_frame_counts = {
+        camera_name: len(key_index)
+        for camera_name, key_index in camera_key_indices.items()
+    }
 
-    state_joints = np.array(
-        [state_joints_all[i][joint_indices] for i in range(len(state_joints_all))]
-    )
-    action_joints = np.array(action_joints)
-    action_joints_delta = np.array(action_joints_delta)
-    state_gripper = np.array(
-        [state_joints_all[i][gripper_indices] for i in range(len(state_joints_all))]
-    )
-    action_gripper = np.array(action_gripper)
-    state_base = (
-        np.array(
-            [state_joints_all[i][base_indices] for i in range(len(state_joints_all))]
-        )
-        if len(base_indices) > 0
-        else [None] * len(state_joints_all)
-    )
-    action_base_delta = (
-        np.array(action_base_delta)
-        if len(base_indices) > 0
-        else [None] * len(action_joints)
-    )
-    state_ee_pose = ee_pose_list_to_np(state_ee_pose)
-    action_ee_pose = ee_pose_list_to_np(action_ee_pose)
-    action_ee_pose_delta = ee_pose_list_to_np(action_ee_pose_delta)
+    lmdb_env = _open_lmdb_env(lmdb_path)
+    try:
+        with lmdb_env.begin(write=False) as txn:
+            scalar_key_set = set(meta_info["keys"]["scalar_data"])
 
-    _validate_episode_data(
-        state_joints=state_joints,
-        action_joints=action_joints,
-        action_joints_delta=action_joints_delta,
-        state_gripper=state_gripper,
-        action_gripper=action_gripper,
-        state_base=state_base,
-        action_base_delta=action_base_delta,
-        state_ee_pose=state_ee_pose,
-        action_ee_pose=action_ee_pose,
-        action_ee_pose_delta=action_ee_pose_delta,
-        video_dict=camera_dict,
-    )
+            state_joints_all = np.asarray(
+                _get_scalar_data(txn, scalar_key_set, b"observation/robot/qpos"),
+                dtype=np.float32,
+            )
+            action_joints = np.asarray(
+                _get_scalar_data(txn, scalar_key_set, b"arm_action"), dtype=np.float32
+            )
+            action_joints_delta = np.asarray(
+                _get_scalar_data(txn, scalar_key_set, b"delta_arm_action"),
+                dtype=np.float32,
+            )
+            action_gripper = np.asarray(
+                _get_scalar_data(txn, scalar_key_set, b"gripper_action"),
+                dtype=np.float32,
+            )
 
-    process_single_dataset(
-        dataset,
-        state_joints=state_joints,
-        action_joints=action_joints,
-        action_joints_delta=action_joints_delta,
-        state_gripper=state_gripper,
-        action_gripper=action_gripper,
-        state_base=state_base,
-        action_base_delta=action_base_delta,
-        state_ee_pose=state_ee_pose,
-        action_ee_pose=action_ee_pose,
-        action_ee_pose_delta=action_ee_pose_delta,
-        video_dict=camera_dict,
-        instruction=instruction,
-    )
+            if action_gripper.ndim == 1:
+                action_gripper = action_gripper[:, None]
+
+            state_ee_pose = ee_pose_list_to_np(
+                _get_scalar_data(
+                    txn, scalar_key_set, b"observation/robot/ee_pose_state"
+                )
+            )
+            action_ee_pose = ee_pose_list_to_np(
+                _get_scalar_data(txn, scalar_key_set, b"ee_pose_action")
+            )
+            action_ee_pose_delta = ee_pose_list_to_np(
+                _get_scalar_data(txn, scalar_key_set, b"delta_ee_pose_action")
+            )
+
+            state_joints = state_joints_all[:, joint_indices]
+            state_gripper = state_joints_all[:, gripper_indices]
+
+            state_base = None
+            action_base = None
+            action_base_delta = None
+            if len(base_indices) > 0:
+                state_base = state_joints_all[:, base_indices]
+                if b"base_motion" in scalar_key_set:
+                    action_base_delta = np.asarray(
+                        _get_scalar_data(txn, scalar_key_set, b"base_motion"),
+                        dtype=np.float32,
+                    )
+                else:
+                    action_base_delta = np.zeros(
+                        (action_joints.shape[0], len(base_indices)), dtype=np.float32
+                    )
+
+                action_base = np.zeros_like(action_base_delta, dtype=np.float32)
+                if action_base_delta.shape[0] > 1:
+                    action_base[1:] = np.cumsum(
+                        action_base_delta[:-1], axis=0, dtype=np.float32
+                    )
+
+            _validate_episode_data(
+                state_joints=state_joints,
+                action_joints=action_joints,
+                action_joints_delta=action_joints_delta,
+                state_gripper=state_gripper,
+                action_gripper=action_gripper,
+                state_base=state_base,
+                action_base=action_base,
+                action_base_delta=action_base_delta,
+                state_ee_pose=state_ee_pose,
+                action_ee_pose=action_ee_pose,
+                action_ee_pose_delta=action_ee_pose_delta,
+                camera_frame_counts=camera_frame_counts,
+            )
+
+            process_single_dataset(
+                dataset,
+                state_joints=state_joints,
+                action_joints=action_joints,
+                action_joints_delta=action_joints_delta,
+                state_gripper=state_gripper,
+                action_gripper=action_gripper,
+                state_base=state_base,
+                action_base=action_base,
+                action_base_delta=action_base_delta,
+                state_ee_pose=state_ee_pose,
+                action_ee_pose=action_ee_pose,
+                action_ee_pose_delta=action_ee_pose_delta,
+                txn=txn,
+                camera_key_indices=camera_key_indices,
+                instruction=instruction,
+            )
+    finally:
+        lmdb_env.close()
 
 
 if __name__ == "__main__":
@@ -768,6 +736,9 @@ if __name__ == "__main__":
     )
     for lmdb_path in tqdm(os.listdir(args.data_path)):
         if os.path.isdir(os.path.join(args.data_path, lmdb_path)):
+            print("=" * 20)
+            print(f"Processing episode from {lmdb_path}...")
+            print("=" * 20)
             add_single_episode_to_dataset(
                 dataset,
                 os.path.join(args.data_path, lmdb_path),

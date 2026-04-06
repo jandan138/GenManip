@@ -54,7 +54,14 @@ class SRBasedGenmanipRange(BaseMetric):
         if self.goal_setting.x_type == "none":
             x_range = [-np.inf, np.inf]
         elif self.goal_setting.x_type == "relative":
-            rel_object = scene.object_list[self.goal_setting.x_rel_object_uid]
+            if self.goal_setting.x_rel_object_uid in scene.object_list:
+                rel_object = scene.object_list[self.goal_setting.x_rel_object_uid]
+            elif self.goal_setting.x_rel_object_uid in scene.articulation_list:
+                rel_object = scene.articulation_list[self.goal_setting.x_rel_object_uid]
+            else:
+                raise ValueError(
+                    f"Relative object {self.goal_setting.x_rel_object_uid} not found"
+                )
             x_range = [
                 (
                     rel_object.get_world_pose()[0][0] + self.goal_setting.x_range[0]
@@ -83,7 +90,14 @@ class SRBasedGenmanipRange(BaseMetric):
         if self.goal_setting.y_type == "none":
             y_range = [-np.inf, np.inf]
         elif self.goal_setting.y_type == "relative":
-            rel_object = scene.object_list[self.goal_setting.y_rel_object_uid]
+            if self.goal_setting.y_rel_object_uid in scene.object_list:
+                rel_object = scene.object_list[self.goal_setting.y_rel_object_uid]
+            elif self.goal_setting.y_rel_object_uid in scene.articulation_list:
+                rel_object = scene.articulation_list[self.goal_setting.y_rel_object_uid]
+            else:
+                raise ValueError(
+                    f"Relative object {self.goal_setting.y_rel_object_uid} not found"
+                )
             y_range = [
                 (
                     rel_object.get_world_pose()[0][1] + self.goal_setting.y_range[0]
@@ -112,7 +126,14 @@ class SRBasedGenmanipRange(BaseMetric):
         if self.goal_setting.z_type == "none":
             z_range = [-np.inf, np.inf]
         elif self.goal_setting.z_type == "relative":
-            rel_object = scene.object_list[self.goal_setting.z_rel_object_uid]
+            if self.goal_setting.z_rel_object_uid in scene.object_list:
+                rel_object = scene.object_list[self.goal_setting.z_rel_object_uid]
+            elif self.goal_setting.z_rel_object_uid in scene.articulation_list:
+                rel_object = scene.articulation_list[self.goal_setting.z_rel_object_uid]
+            else:
+                raise ValueError(
+                    f"Relative object {self.goal_setting.z_rel_object_uid} not found"
+                )
             z_range = [
                 (
                     rel_object.get_world_pose()[0][2] + self.goal_setting.z_range[0]

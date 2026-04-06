@@ -9,7 +9,7 @@ from genmanip.core.metrics.utils import MetricFactory
 from genmanip.extensions.metrics.default.sr_based_genmanip_relationship import (
     SRBasedGenmanipRelationship,
     check_subgoal_finished_rigid,
-    check_subgoal_finished_articulation
+    check_subgoal_finished_articulation,
 )
 
 
@@ -24,7 +24,8 @@ class CountMultiObjectRelationshipConfig(BaseModel):
         default=None, description="Position of the object to measure the relationship"
     )
     min_num_threshold: int = Field(
-        default=1, description="The minimum number of values ​​that satisfy the relationship between obj1_uid and obj2_uid."
+        default=1,
+        description="The minimum number of values ​​that satisfy the relationship between obj1_uid and obj2_uid.",
     )
     another_obj2_uid: str | None = Field(
         default=None,
@@ -33,17 +34,15 @@ class CountMultiObjectRelationshipConfig(BaseModel):
     status: List[List[float]] | None = Field(
         default=None, description="Status of the object to measure the relationship"
     )
-    obj1_pc_num: int = Field(
-        default=None, description="obj1 Point cloud count"
-    )
-    obj2_pc_num: int = Field(
-        default=None, description="obj1 Point cloud count"
-    )
+    obj1_pc_num: int | None = Field(default=None, description="obj1 Point cloud count")
+    obj2_pc_num: int | None = Field(default=None, description="obj1 Point cloud count")
 
 
 @MetricFactory.register("manip/default/count_multi_object_relationship")
 class CountMultiObjectRelationship(BaseMetric):
-    def __init__(self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs):
+    def __init__(
+        self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs
+    ):
         super().__init__(skip_steps, succ_cnts, sub_goal_setting, **kwargs)
         self.goal_setting = CountMultiObjectRelationshipConfig(**sub_goal_setting)
         self.obj1_uid_list_num = len(self.goal_setting.obj1_uid_list)
@@ -65,10 +64,10 @@ class CountMultiObjectRelationship(BaseMetric):
                 pcd3 = pclist[self.goal_setting.another_obj2_uid]
             else:
                 pcd3 = None
-            
+
             if self.goal_setting.obj2_uid is None:
                 raise ValueError("obj2_uid is required for position relationship")
-            
+
             for idx in range(self.obj1_uid_list_num):
                 obj1_uid = self.goal_setting.obj1_uid_list[idx]
                 pcd1 = pclist[obj1_uid]
@@ -108,18 +107,21 @@ class CountMultiObjectRelationship(BaseMetric):
         return False
 
     def _early_stop(self, idx):
-        if self.goal_setting.min_num_threshold - self.succ_num > self.obj1_uid_list_num - idx - 1:
+        if (
+            self.goal_setting.min_num_threshold - self.succ_num
+            > self.obj1_uid_list_num - idx - 1
+        ):
             return False
         elif self.goal_setting.min_num_threshold - self.succ_num == 0:
             return True
         else:
             return None
-        
+
     def _uniform_downsample(self, arr: np.ndarray, num: int) -> np.ndarray:
         n = len(arr)
         if num >= n:
             return arr
-        
+
         idx = np.linspace(0, n - 1, num, dtype=int)
 
         return arr[idx]
