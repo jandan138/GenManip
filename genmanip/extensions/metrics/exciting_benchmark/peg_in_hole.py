@@ -21,7 +21,10 @@ from genmanip.extensions.metrics.default.match_local_world_orientation import (
 
 class PegInHoleConfig(BaseModel):
     peg_uid: str = Field(..., description="Prim name or path of the peg object")
-    hole_uid: str = Field(..., description="Prim name or path of the hole object")
+    hole_uid: str = Field(
+        ..., description="Prim name or path of the target hole object"
+    )
+    base_uid: str = Field(..., description="Prim name or path of the base hole object")
     insert_ratio_range: Tuple[float, float] = Field(
         ...,
         description="Valid insertion ratio range: (min_ratio, max_ratio), 0 <= min <= max <= 1",
@@ -29,6 +32,7 @@ class PegInHoleConfig(BaseModel):
     xy_tolerance: float = Field(
         ..., description="XY position tolerance for peg-hole alignment"
     )
+    condition_type: str = Field(..., description="condition type")
 
     @field_validator("insert_ratio_range")
     @classmethod
@@ -58,11 +62,17 @@ class PegInHole(BaseMetric):
         )
 
     def check_status(self, scene):
-        target_uids = [self.setting.peg_uid, self.setting.hole_uid]
+        if self.setting.condition_type == "peg_away_from_base":
+            return not self.is_peg_in_hole(scene, self.setting.base_uid)
+        else:
+            return self.is_peg_in_hole(scene, self.setting.hole_uid)
+
+    def is_peg_in_hole(self, scene, hole_uid):
+        target_uids = [self.setting.peg_uid, hole_uid]
         pclist = SRBasedGenmanipRelationship.get_target_pc_list(scene, target_uids)
 
         peg_vertices = pclist[self.setting.peg_uid]
-        hole_vertices = pclist[self.setting.hole_uid]
+        hole_vertices = pclist[hole_uid]
 
         peg_min = peg_vertices.min(axis=0)
         peg_max = peg_vertices.max(axis=0)

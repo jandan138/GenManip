@@ -38,12 +38,14 @@ def create_video_from_image_folder_with_mediapy(
 
 
 def create_video_from_image_list_with_mediapy(
-    image_list: list[np.ndarray],
+    image_list: list[np.ndarray | bytes],
     output_video_path: str,
     fps: float = 30,
     frame_ending: str = ".png",
 ) -> None:
-    # images: list of numpy arrays
+    if image_list and isinstance(image_list[0], (bytes, bytearray, memoryview)):
+        create_video_from_image_list(image_list, output_video_path, fps=fps)
+        return
     media.write_video(output_video_path, image_list, fps=fps)  # type: ignore[attr-defined]
 
 
@@ -76,6 +78,19 @@ def compress_to_jpeg_array(image_array: np.ndarray) -> np.ndarray:
     return decoded_image
 
 
+def decode_image_frame(frame: np.ndarray | bytes) -> np.ndarray | None:
+    if isinstance(frame, np.ndarray):
+        if frame.ndim == 3 and frame.size > 0:
+            return frame
+        return None
+    if isinstance(frame, (bytes, bytearray, memoryview)):
+        buffer = np.frombuffer(frame, dtype=np.uint8)
+        frame_bgr = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+        if isinstance(frame_bgr, np.ndarray) and frame_bgr.size > 0:
+            return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    return None
+
+
 def create_video_from_image_folder(
     image_folder: str,
     output_video_path: str,
@@ -97,16 +112,26 @@ def create_video_from_image_folder(
 
 
 def create_video_from_image_list(
-    image_list: list[np.ndarray],
+    image_list: list[np.ndarray | bytes],
     output_video_path: str,
     fps: float = 30,
 ) -> None:
-    height, width, _ = image_list[0].shape
+    first_frame = None
+    for image in image_list:
+        first_frame = decode_image_frame(image)
+        if first_frame is not None:
+            break
+    if first_frame is None:
+        raise ValueError("image_list does not contain any decodable frame")
+    height, width, _ = first_frame.shape
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     for image in image_list:
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        video.write(image)
+        frame = decode_image_frame(image)
+        if frame is None:
+            continue
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        video.write(frame_bgr)
     video.release()
 
 

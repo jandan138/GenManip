@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import pickle
 import copy
+import importlib
 import tempfile
 
 import csv
@@ -166,9 +167,32 @@ def save_dict_as_pkl(dict: dict, path: str) -> None:
         pickle.dump(dict, f)
 
 
+class _CompatUnpickler(pickle.Unpickler):
+    """Handle numpy internal module path differences across environments."""
+
+    _MODULE_ALIASES = {
+        "numpy._core": "numpy.core",
+        "numpy._core.multiarray": "numpy.core.multiarray",
+        "numpy._core.numeric": "numpy.core.numeric",
+        "numpy.core": "numpy._core",
+        "numpy.core.multiarray": "numpy._core.multiarray",
+        "numpy.core.numeric": "numpy._core.numeric",
+    }
+
+    def find_class(self, module: str, name: str):
+        try:
+            return super().find_class(module, name)
+        except ModuleNotFoundError:
+            alias = self._MODULE_ALIASES.get(module)
+            if alias is None:
+                raise
+            imported = importlib.import_module(alias)
+            return getattr(imported, name)
+
+
 def load_dict_from_pkl(path: str) -> dict:
     with open(path, "rb") as f:
-        return pickle.load(f)
+        return _CompatUnpickler(f).load()
 
 
 def check_glb_properties(file_path: str) -> tuple[bool, int] | tuple[None, None]:

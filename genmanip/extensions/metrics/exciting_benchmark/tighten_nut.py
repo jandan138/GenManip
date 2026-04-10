@@ -22,6 +22,7 @@ class TightenNutConfig(BaseModel):
     xy_tolerance: float = Field(
         ..., description="XY position tolerance for nut-bolt alignment"
     )
+    condition_type: str = Field(..., description="condition type")
 
 
 @MetricFactory.register("manip/exciting_benchmark/tighten_nut")
@@ -39,16 +40,7 @@ class TightenNut(BaseMetric):
         nut_vertices = pclist[self.setting.nut_uid]
         bolt_vertices = pclist[self.setting.bolt_uid]
 
-        nut_min = nut_vertices.min(axis=0)
-        nut_max = nut_vertices.max(axis=0)
-        bolt_min = bolt_vertices.min(axis=0)
-        bolt_max = bolt_vertices.max(axis=0)
-
-        # Rule 1: Nut at the center height of the bolt.
-        if not (nut_min[2] > bolt_min[2] and nut_max[2] < bolt_max[2]):
-            return False
-
-        # Rule 2: The nut and bolt are close to each other in the xy plane.
+        # Rule: The nut and bolt are close to each other in the xy plane.
         nut_xy_center = nut_vertices[:, :2].mean(axis=0)
         bolt_xy_center = bolt_vertices[:, :2].mean(axis=0)
         xy_distance = np.linalg.norm(nut_xy_center - bolt_xy_center)
@@ -56,4 +48,19 @@ class TightenNut(BaseMetric):
         if xy_distance > self.setting.xy_tolerance:
             return False
 
-        return True
+        nut_min = nut_vertices.min(axis=0)
+        nut_max = nut_vertices.max(axis=0)
+        bolt_min = bolt_vertices.min(axis=0)
+        bolt_max = bolt_vertices.max(axis=0)
+
+        if self.setting.condition_type == "is_nut_pick_up":
+            # Rule: Nut is heigher than bolt.
+            if nut_max[2] > bolt_max[2]:
+                return True
+
+        else:
+            # Rule: Nut at the center height of the bolt.
+            if nut_min[2] > bolt_min[2] and nut_max[2] < bolt_max[2]:
+                return True
+
+        return False

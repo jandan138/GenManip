@@ -107,8 +107,8 @@ def resolve_prim_local_transform(prim: Usd.Prim) -> UsdLocalTransform:
     else:
         scale = np.asarray(scale_attr, dtype=float)
 
-    if scale_units_resolve is not None:
-        scale = scale * np.asarray(scale_units_resolve, dtype=float)
+    # if scale_units_resolve is not None:
+    #     scale = scale * np.asarray(scale_units_resolve, dtype=float)
 
     if orient_attr is not None:
         quat_wxyz = np.array(

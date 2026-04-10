@@ -66,12 +66,14 @@ class IsaacEvalEnvRay:
         self.traj_uid = uuid.uuid4().hex
 
         self.run_id = args.run_id
+        self.save_process = bool(getattr(args, "save_process", True))
         self.episode_recorder_save_every = max(
             0, int(getattr(args, "episode_recorder_save_every", 10))
         )
 
         self.episode_start_time = None
         self.episode_end_time = None
+        self.invalid_state_tail_steps = 30
 
     def _detect_invalid_state(
         self,
@@ -342,6 +344,20 @@ class IsaacEvalEnvRay:
         recorder.record_obs(obs)
         return serialize_data(obs)
 
+    def _record_invalid_state_tail(self) -> None:
+        scene = self._require_scene()
+        steps = max(0, int(self.invalid_state_tail_steps))
+        if steps <= 0:
+            return
+
+        self.logger.info(
+            "Recording %s additional steps after invalid state before termination",
+            steps,
+        )
+        for _ in range(steps):
+            scene.world.step(render=not self.args.without_render)
+            self.get_obs()
+
     def step(self, action: dict[str, Any]):
         if not self.simulation_app.is_running():
             return None, 0, True, {"error": "Sim closed"}
@@ -417,6 +433,7 @@ class IsaacEvalEnvRay:
                 self._step_cnt,
                 invalid_reason,
             )
+            self._record_invalid_state_tail()
             self.done = True
             return (
                 self.get_obs(),
@@ -526,6 +543,7 @@ class IsaacEvalEnvRay:
             result_info_dir=base_traj_dir,
             camera_names=list(scene.camera_list.keys()),
             instruction=self.instruction,
+            save_process=self.save_process,
             save_every=self.episode_recorder_save_every,
             with_render=not self.args.without_render,
         )

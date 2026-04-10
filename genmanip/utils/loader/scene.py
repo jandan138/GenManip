@@ -1124,7 +1124,6 @@ def recovery_scene(
                 os.path.join(default_config["ASSETS_DIR"], path)
             ):
                 continue
-                # raise ValueError(f"Object {key} with path {path} does not exist: {os.path.join(default_config['ASSETS_DIR'], path)}")
             scene.object_list[key] = preload_object(
                 os.path.join(default_config["ASSETS_DIR"], path),
                 scene.uuid,
@@ -1240,27 +1239,37 @@ def recovery_scene(
 
     if "random_visuals" in task_data:
         for prim_path, visual_info in task_data["random_visuals"].items():
-            asset_path = os.path.join(
-                default_config["ASSETS_DIR"], visual_info["asset_path"]
-            )
-            if not os.path.exists(asset_path):
-                raise ValueError(f"Asset path does not exist: {asset_path}")
             if visual_info["type"] == "mdl":
                 if not is_prim_path_valid(prim_path):
                     print(
                         f"[WARN] Skip random_visual mdl for invalid prim path: {prim_path}"
                     )
                     continue
-                set_mdl(prim_path, asset_path)
+                set_mdl(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
             elif visual_info["type"] == "dome_light":
-                create_dome_light(prim_path, asset_path)
+                create_dome_light(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
             elif visual_info["type"] == "texture":
                 if not is_prim_path_valid(prim_path):
                     print(
                         f"[WARN] Skip random_visual texture for invalid prim path: {prim_path}"
                     )
                     continue
-                set_texture(prim_path, asset_path)
+                set_texture(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
             else:
                 raise ValueError(f"Invalid visual type: {visual_info['type']}")
     return layout

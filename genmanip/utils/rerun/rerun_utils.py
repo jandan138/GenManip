@@ -14,14 +14,17 @@ try:
     import mediapy
     from genmanip.utils.standalone.frame_utils import (
         create_video_from_image_list_with_mediapy as _create_video,
+        decode_image_frame,
     )
 except (ImportError, ModuleNotFoundError, OSError):
     try:
         from genmanip.utils.standalone.frame_utils import (
             create_video_from_image_list as _create_video,
+            decode_image_frame,
         )
     except (ImportError, ModuleNotFoundError, AttributeError):
         _create_video = None
+        decode_image_frame = None
 
 RERUN_HAS_WARNING = False
 
@@ -319,7 +322,12 @@ def log_episode_to_rerun(
                     )
             else:
                 for camera_name, rgb_list in rgb_dict.items():
-                    rr.log(f"cameras/{camera_name}", rr.Image(rgb_list[t]))
+                    if decode_image_frame is None:
+                        continue
+                    frame = decode_image_frame(rgb_list[t])
+                    if frame is None:
+                        continue
+                    rr.log(f"cameras/{camera_name}", rr.Image(frame))
 
         if joint_list is not None:
             joints = to_np(joint_list[t]).astype(np.float32).reshape(-1)

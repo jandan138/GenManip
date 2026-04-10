@@ -18,6 +18,7 @@ from queue import Queue
 from typing import Any, Sequence
 
 import numpy as np
+import cv2
 
 from huggingface_hub import snapshot_download
 import lmdb
@@ -412,6 +413,7 @@ class EpisodeRecorder:
     result_info_dir: str
     camera_names: list[str]
     instruction: str
+    save_process: bool = True
     save_every: int = 10
     image_list: dict[str, list[Any]] = field(default_factory=dict)
     meta_record: dict[str, Any] = field(default_factory=dict)
@@ -425,6 +427,7 @@ class EpisodeRecorder:
         result_info_dir: str,
         camera_names: Sequence[str],
         instruction: str,
+        save_process: bool = True,
         save_every: int = 10,
         with_render: bool = True,
     ) -> "EpisodeRecorder":
@@ -435,7 +438,7 @@ class EpisodeRecorder:
             raise ValueError(
                 "result_info_dir must be different from traj_log_dir for evaluator outputs"
             )
-        if with_render and save_every > 0:
+        if save_process and with_render and save_every > 0:
             for camera_name in camera_names:
                 make_dir(os.path.join(traj_log_dir, camera_name))
         image_list = {name: [] for name in camera_names}
@@ -452,23 +455,63 @@ class EpisodeRecorder:
             result_info_dir=result_info_dir,
             camera_names=list(camera_names),
             instruction=instruction,
+            save_process=save_process,
             save_every=save_every,
             image_list=image_list,
             meta_record=meta_record,
         )
 
     def record_model_output(self, *, arm_action: Any, base_motion: Any) -> None:
+        if not self.save_process:
+            return
         self.meta_record["model_output"].append(
             {"arm_action": arm_action, "base_motion": base_motion}
         )
 
+    @staticmethod
+    def _is_valid_frame(frame: Any) -> bool:
+        return isinstance(frame, np.ndarray) and frame.ndim == 3 and frame.size > 0
+
+    @staticmethod
+    def _encode_frame(frame: np.ndarray, jpeg_quality: int = 85) -> bytes | None:
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        ok, buf = cv2.imencode(
+            ".jpg",
+            frame_bgr,
+            [int(cv2.IMWRITE_JPEG_QUALITY), int(jpeg_quality)],
+        )
+        if not ok:
+            return None
+        return buf.tobytes()
+
     def record_obs(self, _obs: dict) -> int:
         obs = copy.deepcopy(_obs)
+        if not self.save_process:
+            self.steps += 1
+            return self.steps
         for camera_name in self.camera_names:
             key = f"video.{camera_name}_view"
             if key not in obs:
                 continue
-            self.image_list[camera_name].append(obs[key])
+            frame = obs[key]
+            if not self._is_valid_frame(frame):
+                warnings.warn(
+                    f"Skip invalid frame for camera '{camera_name}' at step {self.steps} "
+                    f"under {self.result_info_dir}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                continue
+            encoded = self._encode_frame(frame)
+            if encoded is None:
+                warnings.warn(
+                    f"JPEG encode failed for camera '{camera_name}' at step {self.steps} "
+                    f"under {self.result_info_dir}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                continue
+            self.image_list[camera_name].append(encoded)
             should_save_frame = (
                 self.save_every > 0 and self.steps % self.save_every == 0
             )
@@ -476,7 +519,7 @@ class EpisodeRecorder:
                 camera_dir = os.path.join(self.traj_log_dir, camera_name)
                 if os.path.exists(camera_dir):
                     save_image(
-                        obs[key],
+                        frame,
                         os.path.join(camera_dir, f"{str(self.steps).zfill(5)}.png"),
                     )
 
@@ -498,46 +541,47 @@ class EpisodeRecorder:
     def finalize(
         self, score: float, episode_start_time: str, episode_end_time: str
     ) -> None:
-        action_list = []
-        for item in self.meta_record["model_output"]:
-            action_list.append(item["arm_action"])
-        action_list = np.array(action_list) if action_list else None
-        joint_list = (
-            np.array(self.meta_record["joint_positions"])
-            if self.meta_record["joint_positions"]
-            else None
-        )
-        gripper_list = (
-            np.array(self.meta_record["gripper_positions"])
-            if self.meta_record["gripper_positions"]
-            else None
-        )
-        base_list = (
-            np.array(self.meta_record["base_positions"])
-            if self.meta_record["base_positions"]
-            else None
-        )
-        log_episode_to_rerun(
-            self.image_list,
-            action_list,
-            joint_list,
-            gripper_list,
-            base_list,
-            rrd_path=os.path.join(self.result_info_dir, "episode.rrd"),
-            robot_id=self.meta_record.get("robot_id"),
-        )
+        if self.save_process:
+            action_list = []
+            for item in self.meta_record["model_output"]:
+                action_list.append(item["arm_action"])
+            action_list = np.array(action_list) if action_list else None
+            joint_list = (
+                np.array(self.meta_record["joint_positions"])
+                if self.meta_record["joint_positions"]
+                else None
+            )
+            gripper_list = (
+                np.array(self.meta_record["gripper_positions"])
+                if self.meta_record["gripper_positions"]
+                else None
+            )
+            base_list = (
+                np.array(self.meta_record["base_positions"])
+                if self.meta_record["base_positions"]
+                else None
+            )
+            log_episode_to_rerun(
+                self.image_list,
+                action_list,
+                joint_list,
+                gripper_list,
+                base_list,
+                rrd_path=os.path.join(self.result_info_dir, "episode.rrd"),
+                robot_id=self.meta_record.get("robot_id"),
+            )
 
-        for camera_name in self.camera_names:
-            if len(self.image_list[camera_name]) > 0:
-                create_video_from_image_list(
-                    self.image_list[camera_name],
-                    os.path.join(self.result_info_dir, camera_name + ".mp4"),
-                )
+            for camera_name in self.camera_names:
+                if len(self.image_list[camera_name]) > 0:
+                    create_video_from_image_list(
+                        self.image_list[camera_name],
+                        os.path.join(self.result_info_dir, camera_name + ".mp4"),
+                    )
                 self.image_list[camera_name] = []
 
-        remove_dir_best_effort(self.traj_log_dir)
+            self.save_meta_record()
 
-        self.save_meta_record()
+        remove_dir_best_effort(self.traj_log_dir)
 
         save_dict_to_json_atomic(
             {

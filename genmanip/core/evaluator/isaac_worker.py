@@ -33,6 +33,22 @@ def import_modules():
     from pydantic import BaseModel, Field
 
 
+def _read_proc_status_memory_kb() -> dict[str, int]:
+    memory_fields = ("VmRSS", "RssAnon", "RssFile", "VmSize", "VmSwap")
+    result: dict[str, int] = {}
+    try:
+        with open("/proc/self/status", "r", encoding="utf-8") as f:
+            for line in f:
+                for field in memory_fields:
+                    if line.startswith(f"{field}:"):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            result[field] = int(parts[1])
+    except OSError:
+        return {}
+    return result
+
+
 @ray.remote(num_gpus=NUM_GPUS_REQUIRED_PER_JOB, max_restarts=3, max_task_retries=3)
 class IsaacWorker:
     def __init__(
@@ -105,23 +121,47 @@ class IsaacWorker:
 
         self.logger.info("IsaacWorker init finished.")
 
+    def _log_memory_snapshot(self, tag: str) -> None:
+        mem = _read_proc_status_memory_kb()
+        if not mem:
+            self.logger.info("Memory snapshot unavailable tag=%s", tag)
+            return
+        self.logger.info(
+            "Memory snapshot tag=%s VmRSS=%.2fGiB RssAnon=%.2fGiB "
+            "RssFile=%.2fGiB VmSize=%.2fGiB VmSwap=%.2fGiB",
+            tag,
+            mem.get("VmRSS", 0) / 1024 / 1024,
+            mem.get("RssAnon", 0) / 1024 / 1024,
+            mem.get("RssFile", 0) / 1024 / 1024,
+            mem.get("VmSize", 0) / 1024 / 1024,
+            mem.get("VmSwap", 0) / 1024 / 1024,
+        )
+
     def reset(
         self, seed: str, current_eval_config: dict, default_config: dict | None = None
     ):
+        reset_start = time.perf_counter()
         try:
             self.logger.info(f"Reset called with seed={seed}")
+            self._log_memory_snapshot("before_reset")
             obs, self.current_task_info = self.env.reset(
                 seed, current_eval_config, default_config
             )
+            self._log_memory_snapshot("after_reset")
+            reset_elapsed = time.perf_counter() - reset_start
 
             if self.current_task_info is None:
-                self.logger.info("No task info returned from env.reset()")
+                self.logger.info(
+                    "No task info returned from env.reset(). reset_time=%.4fs",
+                    reset_elapsed,
+                )
                 return None
 
             self.logger.info(
-                "Running Task: %s, Seed: %s",
-                self.current_task_info['task'],
-                self.current_task_info['seed'],
+                "Running Task: %s, Seed: %s, reset_time=%.4fs",
+                self.current_task_info["task"],
+                self.current_task_info["seed"],
+                reset_elapsed,
             )
             return obs
         except Exception:
@@ -144,10 +184,20 @@ class IsaacWorker:
             raise
 
     def post_episode_process(self):
+        process_start = time.perf_counter()
         try:
             self.logger.info("post_episode_process called.")
-            return self.env.post_episode_process(None)
+            self._log_memory_snapshot("before_post_episode_process")
+            result = self.env.post_episode_process(None)
+            self._log_memory_snapshot("after_post_episode_process")
+            self.logger.info(
+                "post_episode_process finished result=%s elapsed=%.4fs",
+                result,
+                time.perf_counter() - process_start,
+            )
+            return result
         except Exception:
+            self._log_memory_snapshot("post_episode_process_exception")
             self.logger.exception(
                 "Worker %s post_episode_process failed", self.worker_id
             )

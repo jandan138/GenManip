@@ -2,10 +2,6 @@ import math
 from typing import Tuple, Any
 from pydantic import BaseModel, Field, field_validator
 
-import omni.usd
-from pxr import UsdPhysics
-from omni.isaac.core.articulations import Articulation
-
 from genmanip.core.metrics.base import BaseMetric
 from genmanip.core.metrics.utils import MetricFactory
 

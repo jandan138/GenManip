@@ -32,6 +32,7 @@ class InstallGearConfig(BaseModel):
     z_tolerance: float = Field(
         ..., description="Z position tolerance for gears alignment"
     )
+    condition_type: str = Field(..., description="condition type")
 
 
 @MetricFactory.register("manip/exciting_benchmark/install_gear")
@@ -54,14 +55,18 @@ class InstallGear(BaseMetric):
         fix_gear_2_vertices = pclist[self.setting.fix_gear_2_uid]
         target_gear_vertices = pclist[self.setting.target_gear_uid]
 
-        # Rule 1: The gears are at the same height.
-        fix_gear_1_z_center = fix_gear_1_vertices[:, 2].mean(axis=0)
-        target_gear_z_center = target_gear_vertices[:, 2].mean(axis=0)
+        if self.setting.condition_type == "is_coupling":
+            # Rule: The gears are at the same height.
+            fix_gear_1_z_center = fix_gear_1_vertices[:, 2].mean(axis=0)
+            target_gear_z_center = target_gear_vertices[:, 2].mean(axis=0)
 
-        if abs(fix_gear_1_z_center - target_gear_z_center) > self.setting.z_tolerance:
-            return False
+            if (
+                abs(fix_gear_1_z_center - target_gear_z_center)
+                > self.setting.z_tolerance
+            ):
+                return False
 
-        # Rule 2: The target gear is in a reasonable position in the xy plane.
+        # Rule: The target gear is in a reasonable position in the xy plane.
         xy_central_constraint = InstallGear.near_segment(
             target_gear_vertices[:, :2].mean(axis=0),
             fix_gear_1_vertices[:, :2].mean(axis=0),
