@@ -1,5 +1,5 @@
 [
     "ebench/generalist/val_train/val_train.json",
     "ebench/generalist/val_unseen/val_unseen.json",
-    "ebench/generalist/test/test_mini.json"
+    "ebench/generalist/test_mini/test_mini.json"
 ]
