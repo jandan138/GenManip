@@ -6,6 +6,7 @@ Licensed under the MIT License.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 from genmanip.core.metrics.utils import MetricFactory
 
@@ -57,6 +58,12 @@ class MetricsManager:
         return metrics
 
     def step(self, scene) -> float | None:
+        # OPT: per-frame cache that metrics can share (transformed point
+        # clouds, convex hulls). Cleared at the top of every step so results
+        # can never go stale across ticks.
+        scene._frame_pc_cache = {}
+        scene._frame_hull_cache = {}
+        scene._frame_tree_cache = {}
         if self.cur_union_metric is None:
             return self.calc_overall_score()
         if isinstance(self.metric_score, float):

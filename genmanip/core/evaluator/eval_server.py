@@ -200,8 +200,20 @@ class EvalServer:
 
             try:
                 chunk_timeout = self.step_timeout * max(1, len(action_chunk))
+                try:
+                    subframes = int(request.query_params.get("subframes", "2"))
+                except (TypeError, ValueError):
+                    subframes = 2
+                render_mode = request.query_params.get("render_mode", "lite")
+                if render_mode not in ("lite", "always"):
+                    render_mode = "lite"
                 response_data = await asyncio.wait_for(
-                    asyncio.to_thread(pool.step_chunk, action_chunk),
+                    asyncio.to_thread(
+                        pool.step_chunk,
+                        action_chunk,
+                        render_mode,
+                        subframes,
+                    ),
                     timeout=chunk_timeout,
                 )
             except asyncio.TimeoutError:

@@ -484,15 +484,49 @@ class EpisodeRecorder:
             return None
         return buf.tobytes()
 
-    def record_obs(self, _obs: dict) -> int:
-        obs = copy.deepcopy(_obs)
+    def record_obs(
+        self,
+        _obs: dict,
+        precomputed_jpeg: dict | None = None,
+        raw_frames: dict | None = None,
+    ) -> int:
         if not self.save_process:
             self.steps += 1
             return self.steps
+        # Avoid copy.deepcopy(_obs) — the raw RGB frames (~11 MB/step for 4
+        # cameras) are only read here, not mutated, and the caller serialises
+        # obs synchronously after this call returns. Deep-copying every step
+        # was allocating ~30 GB per episode.
+        obs = _obs
+        precomputed_jpeg = precomputed_jpeg or {}
         for camera_name in self.camera_names:
             key = f"video.{camera_name}_view"
             if key not in obs:
                 continue
+            # Prefer pre-encoded JPEG bytes (avoids a second cv2 encode).
+            pre = precomputed_jpeg.get(camera_name)
+            if pre is not None:
+                encoded = pre.get("data")
+                if encoded:
+                    self.image_list[camera_name].append(encoded)
+                    # Still honour PNG save_every using the raw frame if available.
+                    if (
+                        self.save_every > 0
+                        and self.steps % self.save_every == 0
+                        and raw_frames is not None
+                        and camera_name in raw_frames
+                    ):
+                        camera_dir = os.path.join(self.traj_log_dir, camera_name)
+                        if os.path.exists(camera_dir):
+                            save_image(
+                                raw_frames[camera_name],
+                                os.path.join(
+                                    camera_dir,
+                                    f"{str(self.steps).zfill(5)}.png",
+                                ),
+                            )
+                    continue
+
             frame = obs[key]
             if not self._is_valid_frame(frame):
                 warnings.warn(
@@ -537,6 +571,21 @@ class EpisodeRecorder:
     def save_meta_record(self) -> None:
         with open(os.path.join(self.result_info_dir, "meta_record.pkl"), "wb") as f:
             pickle.dump(self.meta_record, f)
+
+    def build_finalize_payload(
+        self, score: float, episode_start_time: str, episode_end_time: str
+    ) -> dict[str, Any]:
+        return {
+            "traj_log_dir": self.traj_log_dir,
+            "result_info_dir": self.result_info_dir,
+            "camera_names": list(self.camera_names),
+            "save_process": self.save_process,
+            "image_list": self.image_list,
+            "meta_record": self.meta_record,
+            "score": score,
+            "episode_start_time": episode_start_time,
+            "episode_end_time": episode_end_time,
+        }
 
     def finalize(
         self, score: float, episode_start_time: str, episode_end_time: str
@@ -594,3 +643,20 @@ class EpisodeRecorder:
             },
             os.path.join(self.result_info_dir, "result_info.json"),
         )
+
+
+def finalize_episode_recorder_payload(payload: dict[str, Any]) -> None:
+    recorder = EpisodeRecorder(
+        traj_log_dir=payload["traj_log_dir"],
+        result_info_dir=payload["result_info_dir"],
+        camera_names=list(payload["camera_names"]),
+        instruction=str(payload["meta_record"].get("instruction", "")),
+        save_process=bool(payload["save_process"]),
+        image_list=payload["image_list"],
+        meta_record=payload["meta_record"],
+    )
+    recorder.finalize(
+        float(payload["score"]),
+        str(payload["episode_start_time"]),
+        str(payload["episode_end_time"]),
+    )

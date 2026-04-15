@@ -1,5 +1,6 @@
 import os
 import logging
+import multiprocessing
 import sys
 import time
 
@@ -12,6 +13,7 @@ from genmanip.core.evaluator.logging_utils import (
     make_log_file_timestamp,
     redirect_std_streams,
 )
+from genmanip.core.evaluator.utils import finalize_episode_recorder_payload
 
 
 GPU_MEMORY = torch.cuda.get_device_properties(0).total_memory
@@ -47,6 +49,25 @@ def _read_proc_status_memory_kb() -> dict[str, int]:
     except OSError:
         return {}
     return result
+
+
+def _run_finalize_payload(
+    payload: dict, log_path: str, worker_id: str, run_id: str | None
+) -> None:
+    logger = build_file_logger(
+        logger_name=f"IsaacWorkerFinalize-{run_id or 'default'}-{worker_id}-{os.getpid()}",
+        log_path=log_path,
+    )
+    redirect_std_streams(logger, logger)
+    logger.info("Background post-episode process started pid=%s", os.getpid())
+    try:
+        finalize_episode_recorder_payload(payload)
+        logger.info("Background post-episode process finished successfully")
+    except Exception:
+        logger.exception(
+            "Background post-episode process failed for worker=%s", worker_id
+        )
+        raise
 
 
 @ray.remote(num_gpus=NUM_GPUS_REQUIRED_PER_JOB, max_restarts=3, max_task_retries=3)
@@ -118,8 +139,25 @@ class IsaacWorker:
             benchmark_id=self.benchmark_id,
         )
         self.current_task_info = None
+        self._finalize_processes: list[multiprocessing.Process] = []
+        self._episode_step_time_total = 0.0
+        self._episode_step_count = 0
 
         self.logger.info("IsaacWorker init finished.")
+
+    def _reap_finalize_processes(self) -> None:
+        alive_processes: list[multiprocessing.Process] = []
+        for proc in self._finalize_processes:
+            if proc.is_alive():
+                alive_processes.append(proc)
+                continue
+            proc.join(timeout=0)
+            self.logger.info(
+                "Background post-episode process exited pid=%s exitcode=%s",
+                proc.pid,
+                proc.exitcode,
+            )
+        self._finalize_processes = alive_processes
 
     def _log_memory_snapshot(self, tag: str) -> None:
         mem = _read_proc_status_memory_kb()
@@ -137,12 +175,20 @@ class IsaacWorker:
             mem.get("VmSwap", 0) / 1024 / 1024,
         )
 
+    def get_memory_snapshot(self) -> dict[str, float]:
+        mem = _read_proc_status_memory_kb()
+        if not mem:
+            return {}
+        return {key: value / 1024 / 1024 for key, value in mem.items()}
+
     def reset(
         self, seed: str, current_eval_config: dict, default_config: dict | None = None
     ):
         reset_start = time.perf_counter()
         try:
             self.logger.info(f"Reset called with seed={seed}")
+            self._episode_step_time_total = 0.0
+            self._episode_step_count = 0
             self._log_memory_snapshot("before_reset")
             obs, self.current_task_info = self.env.reset(
                 seed, current_eval_config, default_config
@@ -173,12 +219,119 @@ class IsaacWorker:
             start_time = time.time()
             obs, _, done, info = self.env.step(action)
             step_time = time.time() - start_time
+            self._episode_step_time_total += step_time
+            self._episode_step_count += 1
             self.logger.debug("Env %s step time: %.4f", self.worker_id, step_time)
             if done:
+                avg_step_time = (
+                    self._episode_step_time_total / self._episode_step_count
+                    if self._episode_step_count > 0
+                    else 0.0
+                )
                 self.logger.info(
-                    "Episode done. last_step_time=%.4f info=%s", step_time, info
+                    "Episode done. avg_step_time=%.4f step_count=%s info=%s",
+                    avg_step_time,
+                    self._episode_step_count,
+                    info,
                 )
             return obs, done, info
+        except Exception:
+            self.logger.exception("Worker %s step failed", self.worker_id)
+            raise
+
+    def step_chunk(
+        self,
+        action_list,
+        render_mode: str = "lite",
+        subframes: int = 2,
+    ):
+        """Execute a chunk of actions in one Ray RPC.
+
+        N-1 intermediate actions are stepped with skip_obs=True and
+        skip_render=True (the server drops the expensive camera fetch +
+        JPEG encode and tells Isaac Sim to skip the rendering pass). The
+        final action runs the full env.step so the returned obs is
+        populated as usual.
+
+        If any intermediate step terminates the episode (invalid state /
+        goal reached / num_steps exceeded), we fetch a full obs at that
+        point, stop the chunk, and return how many steps actually ran so
+        the client can account for them.
+
+        When env.save_process is True the lite flags are ignored inside
+        env.step so video recording stays complete — the chunk still
+        collapses into a single Ray RPC though, which is itself a win.
+        """
+        try:
+            if not isinstance(action_list, list) or not action_list:
+                raise ValueError("action_list must be a non-empty list")
+
+            last_idx = len(action_list) - 1
+            executed = 0
+            final_obs = None
+            final_done = False
+            final_info: dict = {}
+
+            start_time = time.time()
+            # render_mode:
+            #   "always" — every step runs world.step(render=True); intermediate
+            #              obs is still skipped (no camera read-back / JPEG)
+            #              to save ~60 ms/step, but the RTX pipeline keeps
+            #              accumulating TAA / denoiser state every tick.
+            #              Per-action cost ≈ 95 ms, PSNR ≈ 47 dB.
+            #   "lite"   — intermediate steps skip both obs AND the render
+            #              pass; the final step catches up with `subframes`
+            #              extra world.render() passes. Per-action cost
+            #              ≈ 48 ms (for subframes=2), PSNR ≈ 36-37 dB mean.
+            lite = render_mode == "lite"
+            for i, action in enumerate(action_list):
+                is_last = i == last_idx
+                obs, _, done, info = self.env.step(
+                    action,
+                    skip_obs=not is_last,
+                    skip_render=lite and (not is_last),
+                    subframes=(subframes if (lite and is_last) else 0),
+                )
+                executed += 1
+                final_done = bool(done)
+                final_info = info
+                if final_done:
+                    # An intermediate step terminated early — obs may be None
+                    # because we requested skip_obs. Fetch a full obs so the
+                    # client still sees the final state.
+                    if obs is None:
+                        obs = self.env.get_obs()
+                    final_obs = obs
+                    break
+                if is_last:
+                    final_obs = obs
+
+            total = time.time() - start_time
+            self._episode_step_time_total += total
+            self._episode_step_count += executed
+            self.logger.debug(
+                "Env %s step_chunk executed=%d time=%.4f",
+                self.worker_id,
+                executed,
+                total,
+            )
+            if final_done:
+                avg_step_time = (
+                    self._episode_step_time_total / self._episode_step_count
+                    if self._episode_step_count > 0
+                    else 0.0
+                )
+                self.logger.info(
+                    "Episode done in chunk. executed=%d chunk_time=%.4f "
+                    "avg_step_time=%.4f total_step_time=%.4f step_count=%s info=%s",
+                    executed,
+                    total,
+                    avg_step_time,
+                    self._episode_step_time_total,
+                    self._episode_step_count,
+                    final_info,
+                )
+            return final_obs, final_done, final_info, executed
         except Exception:
             self.logger.exception("Worker %s step failed", self.worker_id)
             raise
@@ -186,16 +339,39 @@ class IsaacWorker:
     def post_episode_process(self):
         process_start = time.perf_counter()
         try:
+            self._reap_finalize_processes()
             self.logger.info("post_episode_process called.")
             self._log_memory_snapshot("before_post_episode_process")
             result = self.env.post_episode_process(None)
             self._log_memory_snapshot("after_post_episode_process")
+            score = None
+            if isinstance(result, dict):
+                score = result.get("score")
+                finalize_payload = result.get("finalize_payload")
+                if finalize_payload is not None:
+                    ctx = multiprocessing.get_context("spawn")
+                    proc = ctx.Process(
+                        target=_run_finalize_payload,
+                        args=(
+                            finalize_payload,
+                            self.log_path,
+                            self.worker_id,
+                            getattr(self.args, "run_id", None),
+                        ),
+                    )
+                    proc.start()
+                    self._finalize_processes.append(proc)
+                    self.logger.info(
+                        "Spawned background post-episode process pid=%s for worker=%s",
+                        proc.pid,
+                        self.worker_id,
+                    )
             self.logger.info(
                 "post_episode_process finished result=%s elapsed=%.4fs",
-                result,
+                score if score is not None else result,
                 time.perf_counter() - process_start,
             )
-            return result
+            return score if score is not None else result
         except Exception:
             self._log_memory_snapshot("post_episode_process_exception")
             self.logger.exception(
@@ -214,6 +390,18 @@ class IsaacWorker:
     def close(self):
         try:
             self.logger.info("Closing IsaacWorker...")
+            self._reap_finalize_processes()
+            for proc in self._finalize_processes:
+                self.logger.info(
+                    "Waiting for background post-episode process pid=%s", proc.pid
+                )
+                proc.join()
+                self.logger.info(
+                    "Background post-episode process joined pid=%s exitcode=%s",
+                    proc.pid,
+                    proc.exitcode,
+                )
+            self._finalize_processes = []
             self.env.close()
             self.simulation_app.close()
             self.logger.info("IsaacWorker closed.")

@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import numpy as np
 import os
 from typing import Any
@@ -24,7 +25,7 @@ from genmanip.utils.standalone.file_utils import (
     load_dict_from_pkl,
     make_dir,
 )
-from genmanip.utils.standalone.io_utils import serialize_data
+from genmanip.utils.standalone.io_utils import serialize_data, _jpeg
 from genmanip.utils.standalone.utils import setup_logger, tuple_to_list
 from genmanip.utils.standalone.version_utils import process_archived_config
 from genmanip.utils.usd_utils import get_eval_camera_data, remove_colliders
@@ -82,10 +83,14 @@ class IsaacEvalEnvRay:
         prev_arm_position: np.ndarray,
         prev_gripper_position: np.ndarray,
         prev_base_position: np.ndarray,
+        cached_joint_positions=None,
     ) -> str | None:
-        current_joint_position = embodiment.robot.get_joint_positions()[
-            embodiment.default_dof_indices
-        ]
+        # OPT: reuse cached full joint positions if provided.
+        if cached_joint_positions is None:
+            full_jp = embodiment.robot.get_joint_positions()
+        else:
+            full_jp = cached_joint_positions
+        current_joint_position = full_jp[embodiment.default_dof_indices]
         current_arm_position = current_joint_position[
             embodiment.default_arm_dof_indices
         ]
@@ -94,9 +99,7 @@ class IsaacEvalEnvRay:
         ]
 
         if isinstance(embodiment, DualArmEmbodiment):
-            current_base_position = embodiment.robot.get_joint_positions()[
-                embodiment.base_dof_indices
-            ]
+            current_base_position = full_jp[embodiment.base_dof_indices]
         else:
             current_base_position = np.zeros(3, dtype=np.float64)
 
@@ -293,7 +296,7 @@ class IsaacEvalEnvRay:
             return [left_pose, right_pose]  # type: ignore
         return [embodiment.fk_single(joint_positions)]
 
-    def get_obs(self):
+    def get_obs(self, cached_joint_positions=None):
         scene = self._require_scene()
         embodiment = scene.robot_list[0]
         recorder = self._require_recorder()
@@ -302,13 +305,15 @@ class IsaacEvalEnvRay:
         seed = self._require_seed()
         task_name = scene_config.task_name
 
-        self.current_joint_position = embodiment.robot.get_joint_positions()[
-            embodiment.default_dof_indices
-        ]
+        # OPT: cache full get_joint_positions() once; avoids 3x GPU->CPU syncs.
+        if cached_joint_positions is None:
+            full_jp = embodiment.robot.get_joint_positions()
+        else:
+            full_jp = cached_joint_positions
+
+        self.current_joint_position = full_jp[embodiment.default_dof_indices]
         if isinstance(embodiment, DualArmEmbodiment):
-            current_base_position = embodiment.robot.get_joint_positions()[
-                embodiment.base_dof_indices
-            ]
+            current_base_position = full_jp[embodiment.base_dof_indices]
         else:
             current_base_position = [0.0, 0.0, 0.0]
         current_arm_position = self.current_joint_position[
@@ -318,10 +323,15 @@ class IsaacEvalEnvRay:
             embodiment.default_gripper_dof_indices
         ]
 
+        _t0 = time.perf_counter()
         camera_data = {}
         if not self.args.without_render:
             camera_data = get_eval_camera_data(scene.camera_list)
-        ee_pose = embodiment.fk_single(embodiment.robot.get_joint_positions())
+        self._phase_add("get_obs.camera", time.perf_counter() - _t0)
+
+        _t0 = time.perf_counter()
+        ee_pose = embodiment.fk_single(full_jp)
+        self._phase_add("get_obs.fk", time.perf_counter() - _t0)
 
         if self.instruction is None:
             raise ValueError("Instruction not initialized")
@@ -339,10 +349,45 @@ class IsaacEvalEnvRay:
             "robot_id": scene_config.robots[0].type,
         }
 
+        # OPT: encode each camera RGB once with TurboJPEG, then share the
+        # bytes between recorder storage and serialize_data wire format.
+        _t0 = time.perf_counter()
+        from turbojpeg import TJPF_RGB
+
+        encoded_cams: dict[str, dict] = {}
+        raw_cams: dict[str, np.ndarray] = {}
         for camera, img in camera_data.items():
-            obs[f"video.{camera}_view"] = img["rgb"]
-        recorder.record_obs(obs)
-        return serialize_data(obs)
+            rgb = img["rgb"]
+            key = f"video.{camera}_view"
+            if (
+                isinstance(rgb, np.ndarray)
+                and rgb.dtype == np.uint8
+                and rgb.ndim == 3
+                and rgb.shape[2] in (3, 4)
+            ):
+                if rgb.shape[2] == 4:
+                    rgb = rgb[:, :, :3]
+                raw_cams[camera] = rgb
+                jb = _jpeg.encode(rgb, quality=85, pixel_format=TJPF_RGB)
+                encoded_cams[camera] = {
+                    "type": "jpeg_bytes",
+                    "dtype": str(rgb.dtype),
+                    "shape": rgb.shape,
+                    "data": jb,
+                }
+                obs[key] = encoded_cams[camera]
+            else:
+                obs[key] = rgb
+        self._phase_add("get_obs.jpeg", time.perf_counter() - _t0)
+
+        _t0 = time.perf_counter()
+        recorder.record_obs(obs, precomputed_jpeg=encoded_cams, raw_frames=raw_cams)
+        self._phase_add("get_obs.record", time.perf_counter() - _t0)
+
+        _t0 = time.perf_counter()
+        out = serialize_data(obs)
+        self._phase_add("get_obs.serialize", time.perf_counter() - _t0)
+        return out
 
     def _record_invalid_state_tail(self) -> None:
         scene = self._require_scene()
@@ -358,7 +403,47 @@ class IsaacEvalEnvRay:
             scene.world.step(render=not self.args.without_render)
             self.get_obs()
 
-    def step(self, action: dict[str, Any]):
+    # ── Phase timer (for optimization profiling) ──────────────────
+    def _phase_add(self, label: str, dt: float) -> None:
+        pt = getattr(self, "_phase_totals", None)
+        if pt is None:
+            self._phase_totals = {}
+            self._phase_counts = {}
+            pt = self._phase_totals
+        self._phase_totals[label] = pt.get(label, 0.0) + dt
+        self._phase_counts[label] = self._phase_counts.get(label, 0) + 1
+
+    def _phase_report(self) -> None:
+        pt = getattr(self, "_phase_totals", None)
+        if not pt:
+            return
+        total = sum(pt.values())
+        parts = sorted(pt.items(), key=lambda kv: -kv[1])
+        msg = (
+            "[phase] total=%.3fs" % total
+            + " | "
+            + " ".join(
+                "%s=%.1fms(%d,%.1f%%)"
+                % (
+                    k,
+                    1000 * v / max(1, self._phase_counts[k]),
+                    self._phase_counts[k],
+                    100 * v / total if total else 0.0,
+                )
+                for k, v in parts
+            )
+        )
+        self.logger.debug(msg)
+        self._phase_totals.clear()
+        self._phase_counts.clear()
+
+    def step(
+        self,
+        action: dict[str, Any],
+        skip_obs: bool = False,
+        skip_render: bool = False,
+        subframes: int = 0,
+    ):
         if not self.simulation_app.is_running():
             return None, 0, True, {"error": "Sim closed"}
         if self.scene is None:
@@ -374,20 +459,22 @@ class IsaacEvalEnvRay:
 
         # 3-1. Set joint targets
         embodiment = self.scene.robot_list[0]
-        prev_joint_position = embodiment.robot.get_joint_positions()[
-            embodiment.default_dof_indices
-        ]
+
+        _t = time.perf_counter()
+        # OPT: one get_joint_positions for prev_* (was 1-2 calls).
+        prev_full_jp = embodiment.robot.get_joint_positions()
+        prev_joint_position = prev_full_jp[embodiment.default_dof_indices]
         prev_arm_position = prev_joint_position[embodiment.default_arm_dof_indices]
         prev_gripper_position = prev_joint_position[
             embodiment.default_gripper_dof_indices
         ]
         if isinstance(embodiment, DualArmEmbodiment):
-            prev_base_position = embodiment.robot.get_joint_positions()[
-                embodiment.base_dof_indices
-            ]
+            prev_base_position = prev_full_jp[embodiment.base_dof_indices]
         else:
             prev_base_position = np.zeros(3, dtype=np.float64)
+        self._phase_add("prev_state", time.perf_counter() - _t)
 
+        _t = time.perf_counter()
         base_motion = action.get("base_motion", [0.0, 0.0, 0.0])
         base_is_rel = action.get("base_is_rel", True)
         arm_action = self.parse_action(
@@ -407,7 +494,6 @@ class IsaacEvalEnvRay:
             if base_is_rel:
                 self.scene.robot_list[0].delta_move_to(*base_motion)
             else:
-                # for absolute base motion
                 target_base_pose = np.asarray(base_motion, dtype=float).copy()
                 if target_base_pose.shape[0] != 3:
                     raise ValueError("base_motion must be a 3-element sequence")
@@ -417,16 +503,45 @@ class IsaacEvalEnvRay:
                     target_base_pose,
                     joint_indices=self.scene.robot_list[0].base_dof_indices,
                 )
+        self._phase_add("set_action", time.perf_counter() - _t)
 
-        # 3-2. Step Physics
-        self.scene.world.step(render=not self.args.without_render)
+        # 3-2. Step Physics. skip_render is a lite-mode hint: on intermediate
+        # chunk steps we do not need fresh camera frames, so we can tell Isaac
+        # Sim to skip the rendering pass entirely. Only honoured when the
+        # server-side recorder isn't capturing videos (save_process=False),
+        # otherwise the recorder would miss frames.
+        _lite_render = skip_render and not self.save_process
+        _render_on = (not self.args.without_render) and not _lite_render
+        _t = time.perf_counter()
+        self.scene.world.step(render=_render_on)
+        self._phase_add("world_step", time.perf_counter() - _t)
 
+        # Optional subframe catch-up: after the main render pass, call
+        # scene.world.render() N times so the RTX renderer accumulates
+        # TAA / denoiser / path-traced GI history before the camera
+        # annotator is read. Only useful on the final-of-chunk step, right
+        # before get_obs runs. Has no effect when rendering is already off.
+        if _render_on and subframes > 0:
+            _ts = time.perf_counter()
+            for _ in range(subframes):
+                self.scene.world.render()
+            self._phase_add("subframes", time.perf_counter() - _ts)
+
+        # OPT: cache get_joint_positions() post-step; reused by invalid check + get_obs.
+        _t = time.perf_counter()
+        cur_full_jp = embodiment.robot.get_joint_positions()
+        self._phase_add("post_jp", time.perf_counter() - _t)
+
+        _t = time.perf_counter()
         invalid_reason = self._detect_invalid_state(
             embodiment=embodiment,
             prev_arm_position=prev_arm_position,
             prev_gripper_position=prev_gripper_position,
             prev_base_position=prev_base_position,
+            cached_joint_positions=cur_full_jp,
         )
+        self._phase_add("invalid_check", time.perf_counter() - _t)
+
         if invalid_reason is not None:
             self.logger.warning(
                 "Invalid robot state detected at step %s: %s",
@@ -436,7 +551,7 @@ class IsaacEvalEnvRay:
             self._record_invalid_state_tail()
             self.done = True
             return (
-                self.get_obs(),
+                self.get_obs(cached_joint_positions=cur_full_jp),
                 0.0,
                 True,
                 {
@@ -446,7 +561,9 @@ class IsaacEvalEnvRay:
             )
 
         # 3-4 & 3-5. Check Success Logic
+        _t = time.perf_counter()
         score = self.scene.metric_manager.step(self.scene)
+        self._phase_add("metric_step", time.perf_counter() - _t)
         self._step_cnt += 1
 
         # Check Termination
@@ -457,8 +574,30 @@ class IsaacEvalEnvRay:
         elif self._step_cnt >= self.num_steps:
             done = True
 
+        # Lite path: client said "I do not care about this obs", and the
+        # server recorder is off, so we can skip the expensive camera USD
+        # readout + JPEG encode. Final step in a chunk always takes the full
+        # path so the client still gets a valid observation.
+        _lite_obs = skip_obs and not self.save_process
+        if _lite_obs:
+            # Keep the recorder step counter in sync even though we are
+            # intentionally skipping get_obs on intermediate chunk steps.
+            # Otherwise the final-of-chunk obs would report timestep=N-chunks
+            # instead of the real step index.
+            if self._recorder is not None:
+                self._recorder.steps += 1
+            self._phase_add("get_obs_skipped", 0.0)
+            obs = None
+        else:
+            _t = time.perf_counter()
+            obs = self.get_obs(cached_joint_positions=cur_full_jp)
+            self._phase_add("get_obs", time.perf_counter() - _t)
+
+        if self._step_cnt % 100 == 0:
+            self._phase_report()
+
         return (
-            self.get_obs(),
+            obs,
             score,
             done,
             {"info": score},
@@ -476,8 +615,20 @@ class IsaacEvalEnvRay:
 
         self.episode_end_time = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         self.done = True
-        self.finish(episode_score)
-        return episode_score
+        recorder = self._require_recorder()
+        if self.episode_start_time is None or self.episode_end_time is None:
+            raise ValueError("Episode start or end time not initialized")
+        finalize_payload = recorder.build_finalize_payload(
+            episode_score,
+            self.episode_start_time,
+            self.episode_end_time,
+        )
+        self._recorder = None
+        self.traj_log_dir = None
+        return {
+            "score": episode_score,
+            "finalize_payload": finalize_payload,
+        }
 
     def close(self):
         self.simulation_app.close()

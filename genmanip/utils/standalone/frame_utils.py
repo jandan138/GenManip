@@ -43,9 +43,34 @@ def create_video_from_image_list_with_mediapy(
     fps: float = 30,
     frame_ending: str = ".png",
 ) -> None:
-    if image_list and isinstance(image_list[0], (bytes, bytearray, memoryview)):
-        create_video_from_image_list(image_list, output_video_path, fps=fps)
+    if not image_list:
         return
+
+    if isinstance(image_list[0], (bytes, bytearray, memoryview)):
+        # Stream JPEG-encoded frames through mediapy.VideoWriter one at a time
+        # so peak memory stays at a single decoded frame instead of the whole
+        # episode. This keeps the H.264 codec (Rerun-compatible) without the
+        # >30GB materialization the naive decoded-list approach caused.
+        first = None
+        start_idx = 0
+        for i, raw in enumerate(image_list):
+            first = decode_image_frame(raw)
+            if first is not None:
+                start_idx = i
+                break
+        if first is None:
+            return
+        height, width = first.shape[:2]
+        with media.VideoWriter(  # type: ignore[attr-defined]
+            output_video_path, shape=(height, width), fps=fps
+        ) as writer:
+            writer.add_image(first)
+            for raw in image_list[start_idx + 1 :]:
+                frame = decode_image_frame(raw)
+                if frame is not None:
+                    writer.add_image(frame)
+        return
+
     media.write_video(output_video_path, image_list, fps=fps)  # type: ignore[attr-defined]
 
 

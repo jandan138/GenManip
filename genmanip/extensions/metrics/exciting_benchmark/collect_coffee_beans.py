@@ -58,6 +58,22 @@ class CollectCoffeeBeans(BaseMetric):
         jar_vertices = pclist[self.setting.jar_uid]
         lid_vertices = pclist[self.setting.lid_uid]
 
+        # OPT: AABB pre-check — if world-frame AABBs are separated by more
+        # than contact_tolerance the true NN distance is at least as large,
+        # so Rule 1 must fail. Skips the expensive kNN on ~10k x ~10k points
+        # for every step where the lid is still being carried.
+        jar_min = jar_vertices.min(axis=0)
+        jar_max = jar_vertices.max(axis=0)
+        lid_min = lid_vertices.min(axis=0)
+        lid_max = lid_vertices.max(axis=0)
+        gap = np.maximum(
+            0.0,
+            np.maximum(jar_min, lid_min) - np.minimum(jar_max, lid_max),
+        )
+        aabb_dist = float(np.linalg.norm(gap))
+        if aabb_dist >= self.setting.contact_tolerance:
+            return False
+
         # Rule 1: Make sure the lid is in contact with the jar.
         dist = calculate_distance_between_two_point_clouds(jar_vertices, lid_vertices)
         if not dist < self.setting.contact_tolerance:

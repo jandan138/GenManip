@@ -85,6 +85,9 @@ class IsaacWorkerPool:
         # worker env timeout
         self.step_call_timeout = 600
         self.reset_call_timeout = 120
+        self.worker_restart_memory_gib = float(
+            getattr(self.args, "worker_restart_memory_gib", 15.0)
+        )
         self.benchmark_id: str | None = None
         self.progress_manager: ProgressManager | None = None
         self.worker_env_vars: dict[str, str] = {}
@@ -337,6 +340,7 @@ class IsaacWorkerPool:
         task_seed: str,
         config: dict[str, Any],
         include_default_config: bool = False,
+        memory_restart_budget: int = 1,
     ) -> Any:
         """Reset one worker and raise a context-rich error on failure."""
         task_name = (
@@ -344,6 +348,15 @@ class IsaacWorkerPool:
             if isinstance(config, dict)
             else "<unknown>"
         )
+        if memory_restart_budget > 0:
+            restarted = self._restart_worker_if_memory_exceeded(
+                w_id,
+                tag="before_reset",
+                task_name=task_name,
+                task_seed=task_seed,
+            )
+            if restarted:
+                memory_restart_budget -= 1
 
         def _invoke_reset() -> Any:
             worker = self.workers[w_id]
@@ -502,6 +515,59 @@ class IsaacWorkerPool:
                         )
             self.workers[w_id] = self._spawn_worker(w_id)
 
+    def _get_worker_memory_snapshot(self, w_id: str) -> dict[str, float]:
+        worker = self.workers.get(w_id)
+        if worker is None:
+            return {}
+        try:
+            return self._ray_get_with_timeout(
+                call_remote=lambda: worker.get_memory_snapshot.remote(),
+                timeout=min(10.0, self.reset_call_timeout),
+                context=f"Worker {w_id} get_memory_snapshot",
+            )
+        except Exception as error:
+            if self.logger is not None:
+                self.logger.warning(
+                    "Failed to get memory snapshot for worker=%s: %s",
+                    w_id,
+                    error,
+                )
+            return {}
+
+    def _restart_worker_if_memory_exceeded(
+        self,
+        w_id: str,
+        *,
+        tag: str,
+        task_name: str,
+        task_seed: str,
+    ) -> bool:
+        threshold_gib = self.worker_restart_memory_gib
+        if threshold_gib <= 0:
+            return False
+        mem = self._get_worker_memory_snapshot(w_id)
+        vmrss_gib = float(mem.get("VmRSS", 0.0))
+        if vmrss_gib <= threshold_gib:
+            return False
+        if self.logger is not None:
+            self.logger.warning(
+                "Worker %s memory exceeds threshold at %s: VmRSS=%.2fGiB threshold=%.2fGiB "
+                "task=%s seed=%s. Restarting actor before continuing.",
+                w_id,
+                tag,
+                vmrss_gib,
+                threshold_gib,
+                task_name,
+                task_seed,
+            )
+        self._replace_worker(
+            w_id,
+            reason=RuntimeError(
+                f"worker memory threshold exceeded at {tag}: {vmrss_gib:.2f}GiB > {threshold_gib:.2f}GiB"
+            ),
+        )
+        return True
+
     def _ray_get_with_timeout(
         self,
         call_remote,
@@ -648,7 +714,12 @@ class IsaacWorkerPool:
 
         return response
 
-    def step_chunk(self, action_chunk: List[Dict[str, Any]]) -> dict[str, Any]:
+    def step_chunk(
+        self,
+        action_chunk: List[Dict[str, Any]],
+        render_mode: str = "lite",
+        subframes: int = 2,
+    ) -> dict[str, Any]:
         """
         Execute multiple steps in one server call.
 
@@ -661,13 +732,86 @@ class IsaacWorkerPool:
                 "executed_steps": int,
                 "stopped_early": bool,
             }
+
+        Fast path: if every entry in the chunk targets exactly the same
+        single worker, we dispatch the whole chunk to that worker actor in
+        ONE Ray RPC via IsaacWorker.step_chunk. That lets the worker skip
+        obs + render on intermediate steps (see env.step skip_obs flag) and
+        collapses what used to be N Ray RPCs into 1.
         """
         if self.progress_manager is None:
             raise ValueError("No job started. Call start_new_job first.")
         if not isinstance(action_chunk, list) or len(action_chunk) == 0:
             raise ValueError("action_chunk must be a non-empty list")
 
-        final_response: Dict[str, Any] = {}
+        # Detect single-worker chunk
+        single_wid = None
+        single_worker = True
+        for step_action_dict in action_chunk:
+            if not isinstance(step_action_dict, dict) or len(step_action_dict) != 1:
+                single_worker = False
+                break
+            (wid,) = step_action_dict.keys()
+            if single_wid is None:
+                single_wid = wid
+            elif single_wid != wid:
+                single_worker = False
+                break
+
+        if (
+            single_worker
+            and single_wid is not None
+            and single_wid in self.workers
+            and not self._has_pending_reset(single_wid)
+            and self._consume_pending_reset_if_ready(single_wid) is None
+        ):
+            # Extract per-worker action list
+            per_worker = [
+                step_action_dict[single_wid] for step_action_dict in action_chunk
+            ]
+            lost = self._refresh_locks([single_wid])
+            if single_wid in lost:
+                # Lock lost before we even dispatched — fall through to slow path
+                pass
+            else:
+                future = self.workers[single_wid].step_chunk.remote(
+                    per_worker, render_mode, subframes
+                )
+                result = ray.get(future)
+                final_obs, final_done, final_info, executed_steps = result
+                lost.update(self._refresh_locks([single_wid]))
+
+                final_response: Dict[str, Any] = {}
+                stopped_early = bool(final_done) or executed_steps < len(action_chunk)
+
+                if single_wid in lost:
+                    ray.get(self.workers[single_wid].abort_episode.remote())
+                    self.progress_manager.release_worker_task(str(single_wid))
+                    resp = self._handle_done(
+                        single_wid, {"error": "lock_lost", "info": "Done"}
+                    )
+                    resp["lock_lost"] = True
+                    final_response[single_wid] = resp
+                else:
+                    if final_done:
+                        resp = self._start_pending_reset(single_wid, final_info)
+                    else:
+                        resp = {
+                            "obs": final_obs,
+                            "metric": self.progress_manager.calculate_result(),
+                            "episode_result": None,
+                        }
+                    final_response[single_wid] = resp
+
+                return {
+                    "obs": final_response,
+                    "executed_steps": executed_steps,
+                    "stopped_early": stopped_early,
+                }
+
+        # Slow path (multi-worker or fast-path preconditions not met):
+        # per-step dispatch across all workers as before.
+        final_response = {}
         executed_steps = 0
         stopped_early = False
 
@@ -708,7 +852,9 @@ class IsaacWorkerPool:
         if "error" not in info and "info" in info and info["info"] != "Done":
             try:
                 result = self._ray_get_with_timeout(
-                    call_remote=lambda: self.workers[w_id].post_episode_process.remote(),
+                    call_remote=lambda: self.workers[
+                        w_id
+                    ].post_episode_process.remote(),
                     timeout=self.step_call_timeout,
                     context=f"Worker {w_id} post_episode_process",
                 )

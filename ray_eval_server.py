@@ -70,6 +70,19 @@ def parse_args() -> argparse.Namespace:
         help="Save one episode recorder frame every N steps; 0 disables image saving (default: 0)",
     )
     parser.add_argument(
+        "--save_process",
+        dest="save_process",
+        action="store_true",
+        default=True,
+        help="Save server-side process artifacts such as trajectory metadata, videos, and RRD files (default: enabled)",
+    )
+    parser.add_argument(
+        "--no_save_process",
+        dest="save_process",
+        action="store_false",
+        help="Disable saving server-side process artifacts",
+    )
+    parser.add_argument(
         "--step_timeout",
         type=float,
         default=600.0,
@@ -98,6 +111,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=60.0,
         help="Server timeout for /start_new_job in seconds (default: 60)",
+    )
+    parser.add_argument(
+        "--worker_restart_memory_gib",
+        type=float,
+        default=15.0,
+        help="Restart a worker actor during reset when its VmRSS exceeds this threshold in GiB; <=0 disables (default: 15)",
     )
     return parser.parse_args()
 
