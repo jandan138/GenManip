@@ -39,6 +39,7 @@ from genmanip.utils.pointcloud.pointcloud import get_current_meshList
 from genmanip.utils.standalone.transform_utils import (
     adjust_translation_along_quaternion,
     compute_final_pose,
+    rot_orientation_by_axis,
 )
 from genmanip.utils.usd_utils import set_camera_look_at, set_mass
 from genmanip.utils.loader.utils import collect_world_pose_list, reset_object_xyz
@@ -70,8 +71,12 @@ class PickAndPlaceConfig(SkillConfig):
     fixed_grasp_config: dict | None = Field(
         default=None, description="Fixed grasp config"
     )
+    gripper_rot_config: dict | None = Field(
+        default=None,
+        description="Rotate grasp orientation after embodiment adjustment",
+    )
     fixed_position: bool = Field(default=False, description="Fixed position")
-    fixed_position_config: dict | None = Field(
+    fixed_position_config: dict | list[dict] | None = Field(
         default=None, description="Fixed position config"
     )
     mesh_top_only: bool = Field(default=False, description="Mesh top only")
@@ -117,6 +122,42 @@ class PickAndPlaceSkill(BaseSkill):
     def _initialize(self, scene: "Scene"):
         set_mass(scene.object_list[self.config.obj1_uid].prim_path, 0.1)
         set_mass(scene.object_list[self.config.obj2_uid].prim_path, 10.0)
+
+    def _axis_angle_from_obj1_orientation(
+        self, obj1_orientation_wxyz: np.ndarray, axis: str
+    ) -> float:
+        rotation = R.from_quat(np.asarray(obj1_orientation_wxyz)[[1, 2, 3, 0]])
+        euler_xyz = rotation.as_euler("xyz", degrees=True)
+        axis_map = {"x": 0, "y": 1, "z": 2}
+        return float(euler_xyz[axis_map[axis]])
+
+    def _compute_gripper_rotation_angle(
+        self, obj1_orientation_wxyz: np.ndarray | None = None
+    ) -> tuple[str | None, float | None]:
+        cfg = self.config.gripper_rot_config
+        if cfg is None:
+            return None, None
+        axis = cfg.get("axis")
+        angle = cfg.get("angle")
+        if axis is None or angle is None:
+            return None, None
+        axis = str(axis).lower()
+        angle = float(angle)
+        if cfg.get("compensate_obj1_yaw", False):
+            if obj1_orientation_wxyz is None:
+                raise ValueError("obj1 orientation is required for yaw compensation")
+            if axis != "z":
+                raise ValueError("compensate_obj1_yaw only supports axis='z'")
+            angle += self._axis_angle_from_obj1_orientation(obj1_orientation_wxyz, "z")
+        return axis, angle
+
+    def _apply_fixed_grasp_translation(
+        self, scene: "Scene", grasp_position: np.ndarray
+    ) -> np.ndarray:
+        if self.config.fixed_grasp_config is None:
+            return grasp_position
+        translation = np.array(self.config.fixed_grasp_config["translation"])
+        return grasp_position + translation
 
     def _set_final_object_pose(
         self, scene: "Scene", extra_erosion: float = 0.05
@@ -186,14 +227,13 @@ class PickAndPlaceSkill(BaseSkill):
             position=p_initial, orientation=q_initial
         )
         if self.config.fixed_position_config is not None:
-            p_final = p_final + np.array(
-                self.config.fixed_position_config["translation"]
-            )
+            fixed_position_config = self.config.fixed_position_config
+            if isinstance(fixed_position_config, list):
+                fixed_position_config = random.choice(fixed_position_config)
+            p_final = p_final + np.array(fixed_position_config["translation"])
             q_final = (
                 R.from_quat(
-                    np.array(self.config.fixed_position_config["orientation"])[
-                        [1, 2, 3, 0]
-                    ]
+                    np.array(fixed_position_config["orientation"])[[1, 2, 3, 0]]
                 )
                 * R.from_quat(q_final[[1, 2, 3, 0]])
             ).as_quat()[[3, 0, 1, 2]]
@@ -251,10 +291,9 @@ class PickAndPlaceSkill(BaseSkill):
             initial_grasp["position"][:2] = scene.object_list[
                 self.config.obj1_uid
             ].get_world_pose()[0][:2]
-            if self.config.fixed_grasp_config is not None:
-                initial_grasp["position"] += np.array(
-                    self.config.fixed_grasp_config["translation"]
-                )
+            initial_grasp["position"] = self._apply_fixed_grasp_translation(
+                scene, initial_grasp["position"]
+            )
 
         return initial_grasp
 
@@ -275,10 +314,9 @@ class PickAndPlaceSkill(BaseSkill):
         initial_grasp["position"][:2] = scene.object_list[
             self.config.obj1_uid
         ].get_world_pose()[0][:2]
-        if self.config.fixed_grasp_config is not None:
-            initial_grasp["position"] += np.array(
-                self.config.fixed_grasp_config["translation"]
-            )
+        initial_grasp["position"] = self._apply_fixed_grasp_translation(
+            scene, initial_grasp["position"]
+        )
         return initial_grasp
 
     def _get_meta_info(self, scene: "Scene") -> dict:
@@ -298,6 +336,20 @@ class PickAndPlaceSkill(BaseSkill):
             action_meta_info["initial_object"]["position"],
             action_meta_info["initial_object"]["orientation"],
         ) = scene.object_list[self.config.obj1_uid].get_world_pose()
+
+        if (
+            self.config.gripper_rot_config is not None
+            and self.config.gripper_rot_config.get("apply_in_relative_grasp", False)
+        ):
+            axis, angle = self._compute_gripper_rotation_angle(
+                action_meta_info["initial_object"]["orientation"]
+            )
+            if axis is not None and angle is not None:
+                action_meta_info["initial_grasp"]["orientation"] = (
+                    rot_orientation_by_axis(
+                        action_meta_info["initial_grasp"]["orientation"], axis, angle
+                    )
+                )
 
         action_meta_info["finial_grasp"] = {}
         (
@@ -417,6 +469,20 @@ class PickAndPlaceSkill(BaseSkill):
         )
         for target in action_list:
             adjust_grasp_by_embodiment(target, embodiment)
+            # Backward-compatible path: keep old behavior unless relative-grasp mode is enabled.
+            if (
+                self.config.gripper_rot_config is not None
+                and not self.config.gripper_rot_config.get(
+                    "apply_in_relative_grasp", False
+                )
+            ):
+                axis, angle = self._compute_gripper_rotation_angle(
+                    action_meta_info["initial_object"]["orientation"]
+                )
+                if axis is not None and angle is not None:
+                    target["orientation"] = rot_orientation_by_axis(
+                        target["orientation"], axis, angle
+                    )
         return action_list
 
     def _auto_detect_arm(self, action_meta_info: dict, embodiment: BaseEmbodiment):

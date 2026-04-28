@@ -6,7 +6,6 @@ import omni.usd  # type: ignore
 from pxr import Sdf, Gf, Usd, UsdGeom, UsdUI  # type: ignore
 
 
-
 def __set_xform_prim_transform(prim: UsdGeom.Xformable, transform: Gf.Matrix4d):
     prim = UsdGeom.Xformable(prim)
     _, _, scale, rot_mat, translation, _ = transform.Factor()

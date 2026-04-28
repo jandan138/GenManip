@@ -64,7 +64,16 @@ def check_single_data(data_path: str, type: str = "trajectory"):
             )
             gripper_close_data = get_scalar_data_from_lmdb(data_path, b"gripper_close")
             name_data = get_scalar_data_from_lmdb(data_path, b"name")
-    except:
+    except (
+        KeyError,
+        lmdb.Error,
+        OSError,
+        ValueError,
+        EOFError,
+        TypeError,
+        pickle.PickleError,
+    ) as exc:
+        print(f"Invalid data for {data_path}: {exc}")
         return False
     with open(os.path.join(data_path, "meta_info.pkl"), "rb") as f:
         meta_info = pickle.load(f)

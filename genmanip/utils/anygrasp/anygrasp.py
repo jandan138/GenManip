@@ -251,7 +251,7 @@ def get_init_grasp(
         return init_grasp
     world_grasp_list = request_anygrasp(camera, address)
     if world_grasp_list is None or len(world_grasp_list) == 0:
-        raise Exception("server return empty grasp list")
+        raise ValueError("server return empty grasp list")
     init_grasp, _ = find_closest_grasp_to_mesh(
         mesh, world_grasp_list, distance_threshold=0.08, idx=idx
     )
@@ -263,7 +263,7 @@ def get_init_grasp(
                 "orientation": np.array([0.0, 1.0, 0.0, 0.0]),
             }
         else:
-            raise Exception("find no valid grasp")
+            raise ValueError("find no valid grasp")
     return init_grasp
 
 

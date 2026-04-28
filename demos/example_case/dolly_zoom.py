@@ -8,7 +8,7 @@ from tqdm import tqdm
 current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
-from isaacsim import SimulationApp # type: ignore
+from isaacsim import SimulationApp  # type: ignore
 
 simulation_app = SimulationApp({"headless": False})
 
@@ -38,13 +38,11 @@ world = World()
 # scene_xform, uuid = load_world_xform_prim(
 #     os.path.join(ASSETS_DIR, "scene_usds/debug_scenes/kitchen_scenes/base.usda")
 # )
-scene_xform, uuid = load_world_xform_prim(
-"/home/gaoning/grasp_vla_assets/object.usda"
-)
+scene_xform, uuid = load_world_xform_prim("/home/gaoning/grasp_vla_assets/object.usda")
 print(uuid)
 camera_list = create_camera_list(camera_data, uuid)
-franka_list = [relate_franka_from_data(uuid)]
-for franka in franka_list:
+robot_list = [relate_franka_from_data(uuid)]
+for franka in robot_list:
     world.scene.add(franka)
 object_list = get_object_list(uuid, scene_xform, TABLE_UID)
 # meshDict = objectList2meshList(object_list)
@@ -67,10 +65,12 @@ print("start")
 from genmanip.utils.standalone.robot_utils import joint_position_to_end_effector_pose
 
 target_pos, target_ori = joint_position_to_end_effector_pose(
-    franka_list[0].get_joint_positions()
+    robot_list[0].get_joint_positions()
 )
-target_pos += franka_list[0].get_world_pose()[0]
-set_camera_look_at(camera_list["obs_camera"], target_pos, distance=1.0, elevation=90.0, azimuth=0.0)
+target_pos += robot_list[0].get_world_pose()[0]
+set_camera_look_at(
+    camera_list["obs_camera"], target_pos, distance=1.0, elevation=90.0, azimuth=0.0
+)
 original_pos, original_ori = camera_list["obs_camera"].get_world_pose()
 original_focal = camera_list["obs_camera"].get_focal_length()
 initial_distance = np.linalg.norm(np.array(target_pos) - np.array(original_pos))
@@ -80,6 +80,7 @@ distance = initial_distance
 k = focal_length / distance
 image_list = []
 import cv2
+
 for i in range(10):
     world.step()
 for i in range(10):
@@ -103,7 +104,10 @@ for i in range(100):
     image_list.append(image)
 
 video_writer = cv2.VideoWriter(
-    "tmp/test.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (image_list[0].shape[1], image_list[0].shape[0])
+    "tmp/test.mp4",
+    cv2.VideoWriter_fourcc(*"mp4v"),
+    30,
+    (image_list[0].shape[1], image_list[0].shape[0]),
 )
 for image in image_list:
     video_writer.write(image)

@@ -9,7 +9,6 @@ from typing import Optional, Sequence  # type: ignore
 
 import numpy as np
 import open3d as o3d
-from scipy.spatial.transform import Rotation as R
 
 import omni.usd  # type: ignore
 from omni.isaac.core.prims import XFormPrim, RigidPrim  # type: ignore
@@ -19,8 +18,9 @@ from pxr import Usd, UsdPhysics, UsdGeom, Gf  # type: ignore
 
 from .collision_utils import set_colliders
 from .mesh_utils import get_prim_bbox
-from .rigid_utils import set_rigid_body
+from .rigid_utils import set_mass, set_rigid_body
 from .semantic_utils import set_semantic_label
+from .transform_utils import decompose_affine_transform, resolve_prim_local_transform
 from genmanip.utils.standalone.pc_utils import compute_aabb_lwh, compute_mesh_bbox
 
 
@@ -41,6 +41,9 @@ def add_usd_to_world(
     add_rigid_body: bool = False,
     add_colliders: bool = False,
     collision_approximation: str = "convexDecomposition",
+    mass: float | None = None,
+    static_friction: float = 1.0,
+    dynamic_friction: float = 1.0,
 ) -> XFormPrim:
     print(f"Adding USD to world: {asset_path} to {prim_path}")
     reference = add_reference_to_stage(usd_path=asset_path, prim_path=prim_path)
@@ -60,8 +63,15 @@ def add_usd_to_world(
         set_colliders(prim_path, collision_approximation)
         print(f"CollisionAPI applied to {prim_path}")
     if add_rigid_body:
-        set_rigid_body(prim_path)
+        set_rigid_body(
+            prim_path,
+            static_friction=static_friction,
+            dynamic_friction=dynamic_friction,
+        )
         print(f"RigidBodyAPI applied to {prim_path}")
+        if mass is not None:
+            set_mass(prim_path, mass)
+            print(f"MassAPI applied to {prim_path}")
     set_semantic_label(
         str(usd_prim.GetPath()), str(usd_prim.GetPath()).split("/")[-1][4:]
     )
@@ -121,14 +131,8 @@ def get_world_pose_by_prim_path(
     prim = get_prim_at_path(prim_path)
     xformable = UsdGeom.Xformable(prim)
     world_transform = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    world_transform = np.array(world_transform).T
-
-    position = world_transform[:3, 3]
-    rot_scale = world_transform[:3, :3]
-    scale = np.linalg.norm(rot_scale, axis=0)
-    rotation_matrix = rot_scale / scale
-    quat_xyzw = R.from_matrix(rotation_matrix).as_quat()
-    orientation = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+    world_transform = np.array(world_transform, dtype=float).T
+    position, _, orientation, _ = decompose_affine_transform(world_transform)
 
     return position, orientation
 
@@ -139,7 +143,9 @@ def get_local_scale_by_prim_path(
     prim = get_prim_at_path(prim_path)
     xform = UsdGeom.Xformable(prim)
     local_transformation: Gf.Matrix4d = xform.GetLocalTransformation()
-    scale: Gf.Vec3d = Gf.Vec3d(*(v.GetLength() for v in local_transformation.ExtractRotationMatrix()))
+    scale: Gf.Vec3d = Gf.Vec3d(
+        *(v.GetLength() for v in local_transformation.ExtractRotationMatrix())
+    )
     return scale
 
 
@@ -182,26 +188,10 @@ def get_prim_info(prim: Usd.Prim) -> dict:
     prim_type = prim.GetTypeName()
     prim_path = str(prim.GetPath())
 
-    translation_gf = prim.GetAttribute("xformOp:translate").Get()
-    if translation_gf is None:
-        translation = np.zeros(3)
-    else:
-        translation = np.array(translation_gf)
-
-    orientation_gf = prim.GetAttribute("xformOp:orient").Get()
-    if orientation_gf is None:
-        orientation = np.zeros(4)
-        orientation[0] = 1.0
-    else:
-        r = orientation_gf.GetReal()
-        i, j, k = orientation_gf.GetImaginary()
-        orientation = np.array([r, i, j, k])
-
-    scale_gf = prim.GetAttribute("xformOp:scale").Get()
-    if scale_gf is None:
-        scale = np.ones(3)
-    else:
-        scale = np.array(scale_gf)
+    local_transform = resolve_prim_local_transform(prim)
+    translation = local_transform.translation
+    orientation = local_transform.quat_wxyz
+    scale = local_transform.scale
 
     mass_center = None
     if prim.HasAPI(UsdPhysics.RigidBodyAPI) and prim.HasAPI(UsdPhysics.MassAPI):

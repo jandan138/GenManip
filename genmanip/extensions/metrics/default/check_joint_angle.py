@@ -2,24 +2,15 @@ import math
 from typing import Tuple, Any
 from pydantic import BaseModel, Field, field_validator
 
-import omni.usd
-from pxr import UsdPhysics
-from omni.isaac.core.articulations import Articulation
-
 from genmanip.core.metrics.base import BaseMetric
 from genmanip.core.metrics.utils import MetricFactory
 
 
 class CheckJointAngleConfig(BaseModel):
-    articulation_obj_uid: str = Field(
-        ..., description="uid of the articulation root"
-    )
-    joint_name: str = Field(
-        ..., description="DOF name of the articulation joint"
-    )
+    articulation_obj_uid: str = Field(..., description="uid of the articulation root")
+    joint_name: str = Field(..., description="DOF name of the articulation joint")
     angle_deg_range: Tuple[float, float] = Field(
-        ...,
-        description="Allowed joint angle range in degrees: (min_angle, max_angle)"
+        ..., description="Allowed joint angle range in degrees: (min_angle, max_angle)"
     )
 
     @field_validator("angle_deg_range")
@@ -32,7 +23,9 @@ class CheckJointAngleConfig(BaseModel):
 
 @MetricFactory.register("manip/default/check_joint_angle")
 class CheckJointAngle(BaseMetric):
-    def __init__(self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs):
+    def __init__(
+        self, skip_steps=1, succ_cnts=0, sub_goal_setting: dict[str, Any] = {}, **kwargs
+    ):
         super().__init__(skip_steps, succ_cnts, sub_goal_setting, **kwargs)
         self.setting = CheckJointAngleConfig(**sub_goal_setting)
 
@@ -45,7 +38,9 @@ class CheckJointAngle(BaseMetric):
         _articulation = scene.articulation_list[self.setting.articulation_obj_uid]
         if self._joint_dof_index is None:
             if self.setting.joint_name not in _articulation.dof_names:
-                raise RuntimeError(f"Joint '{self.setting.joint_name}' not found in articulation, available joints: {_articulation.dof_names}")
+                raise RuntimeError(
+                    f"Joint '{self.setting.joint_name}' not found in articulation, available joints: {_articulation.dof_names}"
+                )
 
             self._joint_dof_index = _articulation.get_dof_index(self.setting.joint_name)
 

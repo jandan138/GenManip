@@ -92,7 +92,7 @@ class CacheLibrary:
         self.preloaded_object_path_list: dict[str, str] = {}
         self.preloaded_object_uid_list: dict[str, list[str]] = {}
         self.preload_hash_feature: dict[str, str] = {}
-        self.preload_object_meta_info: dict[str, dict[str, bool]] = {}
+        self.preload_object_meta_info: dict[str, dict[str, bool | float | None]] = {}
         self.meta_to_fine_projection: dict[str, str] = {}
 
 
@@ -143,7 +143,7 @@ class Scene:
             )
         )
         self.world = World(physics_dt=physics_dt, rendering_dt=rendering_dt)
-        setup_physics_scene()
+        setup_physics_scene(self.scene_config.physics_scene_config)
 
         # TODO: HACK, remove room collider to avoid error physics simulation
         from genmanip.utils.usd_utils.collision_utils import remove_colliders
@@ -212,6 +212,13 @@ class Scene:
                         key
                     ].is_articulated
                     self.scene_config.generation_config.articulation[uid] = info
+                    if (
+                        self.scene_config.object_config[key].articulation_info
+                        is not None
+                    ):
+                        self.articulation_data[uid] = self.scene_config.object_config[
+                            key
+                        ].articulation_info
                     if self.articulation_data[uid]["is_articulated"]:
                         self.articulation_list[uid] = add_articulation_to_scene(
                             key, self.uuid, self.world
@@ -230,15 +237,15 @@ class Scene:
             if self.articulation_data[arti_id]["is_articulated"]:
                 if (
                     arti_id in self.scene_config.generation_config.articulation
-                    and self.scene_config.generation_config.articulation[
-                        arti_id
-                    ]["target_positions"]
+                    and self.scene_config.generation_config.articulation[arti_id][
+                        "target_positions"
+                    ]
                     is not None
                 ):
                     articulation._articulation_view.set_joint_positions(
-                        self.scene_config.generation_config.articulation[
-                            arti_id
-                        ]["target_positions"]
+                        self.scene_config.generation_config.articulation[arti_id][
+                            "target_positions"
+                        ]
                     )
 
         for _ in range(10):
@@ -249,10 +256,15 @@ class Scene:
             arti_prim = self.object_list[arti_id]
             arti_prim_path = arti_prim.prim_path
             for part_name, part_group in arti_parts.items():
-                part_prim_path = arti_prim_path + f"/Instance/{part_group}"
+                if part_group[0] != "/":
+                    part_prim_path = arti_prim_path + f"/Instance/{part_group}"
+                else:
+                    part_prim_path = arti_prim_path + part_group
                 arti_part = f"{arti_id}_{part_name}"
                 self.object_list[arti_part] = relate_object_from_data(part_prim_path)
-                self.articulation_part_list[arti_part] = relate_object_from_data(part_prim_path)
+                self.articulation_part_list[arti_part] = relate_object_from_data(
+                    part_prim_path
+                )
             self.object_list.pop(arti_id)
 
     def _initialize_after_reset(
@@ -262,9 +274,7 @@ class Scene:
     ) -> None:
 
         for robot, robot_cfg in zip(self.robot_list, self.scene_config.robots):
-            robot.initialize(
-                default_joint_positions=robot_cfg.default_joint_positions
-            )
+            robot.initialize(default_joint_positions=robot_cfg.default_joint_positions)
         for key, articulation in self.articulation_list.items():
             if self.articulation_data[key]["is_articulated"]:
                 articulation._articulation_view.initialize()
@@ -370,7 +380,11 @@ class Scene:
         self.collect_meta_infos()
 
     def build_metrics_manager(
-        self, goal: list, skip_steps: int = 1, succ_cnts: int = 0, never_reset: bool = False
+        self,
+        goal: list,
+        skip_steps: int = 1,
+        succ_cnts: int = 0,
+        never_reset: bool = False,
     ):
         ori_goal = goal.copy()
 
@@ -392,12 +406,12 @@ class Scene:
 
     def step(self, render: bool = True) -> float | None:
         self.world.step(render=render)
-        sr = 0.0
+        score = 0.0
         if self.metric_manager is not None:
-            sr = self.metric_manager.step(self)
+            score = self.metric_manager.step(self)
             if os.environ.get("GENMANIP_DEBUG", "0") == "1":
-                print("Success rate: ", sr)
-        return sr
+                print("Score: ", score)
+        return score
 
     def get_meta_infos(self) -> dict:
         return self.meta_infos

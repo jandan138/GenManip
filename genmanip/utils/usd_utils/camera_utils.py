@@ -92,16 +92,12 @@ def collect_camera_info_eval(camera: Camera) -> dict:
 
 
 def get_eval_camera_data(camera_list: dict) -> dict:
-    camera_data = {}
-    for camera_name, camera in camera_list.items():
-        camera_info = collect_camera_info_eval(camera)
-        camera_data[camera_name] = {}
-        camera_data[camera_name]["rgb"] = camera_info["rgb"]
-        camera_data[camera_name]["depth"] = camera_info["depth"]
-        camera_data[camera_name]["intrinsics_matrix"] = camera_info["intrinsics_matrix"]
-        camera_data[camera_name]["p"] = camera_info["p"]
-        camera_data[camera_name]["q"] = camera_info["q"]
-    return camera_data
+    # OPT: eval only consumes img["rgb"]; depth / intrinsics / pose are all
+    # discarded by the caller, so skip those USD queries entirely.
+    return {
+        camera_name: {"rgb": get_src(camera, "rgb")}
+        for camera_name, camera in camera_list.items()
+    }
 
 
 def get_depth(camera: Camera) -> np.ndarray | None:

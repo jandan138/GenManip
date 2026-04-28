@@ -401,18 +401,19 @@ class RenderRecorder:
                         if num_puts % self._lmdb_commit_every == 0:
                             txn.commit()
                             txn = self.env.begin(write=True)
-                    except Exception as e:
+                    except (RuntimeError, TypeError, ValueError, lmdb.Error) as e:
                         self._stream_error = e
                 finally:
                     self._write_queue.task_done()
-        except Exception as e:
+        except (RuntimeError, OSError, TypeError, ValueError, lmdb.Error) as e:
             self._stream_error = e
         finally:
             try:
                 if txn is not None:
                     txn.commit()
-            except Exception:
-                pass
+            except (RuntimeError, OSError, TypeError, ValueError, lmdb.Error) as exc:
+                if self.logger is not None:
+                    self.logger.warning("Failed to commit LMDB transaction: %s", exc)
 
     def _stream_put_image(self, kind: str, key: str, value: np.ndarray) -> None:
         self._ensure_streaming_started()
@@ -741,13 +742,15 @@ class RenderRecorder:
     def release(self, trim: bool = True) -> None:
         try:
             self._finalize_streaming()
-        except Exception:
-            pass
+        except (RuntimeError, TypeError, ValueError, lmdb.Error) as exc:
+            if self.logger is not None:
+                self.logger.warning("Failed to finalize streaming: %s", exc)
         if self.env is not None:
             try:
                 self.env.close()
-            except Exception:
-                pass
+            except (OSError, RuntimeError, lmdb.Error) as exc:
+                if self.logger is not None:
+                    self.logger.warning("Failed to close LMDB environment: %s", exc)
             self.env = None
 
         self.json_data_logger.clear()
@@ -779,8 +782,9 @@ class RenderRecorder:
             malloc_trim = getattr(libc, "malloc_trim", None)
             if malloc_trim is not None:
                 malloc_trim(0)
-        except Exception:
-            pass
+        except (AttributeError, OSError, RuntimeError, TypeError) as exc:
+            if self.logger is not None:
+                self.logger.warning("Failed to call malloc_trim: %s", exc)
 
     def set_permissions(self, path: str) -> None:
         os.chmod(path, 0o777)

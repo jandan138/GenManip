@@ -314,7 +314,7 @@ for usd_path in usd_list:
                     meshlist[uid],
                     address=default_config["ANYGRASP_ADDR"],
                 )
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, KeyError, IndexError, AssertionError) as e:
                 print(e)
                 delete_prim(f"/World/{uuid}/obj_{uid}")
                 object_list.pop(uid)
@@ -415,10 +415,10 @@ for usd_path in usd_list:
                 log_data[uid] = {"is_success": is_success, "scale": scale}
                 with open(log_file, "w") as f:
                     json.dump(log_data, f)
-            delete_prim(f"/World/{uuid}/obj_{uid}")
-            object_list.pop(uid)
-            meshDict.pop(uid)
-    except Exception as e:
+                delete_prim(f"/World/{uuid}/obj_{uid}")
+                object_list.pop(uid)
+                meshDict.pop(uid)
+    except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AssertionError) as e:
         if uid in object_list and uid in meshDict:
             delete_prim(f"/World/{uuid}/obj_{uid}")
             object_list.pop(uid)

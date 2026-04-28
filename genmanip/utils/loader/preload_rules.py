@@ -5,9 +5,14 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+import os
 import random
 
 from genmanip.utils.annotation.object_pool import ObjectPool
+
+
+def _get_uid_from_usd_path(usd_path: str) -> str:
+    return os.path.splitext(os.path.basename(usd_path))[0]
 
 
 def apply_rule(
@@ -15,21 +20,23 @@ def apply_rule(
 ) -> list[str]:
     if rule_name == "can_grasp":
         can_grasp_list = [
-            usd for usd in usd_list if check_can_grasp(usd.split(".")[0], object_pool)
+            usd
+            for usd in usd_list
+            if check_can_grasp(_get_uid_from_usd_path(usd), object_pool)
         ]
         return can_grasp_list
     elif rule_name == "is_container":
         return [
             usd
             for usd in usd_list
-            if check_is_container(usd.split(".")[0], object_pool)
+            if check_is_container(_get_uid_from_usd_path(usd), object_pool)
         ]
     elif "retrieve_category" in rule_name:
         return [
             usd
             for usd in usd_list
             if retrieve_category(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_category_", ""),
             )
@@ -39,7 +46,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if not retrieve_category(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_not_category_", ""),
             )
@@ -49,7 +56,9 @@ def apply_rule(
             usd
             for usd in usd_list
             if retrieve_shape(
-                usd.split(".")[0], object_pool, rule_name.replace("retrieve_shape_", "")
+                _get_uid_from_usd_path(usd),
+                object_pool,
+                rule_name.replace("retrieve_shape_", ""),
             )
         ]
     elif "retrieve_not_shape" in rule_name:
@@ -57,7 +66,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if not retrieve_shape(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_not_shape_", ""),
             )
@@ -67,7 +76,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if retrieve_materials(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_materials_", ""),
             )
@@ -77,7 +86,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if not retrieve_materials(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_not_materials_", ""),
             )
@@ -87,7 +96,9 @@ def apply_rule(
             usd
             for usd in usd_list
             if retrieve_color(
-                usd.split(".")[0], object_pool, rule_name.replace("retrieve_color_", "")
+                _get_uid_from_usd_path(usd),
+                object_pool,
+                rule_name.replace("retrieve_color_", ""),
             )
         ]
     elif "retrieve_not_color" in rule_name:
@@ -95,7 +106,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if not retrieve_color(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_not_color_", ""),
             )
@@ -105,7 +116,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if retrieve_scale_less_than(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_scale_less_than_", ""),
             )
@@ -115,7 +126,7 @@ def apply_rule(
             usd
             for usd in usd_list
             if retrieve_scale_greater_than(
-                usd.split(".")[0],
+                _get_uid_from_usd_path(usd),
                 object_pool,
                 rule_name.replace("retrieve_scale_greater_than_", ""),
             )
@@ -214,7 +225,7 @@ def find_parent_category(
 ) -> list[str]:
     parent_category_list = []
     for usd in usd_list:
-        uid = usd.split(".")[0]
+        uid = _get_uid_from_usd_path(usd)
         object_info = object_pool.get_object_info(uid)
         if object_info is None:
             continue
@@ -230,7 +241,7 @@ def collect_shapes_by_category(
 ) -> list[str]:
     shape_list = []
     for usd in usd_list:
-        uid = usd.split(".")[0]
+        uid = _get_uid_from_usd_path(usd)
         object_info = object_pool.get_object_info(uid)
         if object_info is None:
             continue
@@ -244,7 +255,7 @@ def collect_materials_by_category(
 ) -> list[str]:
     material_list = []
     for usd in usd_list:
-        uid = usd.split(".")[0]
+        uid = _get_uid_from_usd_path(usd)
         object_info = object_pool.get_object_info(uid)
         if object_info is None:
             continue
@@ -258,7 +269,7 @@ def collect_colors_by_category(
 ) -> list[str]:
     color_list = []
     for usd in usd_list:
-        uid = usd.split(".")[0]
+        uid = _get_uid_from_usd_path(usd)
         object_info = object_pool.get_object_info(uid)
         if object_info is None:
             continue
@@ -270,7 +281,7 @@ def collect_colors_by_category(
 def collect_all_categories(usd_list: list[str], object_pool: ObjectPool) -> list[str]:
     category_list = []
     for usd in usd_list:
-        uid = usd.split(".")[0]
+        uid = _get_uid_from_usd_path(usd)
         object_info = object_pool.get_object_info(uid)
         if object_info is None:
             continue

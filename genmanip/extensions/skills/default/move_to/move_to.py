@@ -59,7 +59,9 @@ class MoveToSkill(BaseSkill):
             raise ValueError(
                 f"Embodiment {embodiment.embodiment_name} is not a dual arm robot"
             )
-        if self.config.move_type == "delta":
+        if self.config.move_type == "delta" or self.config.move_type == "deltav2":
+            if self.config.move_type == "deltav2":
+                self.config.delta_position["y"] = -self.config.delta_position["y"]
             self._handle_dual_arm_base_move(
                 scene,
                 recorder,
@@ -67,7 +69,12 @@ class MoveToSkill(BaseSkill):
                 idx_name=str(idx),
                 delta_move_config=self.config.delta_position,
             )
-        elif self.config.move_type == "align":
+        elif self.config.move_type == "align" or self.config.move_type == "alignv2":
+            if self.config.move_type == "alignv2":
+                if self.config.delta_position["x"] is not None:
+                    self.config.delta_position["x"] = -self.config.delta_position["x"]
+                if self.config.delta_position["y"] is not None:
+                    self.config.delta_position["y"] = -self.config.delta_position["y"]
             if self.config.rel_object_uid is not None:
                 rel_object = scene.object_list[self.config.rel_object_uid]
                 target = rel_object.get_world_pose()
@@ -89,6 +96,8 @@ class MoveToSkill(BaseSkill):
                 y_diff = pose[0][1] - self.config.delta_position["y"]
             else:
                 y_diff = 0.0
+            if self.config.move_type == "alignv2":
+                x_diff = -x_diff
             self._handle_dual_arm_base_move(
                 scene,
                 recorder,
@@ -137,13 +146,13 @@ class MoveToSkill(BaseSkill):
         else:
             x_step = delta_move_config["x"] / max_xy * 0.01
             y_step = delta_move_config["y"] / max_xy * 0.01
-        yaw_step = 1.0
         x_remaining = delta_move_config["x"]
         y_remaining = delta_move_config["y"]
         if delta_move_config["yaw"] is not None:
             yaw_remaining = delta_move_config["yaw"]
         else:
             yaw_remaining = 0.0
+        yaw_step = 1.0 * np.sign(yaw_remaining)
         motion_list = []
 
         while (

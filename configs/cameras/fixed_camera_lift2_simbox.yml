@@ -50,8 +50,8 @@ left_camera:
   pixel_size: 3.0
   f_number: 2.0
   focus_distance: 0.6
-  with_distance: true
-  with_semantic: true
+  with_distance: false
+  with_semantic: false
   with_bbox2d: false
   with_bbox3d: false
   with_motion_vector: false
@@ -81,8 +81,8 @@ right_camera:
   pixel_size: 3.0
   f_number: 2.0
   focus_distance: 0.6
-  with_distance: true
-  with_semantic: true
+  with_distance: false
+  with_semantic: false
   with_bbox2d: false
   with_bbox3d: false
   with_motion_vector: false
@@ -112,8 +112,39 @@ top_camera:
   pixel_size: 3.0
   f_number: 2.0
   focus_distance: 0.6
-  with_distance: true
-  with_semantic: true
+  with_distance: false
+  with_semantic: false
+  with_bbox2d: false
+  with_bbox3d: false
+  with_motion_vector: false
+  camera_axes: usd
+overlook_camera:
+  exists: true
+  frequency: 60
+  name: overlook_camera
+  camera_params:
+  - 647.04
+  - 646.34
+  - 639.1
+  - 364.36
+  position:
+  - 0.3
+  - 0.0
+  - 1.5
+  orientation:
+  - 0.70106
+  - 0.0923
+  - -0.0923
+  - -0.70106
+  prim_path: /lift2/lift2/lift2/base_link/Camera_overlook
+  resolution:
+  - 1280
+  - 720
+  pixel_size: 3.0
+  f_number: 2.0
+  focus_distance: 0.6
+  with_distance: false
+  with_semantic: false
   with_bbox2d: false
   with_bbox3d: false
   with_motion_vector: false

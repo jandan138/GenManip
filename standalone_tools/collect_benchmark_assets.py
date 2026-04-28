@@ -376,7 +376,11 @@ def upload_to_huggingface(
                 private=False,
                 exist_ok=True,
             )
-        except Exception as e:
+        except (
+            OSError,
+            huggingface_hub.errors.HfHubHTTPError,
+            huggingface_hub.errors.ValidationError,
+        ) as e:
             print(f"Repo creation warning: {e}")
 
         huggingface_hub.upload_large_folder(

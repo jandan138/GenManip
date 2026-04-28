@@ -6,6 +6,7 @@ Licensed under the MIT License.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 from genmanip.core.metrics.utils import MetricFactory
 
@@ -13,7 +14,7 @@ from genmanip.core.metrics.utils import MetricFactory
 class MetricsManager:
     def __init__(self, goal_setting: list[list[dict]]):
         self.goal_setting = self.ensure_list_nesting(goal_setting, 3)
-        self.status_flag = self.init_false_list(self.goal_setting)
+        self.metric_score = self.init_score_list(self.goal_setting)
 
         self.long_stride_idx = -1
         self.cur_union_metric = self.get_next_metric()
@@ -31,10 +32,10 @@ class MetricsManager:
         return x
 
     @staticmethod
-    def init_false_list(x: list | dict) -> list | bool:
+    def init_score_list(x: list | dict) -> list | float:
         if not isinstance(x, list):
-            return False
-        return [MetricsManager.init_false_list(e) for e in x]
+            return 0.0
+        return [MetricsManager.init_score_list(e) for e in x]
 
     def print_metrics_info(self, metrics: list):
         for metric_list in metrics:
@@ -57,16 +58,24 @@ class MetricsManager:
         return metrics
 
     def step(self, scene) -> float | None:
+        # OPT: per-frame cache that metrics can share (transformed point
+        # clouds, convex hulls). Cleared at the top of every step so results
+        # can never go stale across ticks.
+        scene._frame_pc_cache = {}
+        scene._frame_hull_cache = {}
+        scene._frame_tree_cache = {}
         if self.cur_union_metric is None:
-            return self.calc_overall_sr()
-        if isinstance(self.status_flag, bool):
-            raise ValueError("Status flag is a boolean, not a list")
-        union_metrics = self.status_flag[self.long_stride_idx]
+            return self.calc_overall_score()
+        if isinstance(self.metric_score, float):
+            raise ValueError("Status flag is a float, not a list")
+        union_metrics = self.metric_score[self.long_stride_idx]
 
         for union_idx, collection_metrics in enumerate(self.cur_union_metric):
             for collection_idx, metric in enumerate(collection_metrics):
                 metric.update(scene)
-                union_metrics[union_idx][collection_idx] = metric.status
+                union_metrics[union_idx][collection_idx] = metric.weight * (
+                    1 if metric.status else 0
+                )
 
         if any(
             [
@@ -76,14 +85,14 @@ class MetricsManager:
         ):
             self.cur_union_metric = self.get_next_metric()
 
-        return self.calc_overall_sr()
+        return self.calc_overall_score()
 
     # def step(self, scene) -> float | None:
     #     if self.cur_union_metric is None:
-    #         return self.calc_overall_sr()
-    #     if isinstance(self.status_flag, bool):
+    #         return self.calc_overall_score()
+    #     if isinstance(self.metric_score, bool):
     #         raise ValueError("Status flag is a boolean, not a list")
-    #     union_metrics = self.status_flag[self.long_stride_idx]
+    #     union_metrics = self.metric_score[self.long_stride_idx]
 
     #     tasks = []
     #     with ThreadPoolExecutor() as executor:
@@ -104,20 +113,20 @@ class MetricsManager:
     #     ):
     #         self.cur_union_metric = self.get_next_metric()
 
-    #     return self.calc_overall_sr()
+    #     return self.calc_overall_score()
 
-    def calc_overall_sr(self) -> float:
+    def calc_overall_score(self) -> float:
         def mean(xs):
             return sum(xs) / len(xs) if xs else 0.0
 
         outer_values = []
-        if isinstance(self.status_flag, bool):
-            raise ValueError("Status flag is a boolean, not a list")
-        for union_metric_status in self.status_flag:
+        if isinstance(self.metric_score, float):
+            raise ValueError("Status flag is a float, not a list")
+        for union_metric_status in self.metric_score:
             middle_values = []
             for collection_metric_status in union_metric_status:
                 # Compute average for the innermost list
-                leaf_avg = mean([1 if x else 0 for x in collection_metric_status])
+                leaf_avg = round(mean(collection_metric_status), 5)
                 middle_values.append(leaf_avg)
 
             # Second level: take the maximum of inner averages
@@ -125,6 +134,6 @@ class MetricsManager:
             outer_values.append(max_middle)
 
         # Top level: average the second-level maxima
-        success_rate = mean(outer_values)
+        score = mean(outer_values)
 
-        return success_rate
+        return score

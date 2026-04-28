@@ -13,6 +13,7 @@ import numpy as np
 import open3d as o3d
 import coacd
 import trimesh
+from scipy.spatial.transform import Rotation as R
 
 
 def __set_xform_prim_transform(prim: UsdGeom.Xformable, transform: Gf.Matrix4d):
@@ -294,26 +295,102 @@ def print_prim_tree(prim, prefix="", is_last=True):
         print_prim_tree(child, prefix + extension, is_last_child)
 
 
+def _decompose_affine_transform(
+    transform_matrix: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    matrix = np.asarray(transform_matrix, dtype=float)
+    if matrix.shape != (4, 4):
+        raise ValueError(f"Expected a 4x4 matrix, got shape {matrix.shape}")
+
+    translation = matrix[:3, 3].copy()
+    linear = matrix[:3, :3].copy()
+    scale = np.linalg.norm(linear, axis=0)
+
+    rotation_matrix = np.eye(3, dtype=float)
+    non_zero = np.abs(scale) > 1e-12
+    if np.any(non_zero):
+        rotation_matrix[:, non_zero] = linear[:, non_zero] / scale[non_zero]
+
+    if np.linalg.det(rotation_matrix) < 0 and np.any(non_zero):
+        axis_idx = int(np.argmax(np.abs(scale)))
+        rotation_matrix[:, axis_idx] *= -1.0
+        scale[axis_idx] *= -1.0
+
+    return translation, scale, rotation_matrix
+
+
+def _resolve_local_transform(
+    prim: Usd.Prim,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    transform_attr = prim.GetAttribute("xformOp:transform").Get()
+    if transform_attr is not None:
+        matrix = np.array(transform_attr, dtype=float).T
+        return _decompose_affine_transform(matrix)
+
+    translation_attr = prim.GetAttribute("xformOp:translate").Get()
+    translation = (
+        np.zeros(3, dtype=float)
+        if translation_attr is None
+        else np.asarray(translation_attr, dtype=float)
+    )
+
+    scale_attr = prim.GetAttribute("xformOp:scale").Get()
+    scale = (
+        np.ones(3, dtype=float)
+        if scale_attr is None
+        else np.asarray(scale_attr, dtype=float)
+    )
+
+    scale_units_resolve = prim.GetAttribute("xformOp:scale:unitsResolve").Get()
+    if scale_units_resolve is not None:
+        scale = scale * np.asarray(scale_units_resolve, dtype=float)
+
+    orient_attr = prim.GetAttribute("xformOp:orient").Get()
+    rotate_xyz = prim.GetAttribute("xformOp:rotateXYZ").Get()
+    rotate_zyx = prim.GetAttribute("xformOp:rotateZYX").Get()
+    if orient_attr is not None:
+        quat_wxyz = np.array(
+            [orient_attr.GetReal(), *orient_attr.GetImaginary()], dtype=float
+        )
+    elif rotate_xyz is not None or rotate_zyx is not None:
+        if rotate_xyz is not None:
+            seq = "xyz"
+            angles = np.asarray(rotate_xyz, dtype=float)
+        else:
+            seq = "zyx"
+            angles = np.asarray(rotate_zyx, dtype=float)
+        quat_xyzw = R.from_euler(seq, angles, degrees=True).as_quat()
+        quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+    else:
+        quat_wxyz = np.array([1.0, 0.0, 0.0, 0.0], dtype=float)
+
+    rotate_x_units_resolve = prim.GetAttribute("xformOp:rotateX:unitsResolve").Get()
+    if rotate_x_units_resolve is not None:
+        quat_xyzw = quat_wxyz[[1, 2, 3, 0]]
+        euler = R.from_quat(quat_xyzw).as_euler("xyz", degrees=True)
+        euler[0] += float(rotate_x_units_resolve)
+        quat_xyzw = R.from_euler("xyz", euler, degrees=True).as_quat()
+        quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+
+    rotation_matrix = R.from_quat(quat_wxyz[[1, 2, 3, 0]]).as_matrix()
+    return translation, scale, rotation_matrix
+
+
+def _apply_local_transform(
+    points: list[np.ndarray],
+    translation: np.ndarray,
+    scale: np.ndarray,
+    rotation_matrix: np.ndarray,
+) -> list[np.ndarray]:
+    if len(points) == 0:
+        return []
+    points_array = np.asarray(points, dtype=float)
+    transformed = (rotation_matrix @ (points_array * scale).T).T + translation
+    return [p for p in transformed]
+
+
 def recursive_parse(prim):
-    translation = prim.GetAttribute("xformOp:translate").Get()
-    if translation is None:
-        translation = np.zeros(3)
-    else:
-        translation = np.array(translation)
-    scale = prim.GetAttribute("xformOp:scale").Get()
-    if scale is None:
-        scale = np.ones(3)
-    else:
-        scale = np.array(scale)
-    orient = prim.GetAttribute("xformOp:orient").Get()
-    if orient is None:
-        orient = np.zeros([4, 1])
-        orient[0] = 1.0
-    else:
-        r = orient.GetReal()
-        i, j, k = orient.GetImaginary()
-        orient = np.array([r, i, j, k]).reshape(4, 1)
-    rotation_matrix = o3d.geometry.get_rotation_matrix_from_quaternion(orient)
+    translation, scale, rotation_matrix = _resolve_local_transform(prim)
     points_total = []
     faceuv_total = []
     normals_total = []
@@ -369,13 +446,54 @@ def recursive_parse(prim):
             faceuv_total += faceuv
             normals_total += normals
             points_total += points
-    new_points = []
-    for i, p in enumerate(points_total):
-        pn = np.array(p)
-        pn *= scale
-        pn = np.matmul(rotation_matrix, pn)
-        pn += translation
-        new_points.append(pn)
+    if prim.IsA(UsdGeom.Cube):
+        size_attr = prim.GetAttribute("size").Get()
+        half_size = float(size_attr) / 2 if size_attr is not None else 0.5
+        points = [
+            np.array([-half_size, -half_size, -half_size]),
+            np.array([half_size, -half_size, -half_size]),
+            np.array([half_size, half_size, -half_size]),
+            np.array([-half_size, half_size, -half_size]),
+            np.array([-half_size, -half_size, half_size]),
+            np.array([half_size, -half_size, half_size]),
+            np.array([half_size, half_size, half_size]),
+            np.array([-half_size, half_size, half_size]),
+        ]
+        face_vertex_counts = [4, 4, 4, 4, 4, 4]
+        face_vertex_indices = [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            0,
+            4,
+            7,
+            3,
+            1,
+            5,
+            6,
+            2,
+            3,
+            2,
+            6,
+            7,
+            0,
+            1,
+            5,
+            4,
+        ]
+        points_total += points
+        faceVertexCounts_total += face_vertex_counts
+        faceVertexIndices_total += face_vertex_indices
+        mesh_total.append(str(prim.GetPath()).split("/")[-1])
+
+    new_points = _apply_local_transform(
+        points_total, translation, scale, rotation_matrix
+    )
     return (
         new_points,
         faceuv_total,
@@ -470,7 +588,7 @@ def process_single_prim(prim: Usd.Prim, output_path: str, uuid: str):
             print(
                 f"Deleted {prim.GetName()} from {os.path.join(output_path, uuid + '.obj')}"
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, IndexError) as e:
             print(f"Error running coacd for {prim.GetName()}: {e}")
     else:
         print(

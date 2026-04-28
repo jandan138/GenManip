@@ -33,7 +33,9 @@ DEFAULT_RGB_SCALE_FACTOR = 256000.0
 
 def collect_task_data(
     object_list: dict[str, XFormPrim],
-    franka_list: list[BaseEmbodiment],
+    articulation_list: dict[str, Articulation],
+    articulation_part_list: dict[str, XFormPrim],
+    robot_list: list[BaseEmbodiment],
     camera_data: dict[str, Camera],
     task_data: dict,
     usd_path_list: dict[str, str],
@@ -41,8 +43,12 @@ def collect_task_data(
 ) -> dict:
     task_data["initial_scene_graph"] = None
     task_data["initial_layout"] = {}
+
     for key in object_list:
+        if not object_list[key].prim.IsActive():
+            continue
         task_data["initial_layout"][key] = {}
+        task_data["initial_layout"][key]["type"] = "object"
         task_data["initial_layout"][key]["position"] = object_list[
             key
         ].get_world_pose()[0]
@@ -65,8 +71,27 @@ def collect_task_data(
             task_data["initial_layout"][key]["add_colliders"] = True
             task_data["initial_layout"][key]["add_rigid_body"] = True
         task_data["initial_layout"][key]["prim_path"] = object_list[key].prim_path
-    for embodiment in franka_list:
+        if key in articulation_part_list:
+            task_data["initial_layout"][key]["is_articulation_part"] = True
+        else:
+            task_data["initial_layout"][key]["is_articulation_part"] = False
+
+    for key, articulation in articulation_list.items():
+        task_data["initial_layout"][key] = {}
+        task_data["initial_layout"][key]["type"] = "articulation"
+        task_data["initial_layout"][key]["position"] = articulation.get_world_pose()[0]
+        task_data["initial_layout"][key]["orientation"] = articulation.get_world_pose()[
+            1
+        ]
+        task_data["initial_layout"][key]["scale"] = articulation.get_local_scale()
+        task_data["initial_layout"][key][
+            "joint_positions"
+        ] = articulation.get_joint_positions()
+        task_data["initial_layout"][key]["prim_path"] = articulation.prim_path
+
+    for embodiment in robot_list:
         task_data["initial_layout"][embodiment.robot.name] = {}
+        task_data["initial_layout"][embodiment.robot.name]["type"] = "robot"
         task_data["initial_layout"][embodiment.robot.name][
             "position"
         ] = embodiment.robot.get_world_pose()[0]
@@ -76,6 +101,7 @@ def collect_task_data(
         task_data["initial_layout"][embodiment.robot.name][
             "joint_positions"
         ] = embodiment.robot.get_joint_positions()
+
     task_data["camera_data"] = camera_data
     return task_data
 
@@ -221,8 +247,11 @@ class PlanningRecorder:
             self.last_action = action
         if gripper_action is None:
             gripper_action = self.last_grasp  # type: ignore
-        else:
-            self.last_grasp = gripper_action
+            if isinstance(gripper_action, list) and len(gripper_action) == 2:
+                if arm == "left":
+                    gripper_action = gripper_action[0]
+                elif arm == "right":
+                    gripper_action = gripper_action[1]
         if arm is None:
             arm = self.last_arm
         else:
@@ -236,6 +265,7 @@ class PlanningRecorder:
             gripper_close = [-1, gripper_action]
         else:
             raise ValueError(f"Invalid arm: {arm}")
+        self.last_grasp = gripper_action
         if isinstance(name, list):
             self.add_action_name_frame(name)
         elif isinstance(name, str):
@@ -401,8 +431,9 @@ class PlanningRecorder:
         if self.env is not None:
             try:
                 self.env.close()
-            except Exception:
-                pass
+            except (OSError, RuntimeError, lmdb.Error) as exc:
+                if self.logger is not None:
+                    self.logger.warning("Failed to close LMDB environment: %s", exc)
             self.env = None
 
         self.json_data_logger.clear()
@@ -427,8 +458,9 @@ class PlanningRecorder:
             malloc_trim = getattr(libc, "malloc_trim", None)
             if malloc_trim is not None:
                 malloc_trim(0)
-        except Exception:
-            pass
+        except (AttributeError, OSError, RuntimeError, TypeError) as exc:
+            if self.logger is not None:
+                self.logger.warning("Failed to call malloc_trim: %s", exc)
 
     def set_permissions(self, path: str) -> None:
         os.chmod(path, 0o777)

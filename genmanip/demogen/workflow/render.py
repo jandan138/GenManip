@@ -3,6 +3,7 @@ from filelock import SoftFileLock
 import gc
 import logging
 import json
+import cv2
 import numpy as np
 import os
 import random
@@ -46,6 +47,7 @@ from genmanip.utils.usd_utils import (
     remove_colliders,
     set_camera_look_at,
 )
+from genmanip.utils.usd_utils.camera_utils import get_src
 from genmanip.utils.standalone.version_utils import process_archived_config
 
 
@@ -104,7 +106,7 @@ class RenderWorkflow:
         for demogen_config in self.demogen_config_list:
             try:
                 self._process_task(demogen_config)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, TypeError) as e:
                 self.logger.error(
                     f"Critical error in task {demogen_config.get('task_name')}: {e}"
                 )
@@ -207,16 +209,24 @@ class RenderWorkflow:
 
                 executed = True
 
-            if executed and os.path.exists(lock_file):
-                os.remove(lock_file)
-                self.render_cnt += 1
-                if (
-                    self.render_limit is not None
-                    and self.render_cnt >= self.render_limit
-                ):
-                    self.simulation_app.close()
+                if executed and os.path.exists(lock_file):
+                    os.remove(lock_file)
+                    self.render_cnt += 1
+                    if (
+                        self.render_limit is not None
+                        and self.render_cnt >= self.render_limit
+                    ):
+                        self.simulation_app.close()
 
-        except Exception as e:
+        except (
+            FileNotFoundError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
+        ) as e:
             self.logger.error(f"error in rendering {dir_name}: {e}")
             self.logger.error(traceback.format_exc())
 
@@ -253,6 +263,8 @@ class RenderWorkflow:
         data_list = parse_planning_result(
             dir_name, self.default_config, scene_config.task_name, scene.object_list
         )
+        if not data_list:
+            raise ValueError(f"No planning data found for trajectory: {dir_name}")
 
         if self.args.downsample > 1:
             data_list = data_list[:: self.args.downsample]
@@ -324,6 +336,8 @@ class RenderWorkflow:
                 pointDict,
                 pointJointDict,
             )
+            if idx == 0:
+                self._save_overhead_camera(render_dir, input_camera_dict)
 
             if self.args.render_first_frame:
                 break
@@ -472,6 +486,36 @@ class RenderWorkflow:
             data["base_motion"],
             pointcloud=pointcloud,
         )
+
+    def _save_overhead_camera(
+        self, render_dir: str, input_camera_dict: dict[str, object]
+    ) -> None:
+        preview_path = os.path.join(render_dir, "overhead_camera.jpg")
+        if os.path.exists(preview_path):
+            return
+
+        preferred_cameras = ["overlook_camera", "obs_camera", "top_camera"]
+        candidate_names = []
+        for camera_name in preferred_cameras:
+            if camera_name in input_camera_dict:
+                candidate_names.append(camera_name)
+        for camera_name in sorted(input_camera_dict.keys()):
+            if camera_name not in candidate_names:
+                candidate_names.append(camera_name)
+
+        for camera_name in candidate_names:
+            rgb = get_src(input_camera_dict[camera_name], "rgb")
+            if not isinstance(rgb, np.ndarray) or rgb.size == 0:
+                continue
+            if rgb.ndim != 3 or rgb.shape[-1] < 3:
+                continue
+            # get_src returns RGB; cv2 expects BGR.
+            bgr = cv2.cvtColor(rgb[:, :, :3], cv2.COLOR_RGB2BGR)
+            ok = cv2.imwrite(preview_path, bgr)
+            if ok:
+                return
+
+        self.logger.warning("Failed to save preview image in %s", render_dir)
 
     def _process_room_randomization(self, demogen_config):
         demogen_config["domain_randomization"]["random_environment"]["has_wall"] = False

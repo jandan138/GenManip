@@ -29,6 +29,7 @@ class BaseMetric(ABC):
         self.skip_steps = skip_steps
         self.succ_cnts = succ_cnts
         self.goal_setting = sub_goal_setting
+        self.weight = self.goal_setting.get("metric_weight", 1.0)
         self.never_reset = never_reset
         self.kwargs = kwargs
 
@@ -53,7 +54,7 @@ class BaseMetric(ABC):
             _status = self.check_status(scene)
 
             if _status:
-                self._succ_cnt += self.skip_steps  
+                self._succ_cnt += self.skip_steps
             elif not self.never_reset:
                 self._succ_cnt = 0
 

@@ -7,13 +7,13 @@
 4. 防止弹飞，保持articulation留在原地：加上physicsfixedjoint，绑在link_0的位置保持不动
 """
 
-from isaacsim import SimulationApp # type: ignore[import-untyped]
+from isaacsim import SimulationApp  # type: ignore[import-untyped]
 
 CONFIG = {"sync_loads": True, "headless": True, "renderer": "RayTracedLighting"}
 simulation_app = SimulationApp(launch_config=CONFIG)
 # simulation_app._carb_settings.set("/physics/cooking/ujitsoCollisionCooking", False)
 
-from pxr import Usd, UsdPhysics, UsdGeom, Gf, Sdf, PhysxSchema # type: ignore[attr-defined]
+from pxr import Usd, UsdPhysics, UsdGeom, Gf, Sdf, PhysxSchema  # type: ignore[attr-defined]
 
 SDF_COLLISION_APPROXIMATION_NAME = "sdf"
 CONVEX_HULL_COLLISION_APPROXIMATION_NAME = "convexHull"

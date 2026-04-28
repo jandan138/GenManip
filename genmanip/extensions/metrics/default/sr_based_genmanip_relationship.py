@@ -11,6 +11,7 @@ import numpy as np
 import open3d as o3d
 from pydantic import BaseModel, Field
 import scipy
+from scipy.spatial import QhullError
 from shapely.geometry import Point
 from shapely.vectorized import contains
 from sklearn.neighbors import NearestNeighbors
@@ -50,7 +51,7 @@ class SRBasedGenmanipRelationshipConfig(BaseModel):
         default=None,
         description="UID of the another object to measure the relationship",
     )
-    status: list[list[float]] | None = Field(
+    status: list | None = Field(
         default=None, description="Status of the object to measure the relationship"
     )
 
@@ -69,9 +70,17 @@ class SRBasedGenmanipRelationship(BaseMetric):
 
     @staticmethod
     def get_target_pc_list(scene, target_uids):
+        # OPT: per-frame cache populated by MetricsManager.step keeps the
+        # transformed point cloud for each uid so that multiple metrics
+        # sharing the same target (e.g. 7 beans vs 1 jar) do not retransform
+        # the jar point cloud 7 times per tick.
+        frame_cache = getattr(scene, "_frame_pc_cache", None)
         pc_list = {}
         for uid in target_uids:
             if uid not in scene.object_list:
+                continue
+            if frame_cache is not None and uid in frame_cache:
+                pc_list[uid] = frame_cache[uid]
                 continue
             if uid not in scene.cache_library.pointcloud_dict:
                 if uid in scene.cache_library.mesh_dict:
@@ -89,17 +98,20 @@ class SRBasedGenmanipRelationship(BaseMetric):
                             quat=mesh_info.quat,
                         )
                         scene.cache_library.pointcloud_dict[uid] = pc_info
-                    except Exception as e:
+                    except (RuntimeError, ValueError, AttributeError) as e:
                         print(f"Failed to generate point cloud for {uid}: {e}")
                         continue
             if uid in scene.cache_library.pointcloud_dict:
                 pc_info = scene.cache_library.pointcloud_dict[uid]
-                pc_list[uid] = get_current_pointCloud(scene.object_list[uid], pc_info)
+                transformed = get_current_pointCloud(scene.object_list[uid], pc_info)
+                pc_list[uid] = transformed
+                if frame_cache is not None:
+                    frame_cache[uid] = transformed
         return pc_list
 
     def check_status(self, scene):
         articulation_list = scene.articulation_list
-        if self.goal_setting.position:
+        if self.goal_setting.position is not None:
             target_uids = [self.goal_setting.obj1_uid]
             if self.goal_setting.obj2_uid:
                 target_uids.append(self.goal_setting.obj2_uid)
@@ -119,6 +131,7 @@ class SRBasedGenmanipRelationship(BaseMetric):
                 pclist[self.goal_setting.obj1_uid],
                 pclist[self.goal_setting.obj2_uid],
                 pcd3,
+                scene=scene,
             )
         elif self.goal_setting.status is not None:
             check_status_flag = check_subgoal_finished_articulation(
@@ -143,33 +156,51 @@ def assign_point_to_shelf(point: np.ndarray | list[float], shelves: list[Shelf])
     return 0
 
 
+def _cached_kdtree(points: np.ndarray, scene=None):
+    # Per-frame cache keyed on id(points); points come out of the shared
+    # _frame_pc_cache so the id is stable across sibling metrics.
+    tree_cache = None
+    if scene is not None:
+        tree_cache = getattr(scene, "_frame_tree_cache", None)
+    key = (id(points), points.shape[1])
+    if tree_cache is not None and key in tree_cache:
+        return tree_cache[key]
+    tree = scipy.spatial.cKDTree(points)
+    if tree_cache is not None:
+        tree_cache[key] = tree
+    return tree
+
+
 def calculate_distance_between_two_point_clouds(
-    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray
+    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray, scene=None
 ) -> float:
-    nn = NearestNeighbors(n_neighbors=1).fit(point_cloud_a)
-    distances, _ = nn.kneighbors(point_cloud_b)
-    res = np.min(distances)
-    return res
+    # OPT: scipy.cKDTree is ~3-5x faster than sklearn NearestNeighbors for
+    # this workload, and the tree is cached per-frame so sibling metrics
+    # hitting the same target share it.
+    tree = _cached_kdtree(point_cloud_a, scene=scene)
+    distances, _ = tree.query(point_cloud_b, k=1)
+    return float(np.min(distances))
 
 
 def calculate_xy_distance_between_two_point_clouds(
-    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray
+    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray, scene=None
 ) -> float:
-    point_cloud_a = point_cloud_a[:, :2]
-    point_cloud_b = point_cloud_b[:, :2]
-    nn = NearestNeighbors(n_neighbors=1).fit(point_cloud_a)
-    distances, _ = nn.kneighbors(point_cloud_b)
-    res = np.min(distances)
-    return res
+    pa = np.ascontiguousarray(point_cloud_a[:, :2])
+    pb = np.ascontiguousarray(point_cloud_b[:, :2])
+    tree = _cached_kdtree(pa, scene=scene)
+    distances, _ = tree.query(pb, k=1)
+    return float(np.min(distances))
 
 
 def check_subgoal_finished_articulation(
     status_list: list[list[float]], articulation: Articulation
 ) -> bool:
     articulation_status = articulation._articulation_view.get_joints_state().positions
-    for status in status_list:
-        if compare_articulation_status(articulation_status.tolist(), status):
-            return True
+    if any(
+        compare_articulation_status(articulation_status.tolist(), status)
+        for status in status_list
+    ):
+        return True
     return False
 
 
@@ -185,12 +216,13 @@ def check_subgoal_finished_rigid(
     pcd1: np.ndarray,
     pcd2: np.ndarray,
     pcd3: np.ndarray | None = None,
+    scene=None,
 ) -> bool:
-    relation_list = get_related_position(pcd1, pcd2, pcd3)
+    relation_list = get_related_position(pcd1, pcd2, pcd3, scene=scene)
     if position == "top" or position == "on":
         croped_pcd2 = crop_pcd(pcd1, pcd2)
         if len(croped_pcd2) > 0:
-            relation_list_2 = get_related_position(pcd1, croped_pcd2)
+            relation_list_2 = get_related_position(pcd1, croped_pcd2, scene=scene)
             if "on" in relation_list_2:
                 return True
     if position == "top" or position == "on":
@@ -206,18 +238,19 @@ def get_related_position(
     pcd1: np.ndarray,
     pcd2: np.ndarray,
     pcd3: np.ndarray | None = None,
+    scene=None,
 ) -> list[str]:
     max_pcd1 = np.max(pcd1, axis=0)
     min_pcd1 = np.min(pcd1, axis=0)
     max_pcd2 = np.max(pcd2, axis=0)
     min_pcd2 = np.min(pcd2, axis=0)
     return infer_spatial_relationship(
-        pcd1, pcd2, min_pcd1, max_pcd1, min_pcd2, max_pcd2, pcd3
+        pcd1, pcd2, min_pcd1, max_pcd1, min_pcd2, max_pcd2, pcd3, scene=scene
     )
 
 
 def _check_inside_relationship(
-    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray
+    point_cloud_a: np.ndarray, point_cloud_b: np.ndarray, scene=None
 ) -> list[str]:
     """检查内外关系"""
     relation_list = []
@@ -225,12 +258,14 @@ def _check_inside_relationship(
         src_pts=point_cloud_a,
         target_pts=point_cloud_b,
         thresh=INSIDE_PROPORTION_THRESH,
+        scene=scene,
     ):
         relation_list.append("in")
     elif is_inside(
         src_pts=point_cloud_b,
         target_pts=point_cloud_a,
         thresh=INSIDE_PROPORTION_THRESH,
+        scene=scene,
     ):
         relation_list.append("out of")
     return relation_list
@@ -359,6 +394,7 @@ def infer_spatial_relationship(
     max_points_b: np.ndarray,
     point_cloud_c: np.ndarray | None = None,
     error_margin_percentage: float = 0.01,
+    scene=None,
 ) -> list[str]:
     relation_list = []
     if point_cloud_c is None:
@@ -375,16 +411,20 @@ def infer_spatial_relationship(
 
         # 计算距离
         xy_dist = calculate_xy_distance_between_two_point_clouds(
-            point_cloud_a, point_cloud_b
+            point_cloud_a, point_cloud_b, scene=scene
         )
         if xy_dist > XY_DISTANCE_CLOSE_THRESHOLD * (1 + error_margin_percentage):
             return []
 
-        dist = calculate_distance_between_two_point_clouds(point_cloud_a, point_cloud_b)
+        dist = calculate_distance_between_two_point_clouds(
+            point_cloud_a, point_cloud_b, scene=scene
+        )
         # 如果两个物体很接近，检查各种关系
         if dist < MAX_TO_BE_TOUCHING_DISTANCE * (1 + error_margin_percentage):
             # 检查内外关系
-            inside_relations = _check_inside_relationship(point_cloud_a, point_cloud_b)
+            inside_relations = _check_inside_relationship(
+                point_cloud_a, point_cloud_b, scene=scene
+            )
             relation_list.extend(inside_relations)
             # 如果没有内外关系，检查支撑关系
             if not inside_relations:
@@ -499,16 +539,49 @@ def is_point_in_convex_hull_early(
     thresh_ratio: float = 0.5,
     tol: float = 1e-12,
 ) -> bool:
+    # OPT: batched vectorized replacement for the per-point Python loop.
+    # Processes chunks of ~16 MB at a time so peak allocation stays bounded
+    # even when ConvexHull yields thousands of faces (seen: ~9600). Keeps
+    # the original early-exit: returns as soon as the ratio is reached or
+    # provably unreachable.
     A = hull.equations[:, :-1]
     b = hull.equations[:, -1]
-    required = int(np.ceil(thresh_ratio * len(points)))
+    n = len(points)
+    required = int(np.ceil(thresh_ratio * n))
+    max_bytes = 16 * 1024 * 1024
+    chunk = max(1, int(max_bytes / max(1, A.shape[0] * 8)))
     cnt = 0
-    for p in points:
-        if np.all(A @ p + b <= tol):
-            cnt += 1
-            if cnt >= required:
-                return True
-    return False
+    for start in range(0, n, chunk):
+        block = points[start : start + chunk]
+        in_mask = np.all(block @ A.T + b <= tol, axis=1)
+        cnt += int(in_mask.sum())
+        if cnt >= required:
+            return True
+        remaining = n - (start + block.shape[0])
+        if cnt + remaining < required:
+            return False
+    return cnt >= required
+
+
+_HULL_CACHE_KEY = "_is_inside_hull_cache"
+
+
+def _get_convex_hull_cached(target_pts: np.ndarray, scene=None):
+    # Try frame cache first (populated by MetricsManager.step) to dedupe
+    # hulls across sibling metrics in the same tick.
+    hull_cache = None
+    if scene is not None:
+        hull_cache = getattr(scene, "_frame_hull_cache", None)
+    key = id(target_pts)
+    if hull_cache is not None and key in hull_cache:
+        return hull_cache[key]
+    try:
+        hull = scipy.spatial.ConvexHull(target_pts)
+    except (QhullError, ValueError):
+        hull = None
+    if hull_cache is not None:
+        hull_cache[key] = hull
+    return hull
 
 
 def is_inside(
@@ -516,10 +589,10 @@ def is_inside(
     target_pts: np.ndarray,
     thresh: float = 0.5,
     use_fast_method: bool = True,
+    scene=None,
 ) -> bool:
-    try:
-        hull = scipy.spatial.ConvexHull(target_pts)
-    except:
+    hull = _get_convex_hull_cached(target_pts, scene=scene)
+    if hull is None:
         return False
     num_src_pts = len(src_pts)
     thresh_obj_particles = thresh * num_src_pts

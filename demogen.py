@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
         default="just for record",
         help="Helps to record user name for monitoring in htop/nvidia-smi/nvitop etc.",
     )
-    
+
     parser.add_argument(
         "--eval",
         default=False,
@@ -64,7 +64,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run in action debug mode, reload the task config from the first demonstration config every episode",
     )
+    parser.add_argument(
+        "-gv",
+        "--genmanip_verbose",
+        default=False,
+        action="store_true",
+        help="Verbose mode for genmanip",
+    )
     args = parser.parse_args()
+    if args.genmanip_verbose:
+        os.environ["GENMANIP_VERBOSE"] = "1"
     return args
 
 

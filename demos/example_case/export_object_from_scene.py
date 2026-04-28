@@ -8,7 +8,7 @@ current_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(current_dir)
 
 
-from isaacsim import SimulationApp # type: ignore
+from isaacsim import SimulationApp  # type: ignore
 
 simulation_app = SimulationApp({"headless": True})
 
@@ -50,7 +50,7 @@ for usd_path in tqdm(usd_path_list):
 
         try:
             l, w, h = compute_aabb_lwh(get_prim_bbox(child_xform.prim))
-        except Exception as e:
+        except (AttributeError, IndexError, TypeError, ValueError) as e:
             print(f"Error computing bounding box for {child.GetName()}: {e}")
             l, w, h = 0, 0, 0
         child_info[child.GetName()[4:]]["bounding_box"] = [l, w, h]

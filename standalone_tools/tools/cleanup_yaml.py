@@ -70,7 +70,7 @@ def main() -> None:
             with open(args.yaml_path, "w") as f:
                 yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
             print(f"Successfully cleaned: {args.yaml_path}")
-        except Exception as e:
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as e:
             print(f"Error processing {args.yaml_path}: {e}")
     elif os.path.isdir(args.yaml_path):
         for root, dirs, files in os.walk(args.yaml_path):
@@ -90,7 +90,7 @@ def main() -> None:
                                 yaml_data, f, default_flow_style=False, sort_keys=False
                             )
                         print(f"Successfully cleaned: {file_path}")
-                    except Exception as e:
+                    except (OSError, yaml.YAMLError, TypeError, ValueError) as e:
                         print(f"Error processing {file_path}: {e}")
 
 

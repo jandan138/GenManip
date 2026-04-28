@@ -9,6 +9,7 @@ import hashlib
 import logging
 import os
 import random
+import sys
 from typing import Any
 
 
@@ -54,7 +55,7 @@ def get_nth_item_from_dict(d: dict, n: int) -> tuple[Any, Any]:
 def setup_logger() -> logging.Logger:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    console_handler = logging.StreamHandler()
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -69,6 +70,7 @@ def to_list(data: Any) -> list:
     if data is not None:
         res = [_ for _ in data]
     return res
+
 
 def parse_demogen_config(config: dict) -> list[dict]:
     demogen_config_list = config["demonstration_configs"]

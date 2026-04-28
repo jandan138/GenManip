@@ -11,3 +11,5 @@ huggingface-hub==0.34.4
 ray==2.48.0
 pydantic==2.12.5
 uvicorn==0.38.0
+pre-commit==4.2.0
+PyTurboJPEG==2.2.0

@@ -8,6 +8,7 @@ Licensed under the MIT License.
 import copy
 import os
 import random
+import re
 from typing import TYPE_CHECKING
 from mplib.planner import Planner as MplibPlanner
 import numpy as np
@@ -27,6 +28,10 @@ from omni.isaac.sensor import Camera  # type: ignore
 from pxr import UsdGeom, Usd  # type: ignore
 
 from genmanip.core.scene.scene_config import SceneConfig, RobotConfig
+from genmanip.utils.loader.asset_search import (
+    extract_asset_search_pattern,
+    get_asset_search_root,
+)
 from genmanip.utils.loader.preload_rules import (
     apply_rule,
     collect_all_colors,
@@ -37,10 +42,7 @@ from genmanip.utils.loader.preload_rules import (
     generate_long_horizon_by_materials,
     generate_long_horizon_by_shape,
 )
-from genmanip.utils.loader.utils import (
-    collect_world_pose_list,
-    collect_articulation_list,
-)
+from genmanip.utils.usd_utils import set_mdl, create_dome_light, set_texture
 from genmanip.utils.pointcloud.pointcloud import (
     objectList2meshList,
     get_mesh_info_by_load,
@@ -61,19 +63,65 @@ from genmanip.utils.usd_utils import (
     set_mass,
     set_rigid_body,
     set_rigid_body_CCD,
+    set_robot_physics_material,
+    set_robot_contact_offset,
+    set_robot_rest_offset,
     set_semantic_label,
     get_world_pose_by_prim_path,
     get_local_scale_by_prim_path,
 )
 from genmanip.utils.standalone.utils import generate_hash
 from genmanip.utils.standalone.file_utils import load_yaml, load_json
-from genmanip.core.evaluator.evaluator import Evaluator
 from genmanip.utils.annotation.object_pool import ObjectPool
 import genmanip.extensions.robots
 import genmanip.extensions.skills
 
 if TYPE_CHECKING:
     from genmanip.core.scene.scene import Scene
+
+
+def _get_uid_from_usd_path(usd_path: str) -> str:
+    return os.path.splitext(os.path.basename(usd_path))[0]
+
+
+def _list_usd_candidates(assets_dir: str, path_expr: str) -> list[str]:
+    asset_path = os.path.join(assets_dir, path_expr)
+    if os.path.isdir(asset_path):
+        usd_list = [
+            os.path.join(path_expr, usd)
+            for usd in os.listdir(asset_path)
+            if usd.endswith(".usd") and not os.path.isdir(os.path.join(asset_path, usd))
+        ]
+        usd_list.sort()
+        return usd_list
+    if os.path.isfile(asset_path):
+        if not asset_path.endswith(".usd"):
+            raise ValueError(f"Object path {path_expr} is not a usd file")
+        return [path_expr]
+    pattern = extract_asset_search_pattern(path_expr)
+    if pattern is None:
+        raise ValueError(
+            f"Object path {path_expr} does not exist under assets dir {assets_dir}"
+        )
+    try:
+        compiled_pattern = re.compile(pattern)
+    except re.error as exc:
+        raise ValueError(f"Invalid grep pattern {path_expr}: {exc}") from exc
+    usd_list = []
+    _, search_root = get_asset_search_root(assets_dir, path_expr)
+    for root, _, files in os.walk(search_root):
+        relative_root = os.path.relpath(root, assets_dir)
+        for usd in files:
+            if not usd.endswith(".usd"):
+                continue
+            relative_path = (
+                usd if relative_root == "." else os.path.join(relative_root, usd)
+            )
+            normalized_relative_path = relative_path.replace(os.sep, "/")
+            if compiled_pattern.search(normalized_relative_path):
+                usd_list.append(relative_path)
+    usd_list.sort()
+    return usd_list
 
 
 def setup_walls_and_materials(
@@ -259,6 +307,9 @@ def preload_object(
     add_rigid_body: bool = True,
     add_colliders: bool = True,
     remove_collider: bool = False,
+    mass: float | None = None,
+    static_friction: float = 1.0,
+    dynamic_friction: float = 1.0,
 ) -> XFormPrim:
     if not os.path.exists(object_path):
         raise ValueError(f"Object path {object_path} does not exist")
@@ -273,6 +324,9 @@ def preload_object(
         add_rigid_body=add_rigid_body,
         add_colliders=add_colliders,
         collision_approximation="convexDecomposition",
+        mass=mass,
+        static_friction=static_friction,
+        dynamic_friction=dynamic_friction,
     )
     if remove_collider:
         remove_colliders(obj_xform.prim_path)
@@ -444,17 +498,9 @@ def preprocess_object_config(
         is_vaild = True
         for key in object_config_keys:
             if object_config[key].type == "load_object_from_path":
-                folder_path = os.path.join(
-                    default_config["ASSETS_DIR"],
-                    object_config[key].path,
+                usd_list = _list_usd_candidates(
+                    default_config["ASSETS_DIR"], object_config[key].path
                 )
-                usd_list = os.listdir(folder_path)
-                usd_list = [
-                    usd
-                    for usd in usd_list
-                    if usd.endswith(".usd")
-                    and not os.path.isdir(os.path.join(folder_path, usd))
-                ]
                 usd_list_len = len(usd_list)
                 for rule in object_config[key].filter_rule:
                     usd_list = apply_rule(rule, usd_list, scene.object_pool)
@@ -593,6 +639,7 @@ def preload_objects(
                         and not object_config[key].without_colliders,
                         "add_rigid_body": not without_planning
                         and not object_config[key].is_not_rigid,
+                        "mass": object_config[key].mass,
                     }
                     joints_default_state_list = [
                         robot.robot.get_joints_default_state()
@@ -643,17 +690,9 @@ def preload_objects(
                     else:
                         raise ValueError(f"Object {uid} not found in scene")
             elif object_config[key].type == "load_object_from_path":
-                folder_path = os.path.join(
-                    default_config["ASSETS_DIR"],
-                    object_config[key].path,
+                usd_list = _list_usd_candidates(
+                    default_config["ASSETS_DIR"], object_config[key].path
                 )
-                usd_list = os.listdir(folder_path)
-                usd_list = [
-                    usd
-                    for usd in usd_list
-                    if not os.path.isdir(os.path.join(folder_path, usd))
-                    and str(usd).endswith(".usd")
-                ]
                 for rule in object_config[key].filter_rule:
                     usd_list = apply_rule(rule, usd_list, scene.object_pool)
                 max_cached_num = np.clip(
@@ -679,9 +718,10 @@ def preload_objects(
                         scene.cache_library.preload_hash_feature[key]
                     ].extend(object_config[key].replace_existed_object)
                 for obj in tqdm(usd_list):
-                    uid = obj.split(".")[0]
+                    uid = _get_uid_from_usd_path(obj)
+                    obj_path = os.path.join(default_config["ASSETS_DIR"], obj)
                     if (
-                        os.path.isdir(os.path.join(folder_path, obj))
+                        not os.path.isfile(obj_path)
                         or uid not in scene.object_pool.uids
                     ) and not ("plain_replace" in object_config[key].option):
                         continue
@@ -694,7 +734,7 @@ def preload_objects(
                     ):
                         continue
                     obj_xform = preload_object(
-                        os.path.join(folder_path, obj),
+                        obj_path,
                         scene.uuid,
                         uid,
                         scene.world,
@@ -721,10 +761,7 @@ def preload_objects(
                             joints_default_state.velocities
                         )
                     scene.cache_library.preloaded_object_list[uid] = obj_xform
-                    scene.cache_library.preloaded_object_path_list[uid] = os.path.join(
-                        object_config[key].path,
-                        obj,
-                    )
+                    scene.cache_library.preloaded_object_path_list[uid] = obj
 
 
 def add_articulation_to_scene(uid: str, uuid: str, world: World) -> Articulation:
@@ -943,6 +980,35 @@ def preprocess_scene(scene: "Scene", demogen_config: SceneConfig) -> None:
             for name, object in scene.object_list.items():
                 if has_collision_api(object.prim):
                     add_physics_material(object.prim_path)
+        if preprocess_info["type"] == "set_robot_physics_material":
+            prim_path = None
+            if preprocess_info["robot_type"] == "lift2":
+                prim_path = "/World/_scene/lift2/lift2/lift2/PhysicsMaterial"
+
+            if prim_path is not None:
+                set_robot_physics_material(prim_path, preprocess_info["config"])
+        if preprocess_info["type"] == "set_robot_contact_offset":
+            prim_paths = None
+            if preprocess_info["robot_type"] == "lift2":
+                prim_paths = [
+                    "/World/_scene/lift2/lift2/lift2/fl/link7/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fl/link8/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fr/link7/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fr/link8/mesh",
+                ]
+            if prim_paths is not None:
+                set_robot_contact_offset(prim_paths, preprocess_info["config"])
+        if preprocess_info["type"] == "set_robot_rest_offset":
+            prim_paths = None
+            if preprocess_info["robot_type"] == "lift2":
+                prim_paths = [
+                    "/World/_scene/lift2/lift2/lift2/fl/link7/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fl/link8/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fr/link7/mesh",
+                    "/World/_scene/lift2/lift2/lift2/fr/link8/mesh",
+                ]
+            if prim_paths is not None:
+                set_robot_rest_offset(prim_paths, preprocess_info["config"])
 
 
 def cleanup_camera(camera_data: dict, camera: Camera) -> None:
@@ -969,16 +1035,41 @@ def clear_scene(scene: "Scene", scene_config: SceneConfig, current_dir: str) -> 
         camera_data = load_yaml(os.path.join(current_dir, camera_info.config_path))
     else:
         raise ValueError(f"Unsupported camera type: {camera_info.type}")
+
+    world = getattr(scene, "world", None)
+    if world is not None:
+        stop_fn = getattr(world, "stop", None)
+        if callable(stop_fn):
+            try:
+                stop_fn()
+            except Exception:
+                pass
+
     for camera_name, camera_info in camera_data.items():
         if camera_name in scene.camera_list:
             cleanup_camera(camera_info, scene.camera_list[camera_name])
-    scene.world.scene.clear()
-    del scene
-    delete_prim("/World")
-    delete_prim("/Camera")
-    delete_prim("/Replicator")
-    omni.usd.get_context().close_stage()
-    omni.usd.get_context().new_stage()
+    scene.camera_list = {}
+
+    if world is not None:
+        try:
+            world.scene.clear()
+        except Exception:
+            pass
+
+    scene.object_list = {}
+    scene.articulation_list = {}
+    scene.articulation_part_list = {}
+    scene.robot_list = []
+
+    for prim_path in ("/Replicator", "/Camera", "/World"):
+        try:
+            delete_prim(prim_path)
+        except Exception:
+            pass
+
+    usd_context = omni.usd.get_context()
+    usd_context.close_stage()
+    usd_context.new_stage()
     # action_registry = omni.kit.actions.core.get_action_registry()
     # action = action_registry.get_action("omni.kit.viewport.menubar.lighting", "set_lighting_mode_stage")
     # action.execute()
@@ -1000,25 +1091,6 @@ def warmup_world(
         scene.world.step(render=False)
 
 
-def collect_meta_infos(scene: "Scene") -> None:
-    scene.meta_infos["world_pose_list"] = collect_world_pose_list(scene.object_list)
-    scene.meta_infos["articulation_pose_list"] = collect_articulation_list(
-        scene, scene.articulation_list
-    )
-    scene.meta_infos["robot_pose_list"] = [
-        robot.robot.get_world_pose() for robot in scene.robot_list
-    ]
-    scene.meta_infos["robot_tcp_list"] = [
-        robot.fk_single(robot.robot.get_joint_positions()) for robot in scene.robot_list
-    ]
-    scene.meta_infos["joint_positions"] = [
-        robot.robot.get_joint_positions() for robot in scene.robot_list
-    ]
-    scene.meta_infos["joint_velocities"] = [
-        robot.robot.get_joint_velocities() for robot in scene.robot_list
-    ]
-
-
 def update_meta_infos(scene: "Scene") -> None:
     articulation_part_list = scene.articulation_part_list
     for part_id, part_xform in articulation_part_list.items():
@@ -1027,14 +1099,21 @@ def update_meta_infos(scene: "Scene") -> None:
 
 def recovery_scene(
     scene: "Scene",
-    evaluator: Evaluator | None,
     task_data: dict,
     task_name: str,
     default_config: dict,
 ) -> dict:
+    def _set_robot_joint_positions(joint_positions) -> None:
+        embodiment = scene.robot_list[0]
+        joint_positions_arr = np.asarray(joint_positions)
+        if joint_positions_arr.shape[0] == len(embodiment.default_dof_indices):
+            embodiment.set_joint_positions(joint_positions_arr)
+            return
+        embodiment.robot.set_joint_positions(joint_positions_arr)
+
     layout = copy.deepcopy(task_data["initial_layout"])
-    if scene.robot_list[0].robot.name in layout:
-        layout.pop(scene.robot_list[0].robot.name)
+
+    # Remove objects that are not in the layout
     object_list_keys = list(scene.object_list.keys())
     for key in object_list_keys:
         if key not in layout:
@@ -1044,9 +1123,19 @@ def recovery_scene(
         else:
             if not scene.object_list[key].prim.IsActive():
                 scene.object_list[key].prim.SetActive(True)
+
+    # Add objects that are not in the scene
     for key in layout:
+        if layout[key].get("type", "object") != "object":
+            continue
+        if scene.robot_list[0].robot.name == key:
+            continue
         if key not in scene.object_list:
             path = layout[key]["path"].split("GenManip-Sim/saved/assets/")[-1]
+            if not is_valid_object_path(
+                os.path.join(default_config["ASSETS_DIR"], path)
+            ):
+                continue
             scene.object_list[key] = preload_object(
                 os.path.join(default_config["ASSETS_DIR"], path),
                 scene.uuid,
@@ -1054,21 +1143,70 @@ def recovery_scene(
                 scene.world,
                 add_colliders=layout[key].get("add_colliders", True),
                 add_rigid_body=layout[key].get("add_rigid_body", True),
+                mass=layout[key].get("mass", None),
+                static_friction=layout[key].get("static_friction", 1.0),
+                dynamic_friction=layout[key].get("dynamic_friction", 1.0),
             )
             if not scene.object_list[key].prim.IsActive():
                 scene.object_list[key].prim.SetActive(True)
+
+    # Set objects' world pose and scale
     for key, object_info in layout.items():
+        if object_info.get("type", "object") != "object":
+            continue
+        if scene.robot_list[0].robot.name == key:
+            continue
+
         original_prim_path = object_info["prim_path"]
         original_uuid = original_prim_path.split("/")[2]
         current_prim_path = original_prim_path.replace(
             f"/World/{original_uuid}", f"/World/{scene.uuid}"
         )
-        if is_prim_path_valid(current_prim_path):
-            scene.object_list[key].set_world_pose(
-                object_info["position"], object_info["orientation"]
+        if not is_prim_path_valid(current_prim_path):
+            continue
+
+        if object_info.get("is_articulation_part", False):
+            continue
+        scene.object_list[key].set_world_pose(
+            object_info["position"], object_info["orientation"]
+        )
+        scene.object_list[key].set_local_scale(object_info["scale"])
+        clean_prim_velocity(scene.object_list[key].prim_path)
+
+    for key, articulation_info in layout.items():
+        if articulation_info.get("type", "object") != "articulation":
+            continue
+        if scene.robot_list[0].robot.name == key:
+            continue
+
+        original_prim_path = articulation_info["prim_path"]
+        original_uuid = original_prim_path.split("/")[2]
+        current_prim_path = original_prim_path.replace(
+            f"/World/{original_uuid}", f"/World/{scene.uuid}"
+        )
+        if not is_prim_path_valid(current_prim_path):
+            continue
+
+        scene.articulation_list[key].set_world_pose(
+            articulation_info["position"], articulation_info["orientation"]
+        )
+        scene.articulation_list[key].set_local_scale(articulation_info["scale"])
+        if "joint_positions" in articulation_info:
+            scene.articulation_list[key].set_joint_positions(
+                articulation_info["joint_positions"]
             )
-            scene.object_list[key].set_local_scale(object_info["scale"])
-            clean_prim_velocity(scene.object_list[key].prim_path)
+
+    for key, robot_info in layout.items():
+        if robot_info.get("type", "object") != "robot":
+            continue
+        if scene.robot_list[0].robot.name != key:
+            continue
+
+        scene.robot_list[0].robot.set_world_pose(
+            robot_info["position"], robot_info["orientation"]
+        )
+        _set_robot_joint_positions(robot_info["joint_positions"])
+
     scene.cache_library.mesh_dict = objectList2meshList(
         scene.object_list,
         os.path.join(
@@ -1077,28 +1215,77 @@ def recovery_scene(
             task_name,
         ),
     )
-    for goal in task_data["goal"]:
+
+    def recursive_set_mass(goal) -> None:
         for subgoal in goal:
-            if "another_obj2_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["another_obj2_uid"]].prim_path, 10.0)
-            if "status" in subgoal:
-                continue
-            if "obj1_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["obj1_uid"]].prim_path, 0.1)
-            if "obj2_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["obj2_uid"]].prim_path, 10.0)
+            if isinstance(subgoal, list):
+                recursive_set_mass(subgoal)
+            elif isinstance(subgoal, dict):
+                if subgoal.get("not_set_mass", False):
+                    continue
+                obj1_uid = subgoal.get("obj1_uid", None)
+                obj2_uid = subgoal.get("obj2_uid", None)
+                another_obj2_uid = subgoal.get("another_obj2_uid", None)
+                if obj1_uid is None and obj2_uid is None:
+                    continue
+                if obj1_uid is not None:
+                    if obj1_uid in scene.object_list:
+                        set_mass(scene.object_list[obj1_uid].prim_path, 0.1)
+                elif obj2_uid is not None:
+                    if obj2_uid in scene.object_list:
+                        set_mass(scene.object_list[obj2_uid].prim_path, 10.0)
+                elif another_obj2_uid is not None:
+                    if another_obj2_uid in scene.object_list:
+                        set_mass(scene.object_list[another_obj2_uid].prim_path, 10.0)
+
+    recursive_set_mass(task_data["goal"])
+
     if scene.robot_list[0].robot.name in task_data["initial_layout"]:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             task_data["initial_layout"][scene.robot_list[0].robot.name][
                 "joint_positions"
             ]
         )
     else:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             np.array([0.012, -0.57, 0.0, -2.81, 0.0, 3.37, 0.741, 0.04, 0.04])
         )
-    if evaluator is not None:
-        evaluator.instruction = task_data["instruction"]
+
+    if "random_visuals" in task_data:
+        for prim_path, visual_info in task_data["random_visuals"].items():
+            if visual_info["type"] == "mdl":
+                if not is_prim_path_valid(prim_path):
+                    print(
+                        f"[WARN] Skip random_visual mdl for invalid prim path: {prim_path}"
+                    )
+                    continue
+                set_mdl(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            elif visual_info["type"] == "dome_light":
+                create_dome_light(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            elif visual_info["type"] == "texture":
+                if not is_prim_path_valid(prim_path):
+                    print(
+                        f"[WARN] Skip random_visual texture for invalid prim path: {prim_path}"
+                    )
+                    continue
+                set_texture(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            else:
+                raise ValueError(f"Invalid visual type: {visual_info['type']}")
     return layout
 
 
@@ -1117,6 +1304,14 @@ def recovery_scene_render(
     default_config: dict,
     remove_table: bool = False,
 ) -> None:
+    def _set_robot_joint_positions(joint_positions) -> None:
+        embodiment = scene.robot_list[0]
+        joint_positions_arr = np.asarray(joint_positions)
+        if joint_positions_arr.shape[0] == len(embodiment.default_dof_indices):
+            embodiment.set_joint_positions(joint_positions_arr)
+            return
+        embodiment.robot.set_joint_positions(joint_positions_arr)
+
     if "initial_layout" not in task_data:
         return None
     layout = copy.deepcopy(task_data["initial_layout"])
@@ -1125,11 +1320,11 @@ def recovery_scene_render(
         layout[scene.robot_list[0].robot.name]["orientation"],
     )
     if scene.robot_list[0].robot.name in layout:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             layout[scene.robot_list[0].robot.name]["joint_positions"]
         )
     else:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             np.array([0.012, -0.57, 0.0, -2.81, 0.0, 3.37, 0.741, 0.04, 0.04])
         )
     if scene.robot_list[0].robot.name in layout:
@@ -1148,7 +1343,7 @@ def recovery_scene_render(
             str(object.prim_path), str(object.prim_path).split("/")[-1][4:]
         )
     for key in layout:
-        if key not in scene.object_list:
+        if key not in scene.object_list and key not in scene.articulation_list:
             path = layout[key]["path"].split("GenManip-Sim/saved/assets/")[-1]
             if is_valid_object_path(os.path.join(default_config["ASSETS_DIR"], path)):
                 scene.object_list[key] = preload_object(
@@ -1162,12 +1357,21 @@ def recovery_scene_render(
                 )
                 if not scene.object_list[key].prim.IsActive():
                     scene.object_list[key].prim.SetActive(True)
+            else:
+                print(f"[WARN] Skip object {key} for invalid path: {path}")
     for key, object_info in layout.items():
         if is_prim_path_valid(object_info["prim_path"]):
-            scene.object_list[key].set_world_pose(
-                object_info["position"], object_info["orientation"]
-            )
-            scene.object_list[key].set_local_scale(object_info["scale"])
+            if key in scene.object_list:
+                scene.object_list[key].set_world_pose(
+                    object_info["position"], object_info["orientation"]
+                )
+                scene.object_list[key].set_local_scale(object_info["scale"])
+            # TODO: set articulation world pose and scale
+            # elif key in scene.articulation_list:
+            #     scene.articulation_list[key].set_world_pose(
+            #         object_info["position"], object_info["orientation"]
+            #     )
+            #     scene.articulation_list[key].set_local_scale(object_info["scale"])
     # scene["cacheDict"]["meshDict"] = objectList2meshList(
     #     scene["object_list"],
     #     os.path.join(
@@ -1176,17 +1380,43 @@ def recovery_scene_render(
     #         eval_config["task_name"],
     #     ),
     # )
-    for goal in task_data["goal"]:
-        for subgoal in goal:
-            if "is_articulated" in subgoal:
-                continue
-            if "another_obj2_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["another_obj2_uid"]].prim_path, 10.0)
-            if "obj1_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["obj1_uid"]].prim_path, 0.1)
-            if "obj2_uid" in subgoal:
-                set_mass(scene.object_list[subgoal["obj2_uid"]].prim_path, 10.0)
     if remove_table:
         if scene.object_list["00000000000000000000000000000000"].prim.IsActive():
             scene.object_list["00000000000000000000000000000000"].prim.SetActive(False)
+
+    if "random_visuals" in task_data:
+        for prim_path, visual_info in task_data["random_visuals"].items():
+            if visual_info["type"] == "mdl":
+                if not is_prim_path_valid(prim_path):
+                    print(
+                        f"[WARN] Skip random_visual mdl for invalid prim path: {prim_path}"
+                    )
+                    continue
+                set_mdl(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            elif visual_info["type"] == "dome_light":
+                create_dome_light(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            elif visual_info["type"] == "texture":
+                if not is_prim_path_valid(prim_path):
+                    print(
+                        f"[WARN] Skip random_visual texture for invalid prim path: {prim_path}"
+                    )
+                    continue
+                set_texture(
+                    prim_path,
+                    os.path.join(
+                        default_config["ASSETS_DIR"], visual_info["asset_path"]
+                    ),
+                )
+            else:
+                raise ValueError(f"Invalid visual type: {visual_info['type']}")
     return None
