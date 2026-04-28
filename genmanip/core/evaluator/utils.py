@@ -23,7 +23,10 @@ import cv2
 from huggingface_hub import snapshot_download
 import lmdb
 
-from genmanip.utils.rerun.rerun_utils import log_episode_to_rerun
+from genmanip.utils.rerun.rerun_utils import (
+    RerunSaveStatus,
+    log_episode_to_rerun,
+)
 from genmanip.utils.standalone.file_utils import load_yaml, check_benchmark_version
 from genmanip.utils.standalone.frame_utils import (
     create_video_from_image_folder,
@@ -573,7 +576,11 @@ class EpisodeRecorder:
             pickle.dump(self.meta_record, f)
 
     def build_finalize_payload(
-        self, score: float, episode_start_time: str, episode_end_time: str
+        self,
+        score: float,
+        episode_start_time: str,
+        episode_end_time: str,
+        metric_score: list,
     ) -> dict[str, Any]:
         return {
             "traj_log_dir": self.traj_log_dir,
@@ -585,10 +592,15 @@ class EpisodeRecorder:
             "score": score,
             "episode_start_time": episode_start_time,
             "episode_end_time": episode_end_time,
+            "metric_score": metric_score,
         }
 
     def finalize(
-        self, score: float, episode_start_time: str, episode_end_time: str
+        self,
+        score: float,
+        episode_start_time: str,
+        episode_end_time: str,
+        metric_score: list,
     ) -> None:
         if self.save_process:
             action_list = []
@@ -610,15 +622,35 @@ class EpisodeRecorder:
                 if self.meta_record["base_positions"]
                 else None
             )
-            log_episode_to_rerun(
+            rrd_path = os.path.join(self.result_info_dir, "episode.rrd")
+            rerun_status = log_episode_to_rerun(
                 self.image_list,
                 action_list,
                 joint_list,
                 gripper_list,
                 base_list,
-                rrd_path=os.path.join(self.result_info_dir, "episode.rrd"),
+                rrd_path=rrd_path,
                 robot_id=self.meta_record.get("robot_id"),
             )
+            if rerun_status not in (
+                RerunSaveStatus.SAVED,
+                RerunSaveStatus.SKIPPED_NO_SDK,
+            ):
+                raise RuntimeError(
+                    "Refuse to write result_info.json because episode.rrd was not "
+                    f"saved: status={rerun_status.value}"
+                )
+            if rerun_status != RerunSaveStatus.SKIPPED_NO_SDK:
+                if not os.path.exists(rrd_path):
+                    raise RuntimeError(
+                        "Refuse to write result_info.json because episode.rrd is "
+                        f"missing: {rrd_path}"
+                    )
+                if os.path.getsize(rrd_path) <= 0:
+                    raise RuntimeError(
+                        "Refuse to write result_info.json because episode.rrd is "
+                        f"empty: {rrd_path}"
+                    )
 
             for camera_name in self.camera_names:
                 if len(self.image_list[camera_name]) > 0:
@@ -639,6 +671,7 @@ class EpisodeRecorder:
                 "log_info": {
                     "episode_start_time": episode_start_time,
                     "episode_end_time": episode_end_time,
+                    "metric_score": metric_score,
                 },
             },
             os.path.join(self.result_info_dir, "result_info.json"),
@@ -659,4 +692,5 @@ def finalize_episode_recorder_payload(payload: dict[str, Any]) -> None:
         float(payload["score"]),
         str(payload["episode_start_time"]),
         str(payload["episode_end_time"]),
+        list(payload["metric_score"]),
     )

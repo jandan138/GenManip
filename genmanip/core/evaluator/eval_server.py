@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from fastapi import FastAPI, APIRouter, Request, HTTPException, Response
 import traceback
@@ -17,6 +18,8 @@ DEFAULT_RESET_TIMEOUT = 600  # 10 minutes
 DEFAULT_KILL_TIMEOUT = 120  # 2 minutes
 DEFAULT_CREATE_TIMEOUT = 600  # 10 minutes
 DEFAULT_LOAD_CONFIG_TIMEOUT = 60  # 1 minute
+DEFAULT_DATA_EXECUTOR_WORKERS = 32
+DEFAULT_CONTROL_EXECUTOR_WORKERS = 8
 
 
 class EvalServer:
@@ -62,6 +65,14 @@ class EvalServer:
         self.load_config_timeout = load_config_timeout
         self.logger: logging.Logger | None = None
         self.server_log_id = make_log_file_timestamp()
+        self._data_executor = ThreadPoolExecutor(
+            max_workers=DEFAULT_DATA_EXECUTOR_WORKERS,
+            thread_name_prefix="eval-data",
+        )
+        self._control_executor = ThreadPoolExecutor(
+            max_workers=DEFAULT_CONTROL_EXECUTOR_WORKERS,
+            thread_name_prefix="eval-control",
+        )
         self.app = FastAPI(title="Eval Service")
         self._router = APIRouter()
         self._register_routes()
@@ -108,6 +119,14 @@ class EvalServer:
     def _internal_error_detail(exc: Exception) -> str:
         return f"{type(exc).__name__}: {exc}"
 
+    async def _run_in_data_executor(self, func, *args):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._data_executor, func, *args)
+
+    async def _run_in_control_executor(self, func, *args):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._control_executor, func, *args)
+
     # ================= Registered routes =================
     async def step(self, request: Request) -> Response:
         """
@@ -145,7 +164,7 @@ class EvalServer:
 
             try:
                 response_data = await asyncio.wait_for(
-                    asyncio.to_thread(pool.step, action_dict),
+                    self._run_in_data_executor(pool.step, action_dict),
                     timeout=self.step_timeout,
                 )
             except asyncio.TimeoutError:
@@ -208,7 +227,7 @@ class EvalServer:
                 if render_mode not in ("lite", "always"):
                     render_mode = "lite"
                 response_data = await asyncio.wait_for(
-                    asyncio.to_thread(
+                    self._run_in_data_executor(
                         pool.step_chunk,
                         action_chunk,
                         render_mode,
@@ -257,7 +276,7 @@ class EvalServer:
             worker_ids = data["worker_ids"]
             try:
                 await asyncio.wait_for(
-                    asyncio.to_thread(pool.kill_workers, worker_ids),
+                    self._run_in_control_executor(pool.kill_workers, worker_ids),
                     timeout=self.kill_timeout,
                 )
             except asyncio.TimeoutError:
@@ -308,7 +327,7 @@ class EvalServer:
 
             try:
                 obs_dict = await asyncio.wait_for(
-                    asyncio.to_thread(pool.reset, worker_ids),
+                    self._run_in_control_executor(pool.reset, worker_ids),
                     timeout=self.reset_timeout,
                 )
             except asyncio.TimeoutError:
@@ -362,8 +381,11 @@ class EvalServer:
             else:
                 worker_ids = None
 
-            result_dict = await asyncio.to_thread(
-                pool.get_pending_reset_results, worker_ids
+            result_dict = await asyncio.wait_for(
+                self._run_in_control_executor(
+                    pool.get_pending_reset_results, worker_ids
+                ),
+                timeout=self.reset_timeout,
             )
             blob = pickle.dumps(result_dict, protocol=pickle.HIGHEST_PROTOCOL)
             return Response(content=blob, media_type="application/octet-stream")
@@ -392,7 +414,7 @@ class EvalServer:
             worker_ids = data["worker_ids"]
             try:
                 await asyncio.wait_for(
-                    asyncio.to_thread(pool.create_workers, worker_ids),
+                    self._run_in_control_executor(pool.create_workers, worker_ids),
                     timeout=self.create_timeout,
                 )
             except asyncio.TimeoutError:
@@ -446,7 +468,9 @@ class EvalServer:
                 )
             try:
                 await asyncio.wait_for(
-                    asyncio.to_thread(pool.start_new_job, run_id, config_path),
+                    self._run_in_control_executor(
+                        pool.start_new_job, run_id, config_path
+                    ),
                     timeout=self.load_config_timeout,
                 )
             except asyncio.TimeoutError:
@@ -487,7 +511,12 @@ class EvalServer:
         """
         pool = request.app.state.pool
         try:
-            status_data = await asyncio.to_thread(pool.get_status)
+            refresh = request.query_params.get("refresh", "0").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+            status_data = await self._run_in_control_executor(pool.get_status, refresh)
             return {"data": status_data}
         except Exception as e:
             self._log_exception("Unhandled exception in /status")

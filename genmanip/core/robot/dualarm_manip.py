@@ -111,8 +111,8 @@ class DualArmEmbodiment(BaseEmbodiment):
         self.target_base_pose = self.initial_base_pose.copy()
 
     def delta_move_to(self, delta_x, delta_y, delta_yaw):
-        delta_x = np.clip(delta_x, -0.01, 0.01)
-        delta_y = np.clip(delta_y, -0.01, 0.01)
+        delta_x = np.clip(delta_x, -0.015, 0.015)
+        delta_y = np.clip(delta_y, -0.015, 0.015)
         delta_yaw = np.clip(delta_yaw, -1, 1)
 
         delta_yaw = np.deg2rad(delta_yaw)

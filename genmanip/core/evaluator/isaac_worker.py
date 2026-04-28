@@ -1,6 +1,5 @@
 import os
 import logging
-import multiprocessing
 import sys
 import time
 
@@ -13,12 +12,11 @@ from genmanip.core.evaluator.logging_utils import (
     make_log_file_timestamp,
     redirect_std_streams,
 )
-from genmanip.core.evaluator.utils import finalize_episode_recorder_payload
 
 
 GPU_MEMORY = torch.cuda.get_device_properties(0).total_memory
 JOB_MEMORY_GB = (
-    10  # Approximate memory per job in GB, adjust this to maximize GPU utilization
+    20  # Approximate memory per job in GB, adjust this to maximize GPU utilization
 )
 NUM_GPUS_REQUIRED_PER_JOB = 1.0 / max(
     1, int(GPU_MEMORY / 1024 / 1024 / 1024 / JOB_MEMORY_GB)
@@ -49,25 +47,6 @@ def _read_proc_status_memory_kb() -> dict[str, int]:
     except OSError:
         return {}
     return result
-
-
-def _run_finalize_payload(
-    payload: dict, log_path: str, worker_id: str, run_id: str | None
-) -> None:
-    logger = build_file_logger(
-        logger_name=f"IsaacWorkerFinalize-{run_id or 'default'}-{worker_id}-{os.getpid()}",
-        log_path=log_path,
-    )
-    redirect_std_streams(logger, logger)
-    logger.info("Background post-episode process started pid=%s", os.getpid())
-    try:
-        finalize_episode_recorder_payload(payload)
-        logger.info("Background post-episode process finished successfully")
-    except Exception:
-        logger.exception(
-            "Background post-episode process failed for worker=%s", worker_id
-        )
-        raise
 
 
 @ray.remote(num_gpus=NUM_GPUS_REQUIRED_PER_JOB, max_restarts=3, max_task_retries=3)
@@ -139,25 +118,10 @@ class IsaacWorker:
             benchmark_id=self.benchmark_id,
         )
         self.current_task_info = None
-        self._finalize_processes: list[multiprocessing.Process] = []
         self._episode_step_time_total = 0.0
         self._episode_step_count = 0
 
         self.logger.info("IsaacWorker init finished.")
-
-    def _reap_finalize_processes(self) -> None:
-        alive_processes: list[multiprocessing.Process] = []
-        for proc in self._finalize_processes:
-            if proc.is_alive():
-                alive_processes.append(proc)
-                continue
-            proc.join(timeout=0)
-            self.logger.info(
-                "Background post-episode process exited pid=%s exitcode=%s",
-                proc.pid,
-                proc.exitcode,
-            )
-        self._finalize_processes = alive_processes
 
     def _log_memory_snapshot(self, tag: str) -> None:
         mem = _read_proc_status_memory_kb()
@@ -339,39 +303,19 @@ class IsaacWorker:
     def post_episode_process(self):
         process_start = time.perf_counter()
         try:
-            self._reap_finalize_processes()
-            self.logger.info("post_episode_process called.")
-            self._log_memory_snapshot("before_post_episode_process")
             result = self.env.post_episode_process(None)
-            self._log_memory_snapshot("after_post_episode_process")
             score = None
+            has_finalize_payload = False
             if isinstance(result, dict):
                 score = result.get("score")
-                finalize_payload = result.get("finalize_payload")
-                if finalize_payload is not None:
-                    ctx = multiprocessing.get_context("spawn")
-                    proc = ctx.Process(
-                        target=_run_finalize_payload,
-                        args=(
-                            finalize_payload,
-                            self.log_path,
-                            self.worker_id,
-                            getattr(self.args, "run_id", None),
-                        ),
-                    )
-                    proc.start()
-                    self._finalize_processes.append(proc)
-                    self.logger.info(
-                        "Spawned background post-episode process pid=%s for worker=%s",
-                        proc.pid,
-                        self.worker_id,
-                    )
+                has_finalize_payload = result.get("finalize_payload") is not None
             self.logger.info(
-                "post_episode_process finished result=%s elapsed=%.4fs",
+                "post_episode_process finished result=%s has_finalize_payload=%s elapsed=%.4fs",
                 score if score is not None else result,
+                has_finalize_payload,
                 time.perf_counter() - process_start,
             )
-            return score if score is not None else result
+            return result
         except Exception:
             self._log_memory_snapshot("post_episode_process_exception")
             self.logger.exception(
@@ -390,18 +334,6 @@ class IsaacWorker:
     def close(self):
         try:
             self.logger.info("Closing IsaacWorker...")
-            self._reap_finalize_processes()
-            for proc in self._finalize_processes:
-                self.logger.info(
-                    "Waiting for background post-episode process pid=%s", proc.pid
-                )
-                proc.join()
-                self.logger.info(
-                    "Background post-episode process joined pid=%s exitcode=%s",
-                    proc.pid,
-                    proc.exitcode,
-                )
-            self._finalize_processes = []
             self.env.close()
             self.simulation_app.close()
             self.logger.info("IsaacWorker closed.")

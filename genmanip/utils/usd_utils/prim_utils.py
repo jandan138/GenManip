@@ -42,6 +42,8 @@ def add_usd_to_world(
     add_colliders: bool = False,
     collision_approximation: str = "convexDecomposition",
     mass: float | None = None,
+    static_friction: float = 1.0,
+    dynamic_friction: float = 1.0,
 ) -> XFormPrim:
     print(f"Adding USD to world: {asset_path} to {prim_path}")
     reference = add_reference_to_stage(usd_path=asset_path, prim_path=prim_path)
@@ -61,7 +63,11 @@ def add_usd_to_world(
         set_colliders(prim_path, collision_approximation)
         print(f"CollisionAPI applied to {prim_path}")
     if add_rigid_body:
-        set_rigid_body(prim_path)
+        set_rigid_body(
+            prim_path,
+            static_friction=static_friction,
+            dynamic_friction=dynamic_friction,
+        )
         print(f"RigidBodyAPI applied to {prim_path}")
         if mass is not None:
             set_mass(prim_path, mass)

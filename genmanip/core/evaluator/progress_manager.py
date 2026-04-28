@@ -9,6 +9,7 @@ import os
 import socket
 import time
 import threading
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ LOCK_TIMEOUT_SECONDS = 300
 HEARTBEAT_INTERVAL_SECONDS = 300
 LOCK_READ_RETRIES = 3
 LOCK_READ_RETRY_SLEEP_SECONDS = 0.5
+LOCK_REFRESH_RETRIES = 3
+LOCK_REFRESH_RETRY_SLEEP_SECONDS = 0.2
 
 
 @dataclass
@@ -47,6 +50,7 @@ class ProgressManager:
         """Initialize mutable state after dataclass creation."""
         self.lock = threading.Lock()
         self.config_list: list[dict] = []
+        self.task_config_map: dict[str, dict] = {}
         self.task_seed_list: dict[str, list[str]] = {}
         self.task_num_test_list: dict[str, int] = {}
         self.result_list: dict[str, dict[str, float]] = {}
@@ -105,6 +109,7 @@ class ProgressManager:
             for task_name, num_test in task_num_test_list.items():
                 self.task_num_test_list[task_name] = num_test
             for task_config in task_config_list:
+                self.task_config_map[task_config["task_name"]] = task_config
                 if task_config["task_name"] not in self.result_list:
                     self.result_list[task_config["task_name"]] = {}
             self.done = False
@@ -144,6 +149,58 @@ class ProgressManager:
             for c in self.config_list
             if len(self.task_seed_list.get(c["task_name"], [])) > 0
         ]
+
+    def reconcile_task_state_from_filesystem(self) -> bool:
+        """
+        Rebuild in-memory task/seed state from the configured task set and filesystem.
+
+        Returns:
+            True if every configured seed has a corresponding result_info.json on disk.
+        """
+        with self.lock:
+            task_num_test_list = dict(self.task_num_test_list)
+            task_config_map = dict(self.task_config_map)
+            worker_to_task_map = dict(self.worker_to_task_map)
+
+        all_seeds: dict[str, list[str]] = {}
+        for task_name, num_test in task_num_test_list.items():
+            all_seeds[task_name] = [str(i).zfill(3) for i in range(num_test)]
+
+        scanned_results = self.scan_completed_episodes(all_seeds)
+
+        with self.lock:
+            rebuilt_task_seed_list: dict[str, list[str]] = {}
+            rebuilt_config_list: list[dict] = []
+
+            for task_name, all_task_seeds in all_seeds.items():
+                completed_seeds = set(scanned_results.get(task_name, {}).keys())
+                assigned_seeds = {
+                    seed
+                    for mapped_task_name, seed, _ in worker_to_task_map.values()
+                    if mapped_task_name == task_name
+                }
+                pending_seeds = [
+                    seed
+                    for seed in all_task_seeds
+                    if seed not in completed_seeds and seed not in assigned_seeds
+                ]
+                rebuilt_task_seed_list[task_name] = pending_seeds
+                if pending_seeds and task_name in task_config_map:
+                    rebuilt_config_list.append(task_config_map[task_name])
+
+            self.result_list = {
+                task_name: dict(scanned_results.get(task_name, {}))
+                for task_name in task_num_test_list
+            }
+            self.task_seed_list = rebuilt_task_seed_list
+            self.config_list = rebuilt_config_list
+            self.done = all(
+                len(self.result_list.get(task_name, {}))
+                >= task_num_test_list[task_name]
+                for task_name in task_num_test_list
+            )
+
+        return self.done
 
     def get_next_task(self, worker_id: str) -> tuple[dict | None, str | None]:
         """
@@ -220,7 +277,9 @@ class ProgressManager:
         self.print_progress()
         return found_config, found_seed
 
-    def record_result(self, worker_id: str, score: float | None) -> dict | None:
+    def record_result(
+        self, worker_id: str, score: float | None, release_lock: bool = True
+    ) -> dict | None:
         """
         Record the result of a completed episode.
 
@@ -254,8 +313,9 @@ class ProgressManager:
                 self.result_list[task_name][task_seed] = score
             self.worker_to_task_map.pop(worker_id, None)
 
-        # Release the episode lock
-        self.release_episode_lock(task_name, task_seed)
+        # Release the episode lock unless the caller keeps it for async finalize.
+        if release_lock:
+            self.release_episode_lock(task_name, task_seed)
 
         return episode_result
 
@@ -394,26 +454,41 @@ class ProgressManager:
 
     # ==================== Status API ====================
 
-    def get_status(self, active_workers: list[str]) -> dict[str, Any]:
+    def get_status(
+        self, active_workers: list[str], refresh_filesystem: bool = False
+    ) -> dict[str, Any]:
         """
         Get comprehensive job status for the /status endpoint.
 
         Args:
             active_workers: List of currently active worker IDs
+            refresh_filesystem: When True, rescan result files and lock files.
 
         Returns:
             Status dict with status, counts, and results
         """
-        # Scan completed episodes from filesystem
-        all_seeds: dict[str, list[str]] = {}
-        for task_name, num_test in self.task_num_test_list.items():
-            all_seeds[task_name] = [str(i).zfill(3) for i in range(num_test)]
+        with self.lock:
+            task_num_test_list = dict(self.task_num_test_list)
+            result_list = {
+                task_name: dict(scores)
+                for task_name, scores in self.result_list.items()
+            }
+            worker_to_task_map = dict(self.worker_to_task_map)
 
-        completed = self.scan_completed_episodes(all_seeds)
-        locked = self.get_locked_episodes()
+        if refresh_filesystem:
+            all_seeds: dict[str, list[str]] = {}
+            for task_name, num_test in task_num_test_list.items():
+                all_seeds[task_name] = [str(i).zfill(3) for i in range(num_test)]
+            completed = self.scan_completed_episodes(all_seeds)
+            locked = self.get_locked_episodes()
+        else:
+            completed = result_list
+            locked = {}
+            for _, (task_name, task_seed, _) in worker_to_task_map.items():
+                locked.setdefault(task_name, []).append(task_seed)
 
         # Count episodes
-        total_episodes = sum(self.task_num_test_list.values())
+        total_episodes = sum(task_num_test_list.values())
         completed_episodes = sum(len(seeds) for seeds in completed.values())
         in_progress_episodes = sum(len(seeds) for seeds in locked.values())
 
@@ -424,7 +499,7 @@ class ProgressManager:
                 results[task_name] = sum(seeds_score.values()) / len(seeds_score)
 
         # Determine status
-        if not self.task_num_test_list:
+        if not task_num_test_list:
             status = "idle"
         elif completed_episodes == total_episodes:
             status = "complete"
@@ -642,27 +717,32 @@ class ProgressManager:
         Returns True if refreshed, False otherwise.
         """
         lock_path = self._get_lock_path(task_name, seed)
-        try:
+        last_reason = "unknown"
+        for attempt in range(LOCK_REFRESH_RETRIES):
             lock_data = self._read_lock_data(lock_path)
             if lock_data is None:
-                print(f"[lock] heartbeat skipped {task_name}/{seed} corrupted_lock")
-                return False
-            if lock_data.get("pid") != self._pid:
-                print(
-                    f"[lock] heartbeat skipped {task_name}/{seed} "
+                last_reason = "corrupted_or_missing_lock"
+            elif lock_data.get("pid") != self._pid:
+                last_reason = (
                     f"pid_mismatch file_pid={lock_data.get('pid')} self_pid={self._pid}"
                 )
-                return False
-            if lock_data.get("host") != self._host:
-                print(
-                    f"[lock] heartbeat skipped {task_name}/{seed} "
-                    f"host_mismatch file_host={lock_data.get('host')} self_host={self._host}"
-                )
-                return False
-            os.utime(lock_path, None)
-            return True
-        except (json.JSONDecodeError, ValueError, OSError):
-            return False
+                break
+            elif lock_data.get("host") != self._host:
+                last_reason = f"host_mismatch file_host={lock_data.get('host')} self_host={self._host}"
+                break
+            else:
+                try:
+                    os.utime(lock_path, None)
+                    return True
+                except OSError as exc:
+                    last_reason = f"utime_failed: {exc}"
+
+            if attempt < LOCK_REFRESH_RETRIES - 1:
+                time.sleep(LOCK_REFRESH_RETRY_SLEEP_SECONDS * (attempt + 1))
+                continue
+
+        print(f"[lock] heartbeat skipped {task_name}/{seed} {last_reason}")
+        return False
 
     def refresh_worker_lock(self, worker_id: str) -> bool:
         """Refresh lock for the task currently assigned to a worker."""
@@ -710,7 +790,7 @@ class ProgressManager:
         """Atomically write JSON data to file."""
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(".tmp")
+        tmp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
