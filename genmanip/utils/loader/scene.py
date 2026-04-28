@@ -308,6 +308,8 @@ def preload_object(
     add_colliders: bool = True,
     remove_collider: bool = False,
     mass: float | None = None,
+    static_friction: float = 1.0,
+    dynamic_friction: float = 1.0,
 ) -> XFormPrim:
     if not os.path.exists(object_path):
         raise ValueError(f"Object path {object_path} does not exist")
@@ -323,6 +325,8 @@ def preload_object(
         add_colliders=add_colliders,
         collision_approximation="convexDecomposition",
         mass=mass,
+        static_friction=static_friction,
+        dynamic_friction=dynamic_friction,
     )
     if remove_collider:
         remove_colliders(obj_xform.prim_path)
@@ -1099,6 +1103,14 @@ def recovery_scene(
     task_name: str,
     default_config: dict,
 ) -> dict:
+    def _set_robot_joint_positions(joint_positions) -> None:
+        embodiment = scene.robot_list[0]
+        joint_positions_arr = np.asarray(joint_positions)
+        if joint_positions_arr.shape[0] == len(embodiment.default_dof_indices):
+            embodiment.set_joint_positions(joint_positions_arr)
+            return
+        embodiment.robot.set_joint_positions(joint_positions_arr)
+
     layout = copy.deepcopy(task_data["initial_layout"])
 
     # Remove objects that are not in the layout
@@ -1132,6 +1144,8 @@ def recovery_scene(
                 add_colliders=layout[key].get("add_colliders", True),
                 add_rigid_body=layout[key].get("add_rigid_body", True),
                 mass=layout[key].get("mass", None),
+                static_friction=layout[key].get("static_friction", 1.0),
+                dynamic_friction=layout[key].get("dynamic_friction", 1.0),
             )
             if not scene.object_list[key].prim.IsActive():
                 scene.object_list[key].prim.SetActive(True)
@@ -1191,7 +1205,7 @@ def recovery_scene(
         scene.robot_list[0].robot.set_world_pose(
             robot_info["position"], robot_info["orientation"]
         )
-        scene.robot_list[0].robot.set_joint_positions(robot_info["joint_positions"])
+        _set_robot_joint_positions(robot_info["joint_positions"])
 
     scene.cache_library.mesh_dict = objectList2meshList(
         scene.object_list,
@@ -1227,13 +1241,13 @@ def recovery_scene(
     recursive_set_mass(task_data["goal"])
 
     if scene.robot_list[0].robot.name in task_data["initial_layout"]:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             task_data["initial_layout"][scene.robot_list[0].robot.name][
                 "joint_positions"
             ]
         )
     else:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             np.array([0.012, -0.57, 0.0, -2.81, 0.0, 3.37, 0.741, 0.04, 0.04])
         )
 
@@ -1290,6 +1304,14 @@ def recovery_scene_render(
     default_config: dict,
     remove_table: bool = False,
 ) -> None:
+    def _set_robot_joint_positions(joint_positions) -> None:
+        embodiment = scene.robot_list[0]
+        joint_positions_arr = np.asarray(joint_positions)
+        if joint_positions_arr.shape[0] == len(embodiment.default_dof_indices):
+            embodiment.set_joint_positions(joint_positions_arr)
+            return
+        embodiment.robot.set_joint_positions(joint_positions_arr)
+
     if "initial_layout" not in task_data:
         return None
     layout = copy.deepcopy(task_data["initial_layout"])
@@ -1298,11 +1320,11 @@ def recovery_scene_render(
         layout[scene.robot_list[0].robot.name]["orientation"],
     )
     if scene.robot_list[0].robot.name in layout:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             layout[scene.robot_list[0].robot.name]["joint_positions"]
         )
     else:
-        scene.robot_list[0].robot.set_joint_positions(
+        _set_robot_joint_positions(
             np.array([0.012, -0.57, 0.0, -2.81, 0.0, 3.37, 0.741, 0.04, 0.04])
         )
     if scene.robot_list[0].robot.name in layout:

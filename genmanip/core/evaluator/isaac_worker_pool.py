@@ -22,18 +22,25 @@ from genmanip.core.evaluator.progress_manager import (
     HEARTBEAT_INTERVAL_SECONDS,
 )
 from genmanip.core.evaluator.isaac_worker import IsaacWorker
-from genmanip.core.evaluator.utils import parse_configs_and_benchmark_id
+from genmanip.core.evaluator.utils import (
+    finalize_episode_recorder_payload,
+    parse_configs_and_benchmark_id,
+)
 from genmanip.utils.standalone.file_utils import load_default_config, make_dir
 from genmanip.utils.standalone.utils import parse_eval_config
 from genmanip.utils.standalone.version_utils import process_archived_config
 
 GPU_MEMORY = torch.cuda.get_device_properties(0).total_memory
 JOB_MEMORY_GB = (
-    10  # Approximate memory per job in GB, adjust this to maximize GPU utilization
+    20  # Approximate memory per job in GB, adjust this to maximize GPU utilization
 )
 NUM_GPUS_REQUIRED_PER_JOB = 1.0 / max(
     1, int(GPU_MEMORY / 1024 / 1024 / 1024 / JOB_MEMORY_GB)
 )
+FINALIZE_LOCK_HEARTBEAT_TIMEOUT_SECONDS = 3000.0
+LOCK_LOST_FAILURE_THRESHOLD = 3
+NEXT_TASK_WAIT_TIMEOUT_SECONDS = 120.0
+NEXT_TASK_WAIT_POLL_SECONDS = 1.0
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -67,7 +74,21 @@ class IsaacWorkerPool:
         self._reset_executor = ThreadPoolExecutor(
             max_workers=32, thread_name_prefix="episode-reset"
         )
+        self._finalize_executor = ThreadPoolExecutor(
+            max_workers=8, thread_name_prefix="episode-finalize"
+        )
         self._pending_reset_futures: Dict[str, Future] = {}
+        self._pending_finalize_futures: Dict[str, Future] = {}
+        self._pending_finalize_episodes: Dict[str, tuple[str, str, float]] = {}
+        self._worker_cancel_events: Dict[str, threading.Event] = {}
+        self._worker_lock_failure_counts: Dict[str, int] = {}
+        self._heartbeat_stop_event = threading.Event()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_pending_finalize_locks,
+            name="episode-finalize-heartbeat",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
 
         self.args = args
         self.current_dir = current_dir
@@ -83,10 +104,10 @@ class IsaacWorkerPool:
             self.current_dir, "__None__.json", "local" if self.args.local else "default"
         )
         # worker env timeout
-        self.step_call_timeout = 600
-        self.reset_call_timeout = 120
+        self.step_call_timeout = 1200
+        self.reset_call_timeout = 1200
         self.worker_restart_memory_gib = float(
-            getattr(self.args, "worker_restart_memory_gib", 15.0)
+            getattr(self.args, "worker_restart_memory_gib", 20.0)
         )
         self.benchmark_id: str | None = None
         self.progress_manager: ProgressManager | None = None
@@ -217,6 +238,7 @@ class IsaacWorkerPool:
                 "evaluation_config_path_list must contain non-empty strings only"
             )
 
+        self._wait_for_pending_finalizers()
         self.kill_workers(list(self.workers.keys()))
 
         # Determine run_id
@@ -294,6 +316,13 @@ class IsaacWorkerPool:
                 )
 
             for w_id in worker_ids:
+                cancel_event = self._worker_cancel_events.get(str(w_id))
+                if cancel_event is None:
+                    cancel_event = threading.Event()
+                    self._worker_cancel_events[str(w_id)] = cancel_event
+                else:
+                    cancel_event.clear()
+                self._worker_lock_failure_counts[str(w_id)] = 0
                 if w_id not in self.workers:
                     self.workers[w_id] = self._spawn_worker(w_id)
 
@@ -301,9 +330,18 @@ class IsaacWorkerPool:
         """Kill workers and clean up their tasks."""
         with self.lock:
             for w_id in worker_ids:
+                future = self._pending_reset_futures.pop(str(w_id), None)
+                cancel_event = self._worker_cancel_events.get(str(w_id))
+                if cancel_event is None:
+                    cancel_event = threading.Event()
+                    self._worker_cancel_events[str(w_id)] = cancel_event
+                cancel_event.set()
+                if future is not None:
+                    future.cancel()
                 if w_id in self.workers:
                     ray.kill(self.workers[w_id], no_restart=True)
                     del self.workers[w_id]
+                self._worker_lock_failure_counts.pop(str(w_id), None)
 
                 # Clean up worker's tasks via progress manager
                 if self.progress_manager is not None:
@@ -311,6 +349,31 @@ class IsaacWorkerPool:
 
         if self.progress_manager is not None:
             self.progress_manager.print_progress()
+
+    def _heartbeat_pending_finalize_locks(self) -> None:
+        interval_seconds = max(1, HEARTBEAT_INTERVAL_SECONDS // 2)
+        while not self._heartbeat_stop_event.wait(interval_seconds):
+            progress_manager = self.progress_manager
+            if progress_manager is None:
+                continue
+            with self.lock:
+                pending_episodes = list(self._pending_finalize_episodes.items())
+            for episode_id, (task_name, seed, started_at) in pending_episodes:
+                elapsed = time.monotonic() - started_at
+                if elapsed > FINALIZE_LOCK_HEARTBEAT_TIMEOUT_SECONDS:
+                    with self.lock:
+                        current = self._pending_finalize_episodes.get(episode_id)
+                        if current is not None and current[2] == started_at:
+                            self._pending_finalize_episodes.pop(episode_id, None)
+                    if self.logger is not None:
+                        self.logger.warning(
+                            "Stop heartbeating finalize lock for episode=%s after %.2fs; "
+                            "stale cleanup may reclaim the lock",
+                            episode_id,
+                            elapsed,
+                        )
+                    continue
+                progress_manager.refresh_episode_lock(task_name, seed)
 
     def get_active_workers(self) -> List[str]:
         """Get list of active worker IDs."""
@@ -326,13 +389,56 @@ class IsaacWorkerPool:
         lost: set[str] = set()
         for w_id in worker_ids:
             ok = self.progress_manager.refresh_worker_lock(str(w_id))
-            if not ok:
+            with self.lock:
+                if ok:
+                    self._worker_lock_failure_counts[str(w_id)] = 0
+                    continue
+                failures = self._worker_lock_failure_counts.get(str(w_id), 0) + 1
+                self._worker_lock_failure_counts[str(w_id)] = failures
+            if failures < LOCK_LOST_FAILURE_THRESHOLD:
                 if self.logger is not None:
-                    self.logger.warning("Lost lock for worker %s", w_id)
-                else:
-                    print(f"[lock] lost lock for worker {w_id}")
-                lost.add(str(w_id))
+                    self.logger.warning(
+                        "Lock refresh failed for worker=%s failures=%s/%s",
+                        w_id,
+                        failures,
+                        LOCK_LOST_FAILURE_THRESHOLD,
+                    )
+                continue
+            if self.logger is not None:
+                self.logger.warning(
+                    "Lost lock for worker=%s after %s consecutive refresh failures",
+                    w_id,
+                    failures,
+                )
+            else:
+                print(f"[lock] lost lock for worker {w_id}")
+            lost.add(str(w_id))
         return lost
+
+    def _wait_for_next_task(
+        self, w_id: str, timeout_seconds: float = NEXT_TASK_WAIT_TIMEOUT_SECONDS
+    ) -> tuple[dict | None, str | None]:
+        if self.progress_manager is None:
+            raise ValueError("No job started")
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if self._worker_cancelled(w_id):
+                return None, None
+            config, task_seed = self.progress_manager.get_next_task(str(w_id))
+            if config is not None:
+                return config, task_seed
+            if self.progress_manager.check_finished():
+                return None, None
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"No task became available for worker {w_id} within {timeout_seconds}s"
+                )
+            time.sleep(NEXT_TASK_WAIT_POLL_SECONDS)
+
+    def _worker_cancelled(self, w_id: str) -> bool:
+        with self.lock:
+            cancel_event = self._worker_cancel_events.get(str(w_id))
+        return bool(cancel_event is not None and cancel_event.is_set())
 
     def _reset_worker(
         self,
@@ -348,6 +454,8 @@ class IsaacWorkerPool:
             if isinstance(config, dict)
             else "<unknown>"
         )
+        if self._worker_cancelled(w_id):
+            raise RuntimeError(f"Worker {w_id} reset cancelled before start")
         if memory_restart_budget > 0:
             restarted = self._restart_worker_if_memory_exceeded(
                 w_id,
@@ -359,17 +467,30 @@ class IsaacWorkerPool:
                 memory_restart_budget -= 1
 
         def _invoke_reset() -> Any:
+            if self._worker_cancelled(w_id):
+                raise RuntimeError(f"Worker {w_id} reset cancelled before RPC dispatch")
             worker = self.workers[w_id]
             if include_default_config:
                 return worker.reset.remote(task_seed, config, self.default_config)
             return worker.reset.remote(task_seed, config)
 
         def _should_retry_reset(error: Exception) -> bool:
+            if self._worker_cancelled(w_id):
+                return False
             return isinstance(error, TimeoutError) or self._is_worker_unavailable_error(
                 error
             )
 
         def _on_retry_reset(error: Exception, attempt_idx: int) -> bool:
+            if self._worker_cancelled(w_id):
+                if self.logger is not None:
+                    self.logger.info(
+                        "Reset retry suppressed for cancelled worker=%s task=%s seed=%s",
+                        w_id,
+                        task_name,
+                        task_seed,
+                    )
+                return False
             if self.logger is not None:
                 self.logger.warning(
                     "Reset attempt %s failed for worker=%s task=%s seed=%s: %s. "
@@ -391,6 +512,7 @@ class IsaacWorkerPool:
                 max_attempts=5,
                 should_retry=_should_retry_reset,
                 on_retry=_on_retry_reset,
+                should_abort=lambda: self._worker_cancelled(w_id),
             )
         except Exception as e:
             raise RuntimeError(
@@ -446,19 +568,12 @@ class IsaacWorkerPool:
                     "episode_result": None,
                 }
             else:
-                self._refresh_locks([w_id])
-                obs = self._reset_worker(
+                resp = self._start_background_reset(
                     w_id,
                     task_seed,
                     config,
                     include_default_config=True,
                 )
-                self._refresh_locks([w_id])
-                resp = {
-                    "obs": obs,
-                    "metric": self.progress_manager.calculate_result(),
-                    "episode_result": None,
-                }
 
             response[w_id] = resp
         return response
@@ -474,6 +589,107 @@ class IsaacWorkerPool:
             "reset_pending": True,
         }
 
+    def _schedule_async_finalize(
+        self,
+        task_name: str,
+        task_seed: str,
+        finalize_payload: dict[str, Any],
+    ) -> None:
+        episode_id = f"{task_name}/{task_seed}"
+        scheduled_at = time.monotonic()
+
+        def _run_finalize() -> None:
+            try:
+                finalize_episode_recorder_payload(finalize_payload)
+            finally:
+                if self.progress_manager is not None:
+                    self.progress_manager.release_episode_lock(task_name, task_seed)
+
+        with self.lock:
+            future = self._pending_finalize_futures.get(episode_id)
+            if future is not None and not future.done():
+                return
+            future = self._finalize_executor.submit(_run_finalize)
+            self._pending_finalize_futures[episode_id] = future
+            self._pending_finalize_episodes[episode_id] = (
+                task_name,
+                task_seed,
+                scheduled_at,
+            )
+
+        def _cleanup(done_future: Future) -> None:
+            cleanup_start = time.monotonic()
+            with self.lock:
+                self._pending_finalize_episodes.pop(episode_id, None)
+            try:
+                exc = done_future.exception()
+            except Exception as callback_error:
+                exc = callback_error
+                if self.logger is not None:
+                    self.logger.exception(
+                        "Exception in finalize future callback for episode=%s",
+                        episode_id,
+                    )
+            elapsed = time.monotonic() - scheduled_at
+            cleanup_elapsed = time.monotonic() - cleanup_start
+            if self.logger is not None:
+                if exc is None:
+                    self.logger.info(
+                        "Async finalize done for episode=%s elapsed=%.2fs cleanup=%.4fs",
+                        episode_id,
+                        elapsed,
+                        cleanup_elapsed,
+                    )
+                else:
+                    self.logger.warning(
+                        "Async finalize finished with error for episode=%s "
+                        "elapsed=%.2fs cleanup=%.4fs error=%s: %s",
+                        episode_id,
+                        elapsed,
+                        cleanup_elapsed,
+                        type(exc).__name__,
+                        exc,
+                    )
+
+        future.add_done_callback(_cleanup)
+
+    def _wait_for_pending_finalizers(self) -> None:
+        while True:
+            with self.lock:
+                pending_items = list(self._pending_finalize_futures.items())
+            if not pending_items:
+                return
+            for episode_id, future in pending_items:
+                wait_start = time.monotonic()
+                try:
+                    future.result()
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Async finalize failed for episode {episode_id}: "
+                        f"{type(exc).__name__}: {exc}"
+                    ) from exc
+                if self.logger is not None:
+                    self.logger.info(
+                        "Waited %.2fs for pending finalize episode=%s",
+                        time.monotonic() - wait_start,
+                        episode_id,
+                    )
+                task_name, task_seed = episode_id.rsplit("/", 1)
+                if (
+                    self.progress_manager is None
+                    or not self.progress_manager.is_episode_completed(
+                        task_name, task_seed
+                    )
+                ):
+                    raise RuntimeError(
+                        "Async finalize completed without result_info.json for "
+                        f"episode {episode_id}"
+                    )
+                with self.lock:
+                    current_future = self._pending_finalize_futures.get(episode_id)
+                    if current_future is future:
+                        self._pending_finalize_futures.pop(episode_id, None)
+
     def _has_pending_reset(self, w_id: str) -> bool:
         with self.lock:
             future = self._pending_reset_futures.get(str(w_id))
@@ -485,7 +701,14 @@ class IsaacWorkerPool:
             if future is None or not future.done():
                 return None
             del self._pending_reset_futures[str(w_id)]
-        return future.result()
+        try:
+            return future.result()
+        except Exception:
+            if self.logger is not None:
+                self.logger.exception(
+                    "Pending reset future failed for worker=%s", str(w_id)
+                )
+            raise
 
     def _spawn_worker(self, w_id: str):
         return IsaacWorker.options(
@@ -501,6 +724,12 @@ class IsaacWorkerPool:
 
     def _replace_worker(self, w_id: str, reason: Exception | None = None) -> None:
         reason_text = f"{type(reason).__name__}: {reason}" if reason is not None else ""
+        if self._worker_cancelled(w_id):
+            if self.logger is not None:
+                self.logger.info(
+                    "Skip replacing cancelled worker=%s reason=%s", w_id, reason_text
+                )
+            return
         if self.logger is not None:
             self.logger.warning("Replacing dead worker=%s reason=%s", w_id, reason_text)
         with self.lock:
@@ -576,11 +805,14 @@ class IsaacWorkerPool:
         max_attempts: int = 1,
         should_retry=None,
         on_retry=None,
+        should_abort=None,
     ) -> Any:
         attempts = max(1, int(max_attempts))
         last_error: Exception | None = None
 
         for attempt_idx in range(attempts):
+            if should_abort is not None and should_abort():
+                raise RuntimeError(f"{context} cancelled")
             attempt_start = time.monotonic()
             try:
                 ref = call_remote()
@@ -597,6 +829,8 @@ class IsaacWorkerPool:
             retry_allowed = (
                 should_retry(last_error) if should_retry is not None else False
             )
+            if should_abort is not None and should_abort():
+                break
             if not retry_allowed:
                 break
             if on_retry is not None and not on_retry(last_error, attempt_idx):
@@ -630,6 +864,63 @@ class IsaacWorkerPool:
             if future is None or future.done():
                 self._pending_reset_futures[str(w_id)] = self._reset_executor.submit(
                     self._handle_done, w_id, info
+                )
+        return self._make_reset_pending_response()
+
+    def _run_reset_task(
+        self,
+        w_id: str,
+        task_seed: str,
+        config: dict[str, Any],
+        *,
+        include_default_config: bool = False,
+    ) -> dict[str, Any]:
+        if self._worker_cancelled(w_id):
+            raise RuntimeError(f"Worker {w_id} background reset cancelled")
+        self._refresh_locks([w_id])
+        obs = self._reset_worker(
+            w_id,
+            task_seed,
+            config,
+            include_default_config=include_default_config,
+        )
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": None,
+            }
+        self._refresh_locks([w_id])
+        return {
+            "obs": obs,
+            "metric": self.progress_manager.calculate_result(),
+            "episode_result": None,
+        }
+
+    def _start_background_reset(
+        self,
+        w_id: str,
+        task_seed: str,
+        config: dict[str, Any],
+        *,
+        include_default_config: bool = False,
+    ) -> dict[str, Any]:
+        if self.logger is not None:
+            self.logger.info(
+                "Starting background initial reset for worker=%s task=%s seed=%s",
+                w_id,
+                config.get("task_name", "<unknown>"),
+                task_seed,
+            )
+        with self.lock:
+            future = self._pending_reset_futures.get(str(w_id))
+            if future is None or future.done():
+                self._pending_reset_futures[str(w_id)] = self._reset_executor.submit(
+                    self._run_reset_task,
+                    w_id,
+                    task_seed,
+                    config,
+                    include_default_config=include_default_config,
                 )
         return self._make_reset_pending_response()
 
@@ -846,9 +1137,16 @@ class IsaacWorkerPool:
         """Handle episode completion for a worker."""
         if self.progress_manager is None:
             raise ValueError("No job started")
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": None,
+            }
 
         # Get result from worker
         result = None
+        finalize_payload = None
         if "error" not in info and "info" in info and info["info"] != "Done":
             try:
                 result = self._ray_get_with_timeout(
@@ -865,21 +1163,95 @@ class IsaacWorkerPool:
                     self.logger.exception(
                         "Post-episode processing failed for worker=%s", w_id
                     )
+        if isinstance(result, dict):
+            finalize_payload = result.get("finalize_payload")
+            result = result.get("score")
+
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": None,
+            }
 
         # Record result via progress manager
-        episode_result = self.progress_manager.record_result(str(w_id), result)
+        worker_task = self.progress_manager.get_worker_task(str(w_id))
+        keep_lock_for_finalize = (
+            worker_task is not None
+            and finalize_payload is not None
+            and result is not None
+        )
+        episode_result = self.progress_manager.record_result(
+            str(w_id), result, release_lock=not keep_lock_for_finalize
+        )
+        if keep_lock_for_finalize:
+            task_name, task_seed, _ = worker_task
+            self._schedule_async_finalize(task_name, task_seed, finalize_payload)
+
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": episode_result,
+            }
 
         # Get next task
         config, task_seed = self.progress_manager.get_next_task(str(w_id))
+        if config is None and not self.progress_manager.check_finished():
+            if self.logger is not None:
+                self.logger.info(
+                    "No task immediately available for worker=%s; waiting for locks/finalize to clear",
+                    w_id,
+                )
+            config, task_seed = self._wait_for_next_task(w_id)
         if config is None:
+            all_done_on_disk = (
+                self.progress_manager.reconcile_task_state_from_filesystem()
+            )
+            if not all_done_on_disk:
+                if self.logger is not None:
+                    self.logger.warning(
+                        "Rebuilt task state from filesystem before final save; "
+                        "unfinished episodes remain for worker=%s, retrying task allocation",
+                        w_id,
+                    )
+                config, task_seed = self._wait_for_next_task(w_id)
+            if config is not None:
+                self._refresh_locks([w_id])
+                obs = self._reset_worker(w_id, task_seed, config)
+                if self._worker_cancelled(w_id):
+                    return {
+                        "obs": None,
+                        "metric": self.progress_manager.calculate_result(),
+                        "episode_result": episode_result,
+                    }
+                self._refresh_locks([w_id])
+                return {
+                    "obs": obs,
+                    "metric": self.progress_manager.calculate_result(),
+                    "episode_result": episode_result,
+                }
             # No more tasks
+            self._wait_for_pending_finalizers()
             metric = self.progress_manager.calculate_result()
             self._save_final_result()
             return {"obs": None, "metric": metric, "episode_result": episode_result}
 
         # Reset worker for next task
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": episode_result,
+            }
         self._refresh_locks([w_id])
         obs = self._reset_worker(w_id, task_seed, config)
+        if self._worker_cancelled(w_id):
+            return {
+                "obs": None,
+                "metric": self.progress_manager.calculate_result(),
+                "episode_result": episode_result,
+            }
         self._refresh_locks([w_id])
 
         return {
@@ -892,6 +1264,11 @@ class IsaacWorkerPool:
         """Save final evaluation result."""
         if self.progress_manager is None or self.benchmark_id is None:
             return
+        self._wait_for_pending_finalizers()
+        if self.logger is not None:
+            self.logger.info(
+                "Saving final result for benchmark_id=%s", self.benchmark_id
+            )
         result_dir = os.path.join(
             self.current_dir,
             "saved/eval_results",
@@ -903,7 +1280,7 @@ class IsaacWorkerPool:
 
     # ==================== Status API ====================
 
-    def get_status(self) -> dict:
+    def get_status(self, refresh: bool = False) -> dict:
         """
         Get comprehensive job status.
 
@@ -913,7 +1290,9 @@ class IsaacWorkerPool:
         active_workers = self.get_active_workers()
 
         if self.progress_manager is not None:
-            return self.progress_manager.get_status(active_workers)
+            return self.progress_manager.get_status(
+                active_workers, refresh_filesystem=refresh
+            )
 
         # No job started
         return {
@@ -933,4 +1312,7 @@ class IsaacWorkerPool:
         """Close all workers."""
         futures = [worker.close.remote() for worker in self.workers.values()]
         ray.get(futures)
+        self._heartbeat_stop_event.set()
+        self._heartbeat_thread.join(timeout=1.0)
         self._reset_executor.shutdown(wait=False, cancel_futures=True)
+        self._finalize_executor.shutdown(wait=False, cancel_futures=True)

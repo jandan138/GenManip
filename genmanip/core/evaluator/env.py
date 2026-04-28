@@ -622,6 +622,7 @@ class IsaacEvalEnvRay:
             episode_score,
             self.episode_start_time,
             self.episode_end_time,
+            self.scene.metric_manager.metric_score,
         )
         self._recorder = None
         self.traj_log_dir = None

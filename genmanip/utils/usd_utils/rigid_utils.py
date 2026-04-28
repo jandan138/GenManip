@@ -42,7 +42,9 @@ def set_mass(prim_path: str, mass: float) -> Usd.Prim:
     return prim
 
 
-def set_rigid_body(prim_path: str) -> Usd.Prim:
+def set_rigid_body(
+    prim_path: str, static_friction: float = 1.0, dynamic_friction: float = 1.0
+) -> Usd.Prim:
     prim = get_prim_at_path(prim_path)
     UsdPhysics.RigidBodyAPI.Apply(prim)
     set_rigid_body_CCD(prim_path, False)
@@ -52,7 +54,9 @@ def set_rigid_body(prim_path: str) -> Usd.Prim:
     #     coacd_prim.SetActive(False)
     set_contact_offset_recursively(prim_path, 0.02)
     set_rest_offset_recursively(prim_path, 0.0)
-    add_physics_material(prim_path, static_friction=1.0, dynamic_friction=1.0)
+    add_physics_material(
+        prim_path, static_friction=static_friction, dynamic_friction=dynamic_friction
+    )
     set_rigid_body_solver_position_iteration_count(prim_path, 32)
     # set_rigid_body_solver_velocity_iteration_count(prim_path, 10)
     # set_rigid_body_linear_damping(prim_path, 10.0)
