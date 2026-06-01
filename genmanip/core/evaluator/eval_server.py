@@ -223,6 +223,10 @@ class EvalServer:
                     subframes = int(request.query_params.get("subframes", "2"))
                 except (TypeError, ValueError):
                     subframes = 2
+                try:
+                    render_suffix = int(request.query_params.get("render_suffix", "2"))
+                except (TypeError, ValueError):
+                    render_suffix = 2
                 render_mode = request.query_params.get("render_mode", "lite")
                 if render_mode not in ("lite", "always"):
                     render_mode = "lite"
@@ -232,6 +236,7 @@ class EvalServer:
                         action_chunk,
                         render_mode,
                         subframes,
+                        render_suffix,
                     ),
                     timeout=chunk_timeout,
                 )

@@ -30,11 +30,24 @@ def get_scalar_data_from_lmdb(data_path: str, key: bytes) -> list[Any]:
     return data
 
 
+def _compose_action(
+    arm_action: np.ndarray,
+    gripper_action: np.ndarray,
+    embodiment_name: str | None,
+) -> np.ndarray:
+    if embodiment_name in ("aloha_split", "lift2"):
+        return np.concatenate(
+            [arm_action[:6], gripper_action[:2], arm_action[6:], gripper_action[2:]]
+        )
+    return np.concatenate([arm_action, gripper_action])
+
+
 def parse_planning_result(
     dir: str,
     default_config: dict,
     task_name: str,
     object_list: dict[str, XFormPrim],
+    embodiment_name: str | None = None,
 ) -> list[dict]:
     data_list = []
     data_dir = os.path.join(
@@ -93,7 +106,7 @@ def parse_planning_result(
         data = {}
         data["qpos"] = qpos
         data["qvel"] = qvel
-        data["action"] = np.concatenate([arm_action, gripper_action])
+        data["action"] = _compose_action(arm_action, gripper_action, embodiment_name)
         data["gripper_close"] = gripper_close
         data["base_motion"] = base_motion
         data["name"] = name

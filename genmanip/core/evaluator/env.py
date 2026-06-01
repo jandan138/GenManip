@@ -75,6 +75,7 @@ class IsaacEvalEnvRay:
         self.episode_start_time = None
         self.episode_end_time = None
         self.invalid_state_tail_steps = 30
+        self.forced_episode_score: float | None = None
 
     def _detect_invalid_state(
         self,
@@ -264,6 +265,7 @@ class IsaacEvalEnvRay:
         self.logger.info("Episode layout ready")
 
         self._step_cnt = 0
+        self.forced_episode_score = None
         scene = self._require_scene()
         _ = self._require_scene_config()
 
@@ -549,6 +551,7 @@ class IsaacEvalEnvRay:
                 invalid_reason,
             )
             self._record_invalid_state_tail()
+            self.forced_episode_score = 0.0
             self.done = True
             return (
                 self.get_obs(cached_joint_positions=cur_full_jp),
@@ -604,14 +607,18 @@ class IsaacEvalEnvRay:
         )
 
     def post_episode_process(self, done_info):
-        if self.done:
+        if self.done and self._recorder is None:
             return None
         if self.scene is None:
             return None
         if self.scene_config is None:
             return None
 
-        episode_score = self.scene.metric_manager.calc_overall_score()
+        episode_score = (
+            self.forced_episode_score
+            if self.forced_episode_score is not None
+            else self.scene.metric_manager.calc_overall_score()
+        )
 
         self.episode_end_time = datetime.now().strftime("%Y-%m-%d_%H_%M_%S_%f")
         self.done = True

@@ -261,7 +261,11 @@ class RenderWorkflow:
         )
 
         data_list = parse_planning_result(
-            dir_name, self.default_config, scene_config.task_name, scene.object_list
+            dir_name,
+            self.default_config,
+            scene_config.task_name,
+            scene.object_list,
+            scene.robot_list[0].embodiment_name,
         )
         if not data_list:
             raise ValueError(f"No planning data found for trajectory: {dir_name}")
