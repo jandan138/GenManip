@@ -120,6 +120,7 @@ class IsaacWorker:
         self.current_task_info = None
         self._episode_step_time_total = 0.0
         self._episode_step_count = 0
+        self._post_reset_warmup = False
 
         self.logger.info("IsaacWorker init finished.")
 
@@ -153,6 +154,7 @@ class IsaacWorker:
             self.logger.info(f"Reset called with seed={seed}")
             self._episode_step_time_total = 0.0
             self._episode_step_count = 0
+            self._post_reset_warmup = True
             self._log_memory_snapshot("before_reset")
             obs, self.current_task_info = self.env.reset(
                 seed, current_eval_config, default_config
@@ -208,6 +210,7 @@ class IsaacWorker:
         action_list,
         render_mode: str = "lite",
         subframes: int = 2,
+        render_suffix: int = 2,
     ):
         """Execute a chunk of actions in one Ray RPC.
 
@@ -247,13 +250,27 @@ class IsaacWorker:
             #              pass; the final step catches up with `subframes`
             #              extra world.render() passes. Per-action cost
             #              ≈ 48 ms (for subframes=2), PSNR ≈ 36-37 dB mean.
-            lite = render_mode == "lite"
+            # Post-reset warmup: the first chunk after env.reset() forces
+            # render every step so Hydra can absorb the new scene before
+            # lite-mode skipping begins. Without this, frames in the first
+            # chunk after a reset are visibly lagged. One-shot — cleared
+            # after this chunk runs.
+            if self._post_reset_warmup:
+                lite = False
+                self._post_reset_warmup = False
+            else:
+                lite = render_mode == "lite"
+            # In lite mode, the last (render_suffix + 1) steps of each chunk
+            # render fully so Hydra can drain its async pipeline before the
+            # camera readout at the chunk boundary.
+            render_threshold = last_idx - max(0, int(render_suffix))
             for i, action in enumerate(action_list):
                 is_last = i == last_idx
+                should_render = is_last or i >= render_threshold
                 obs, _, done, info = self.env.step(
                     action,
                     skip_obs=not is_last,
-                    skip_render=lite and (not is_last),
+                    skip_render=lite and (not should_render),
                     subframes=(subframes if (lite and is_last) else 0),
                 )
                 executed += 1

@@ -248,9 +248,6 @@ def log_episode_to_rerun(
         send_properties=True,
     )
 
-    if rgb_dict:
-        _try_send_blueprint(list(rgb_dict.keys()), recording=rec)
-
     rgb_len = None
     if rgb_dict and all(len(rgb_list) > 0 for rgb_list in rgb_dict.values()):
         rgb_len = min(len(rgb_list) for rgb_list in rgb_dict.values())
@@ -265,127 +262,135 @@ def log_episode_to_rerun(
         )
         return RerunSaveStatus.SKIPPED_NO_DATA
 
-    cfg = get_robot_action_config(robot_id) if robot_id else None
-    joint_labels = None
-    gripper_labels = None
-    base_labels = None
-
-    # -- Video-based image logging --
-    use_video = _can_use_video() and rgb_dict and rgb_len is not None
     temp_video_paths: dict[str, str] = {}
-    if use_video:
-        for camera_name, rgb_list in rgb_dict.items():
-            frames = rgb_list[:rgb_len]
-            if not frames:
-                continue
-            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
-            os.close(tmp_fd)
-            try:
-                if _create_video is None:
-                    raise ValueError("Cannot create video but _can_use_video() is True")
-                _create_video(frames, tmp_path, fps=fps)
-                video_asset = rr.AssetVideo(path=tmp_path)
-                rr.log(
-                    f"cameras/{camera_name}",
-                    video_asset,
-                    static=True,
-                    recording=rec,
-                )
-                temp_video_paths[camera_name] = tmp_path
-            except (
-                FileNotFoundError,
-                OSError,
-                RuntimeError,
-                ValueError,
-                TypeError,
-            ) as e:
-                print(
-                    f"Warning: video logging failed for {camera_name}: {e}, falling back to per-frame images"
-                )
-                use_video = False
+    try:
+        rec.save(rrd_path)
+
+        if rgb_dict:
+            _try_send_blueprint(list(rgb_dict.keys()), recording=rec)
+
+        cfg = get_robot_action_config(robot_id) if robot_id else None
+        joint_labels = None
+        gripper_labels = None
+        base_labels = None
+
+        # -- Video-based image logging --
+        use_video = _can_use_video() and rgb_dict and rgb_len is not None
+        if use_video:
+            for camera_name, rgb_list in rgb_dict.items():
+                frames = rgb_list[:rgb_len]
+                if not frames:
+                    continue
+                tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
+                os.close(tmp_fd)
                 try:
-                    os.unlink(tmp_path)
-                except FileNotFoundError:
-                    # Temporary video may be removed before cleanup.
-                    pass
-                except OSError as exc:
-                    print(
-                        f"Warning: failed to cleanup temporary video file {tmp_path}: {exc}"
+                    if _create_video is None:
+                        raise ValueError(
+                            "Cannot create video but _can_use_video() is True"
+                        )
+                    _create_video(frames, tmp_path, fps=fps)
+                    video_asset = rr.AssetVideo(path=tmp_path)
+                    rr.log(
+                        f"cameras/{camera_name}",
+                        video_asset,
+                        static=True,
+                        recording=rec,
                     )
-                # Clean up any already-created temp videos
-                for p in temp_video_paths.values():
+                    temp_video_paths[camera_name] = tmp_path
+                except (
+                    FileNotFoundError,
+                    OSError,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                ) as e:
+                    print(
+                        f"Warning: video logging failed for {camera_name}: {e}, falling back to per-frame images"
+                    )
+                    use_video = False
                     try:
-                        os.unlink(p)
+                        os.unlink(tmp_path)
                     except FileNotFoundError:
-                        # Another path may have already removed this temporary file.
                         pass
                     except OSError as exc:
                         print(
-                            f"Warning: failed to cleanup previous temporary video file {p}: {exc}"
+                            f"Warning: failed to cleanup temporary video file {tmp_path}: {exc}"
                         )
-                temp_video_paths.clear()
-                break
-
-    for t in range(timeline_len):
-        rr.set_time("stable_time", duration=t / float(fps), recording=rec)
-
-        if rgb_dict and rgb_len is not None and t < rgb_len:
-            if use_video:
-                for camera_name in temp_video_paths:
-                    rr.log(
-                        f"cameras/{camera_name}",
-                        rr.VideoFrameReference(
-                            timestamp=rr.components.VideoTimestamp(
-                                nanoseconds=int(t / float(fps) * 1e9)
+                    for p in temp_video_paths.values():
+                        try:
+                            os.unlink(p)
+                        except FileNotFoundError:
+                            pass
+                        except OSError as exc:
+                            print(
+                                f"Warning: failed to cleanup previous temporary video file {p}: {exc}"
                             )
-                        ),
-                        recording=rec,
-                    )
-            else:
-                for camera_name, rgb_list in rgb_dict.items():
-                    if decode_image_frame is None:
-                        continue
-                    frame = decode_image_frame(rgb_list[t])
-                    if frame is None:
-                        continue
-                    rr.log(f"cameras/{camera_name}", rr.Image(frame), recording=rec)
+                    temp_video_paths.clear()
+                    break
 
-        if joint_list is not None and t < len(joint_list):
-            joints = to_np(joint_list[t]).astype(np.float32).reshape(-1)
-            if joint_labels is None:
-                joint_labels = _labels_for_joint_state(joints.size, cfg)
-            for i, v in enumerate(joints):
-                name = joint_labels[i] if i < len(joint_labels) else f"j{i}"
-                rr.log(f"plots/joints/{name}", rr.Scalars(float(v)), recording=rec)
+        for t in range(timeline_len):
+            rr.set_time("stable_time", duration=t / float(fps), recording=rec)
 
-        if gripper_list is not None and t < len(gripper_list):
-            gripper = to_np(gripper_list[t]).astype(np.float32).reshape(-1)
-            if gripper_labels is None:
-                gripper_labels = _labels_for_gripper_state(gripper.size, cfg)
-            for i, v in enumerate(gripper):
-                name = gripper_labels[i] if i < len(gripper_labels) else f"g{i}"
-                rr.log(f"plots/gripper/{name}", rr.Scalars(float(v)), recording=rec)
+            if rgb_dict and rgb_len is not None and t < rgb_len:
+                if use_video:
+                    for camera_name in temp_video_paths:
+                        rr.log(
+                            f"cameras/{camera_name}",
+                            rr.VideoFrameReference(
+                                timestamp=rr.components.VideoTimestamp(
+                                    nanoseconds=int(t / float(fps) * 1e9)
+                                )
+                            ),
+                            recording=rec,
+                        )
+                else:
+                    for camera_name, rgb_list in rgb_dict.items():
+                        if decode_image_frame is None:
+                            continue
+                        frame = decode_image_frame(rgb_list[t])
+                        if frame is None:
+                            continue
+                        rr.log(f"cameras/{camera_name}", rr.Image(frame), recording=rec)
 
-        if base_list is not None and t < len(base_list):
-            base = to_np(base_list[t]).astype(np.float32).reshape(-1)
-            if base_labels is None:
-                base_labels = _labels_for_base_state(base.size)
-            for i, v in enumerate(base):
-                name = base_labels[i] if i < len(base_labels) else f"b{i}"
-                rr.log(f"plots/base/{name}", rr.Scalars(float(v)), recording=rec)
+            if joint_list is not None and t < len(joint_list):
+                joints = to_np(joint_list[t]).astype(np.float32).reshape(-1)
+                if joint_labels is None:
+                    joint_labels = _labels_for_joint_state(joints.size, cfg)
+                for i, v in enumerate(joints):
+                    name = joint_labels[i] if i < len(joint_labels) else f"j{i}"
+                    rr.log(f"plots/joints/{name}", rr.Scalars(float(v)), recording=rec)
 
-    rr.save(rrd_path, recording=rec)
-    print(f"Saved: {rrd_path}")
+            if gripper_list is not None and t < len(gripper_list):
+                gripper = to_np(gripper_list[t]).astype(np.float32).reshape(-1)
+                if gripper_labels is None:
+                    gripper_labels = _labels_for_gripper_state(gripper.size, cfg)
+                for i, v in enumerate(gripper):
+                    name = gripper_labels[i] if i < len(gripper_labels) else f"g{i}"
+                    rr.log(f"plots/gripper/{name}", rr.Scalars(float(v)), recording=rec)
 
-    for p in temp_video_paths.values():
+            if base_list is not None and t < len(base_list):
+                base = to_np(base_list[t]).astype(np.float32).reshape(-1)
+                if base_labels is None:
+                    base_labels = _labels_for_base_state(base.size)
+                for i, v in enumerate(base):
+                    name = base_labels[i] if i < len(base_labels) else f"b{i}"
+                    rr.log(f"plots/base/{name}", rr.Scalars(float(v)), recording=rec)
+
+        rec.flush()
+        print(f"Saved: {rrd_path}")
+        return RerunSaveStatus.SAVED
+    finally:
         try:
-            os.unlink(p)
-        except FileNotFoundError:
-            # File may already be gone after log finalization.
+            rec.disconnect()
+        except (AttributeError, RuntimeError, OSError, ValueError):
             pass
-        except OSError as exc:
-            print(
-                f"Warning: failed to cleanup temporary video file after logging: {p}: {exc}"
-            )
-            pass
-    return RerunSaveStatus.SAVED
+        for p in temp_video_paths.values():
+            try:
+                os.unlink(p)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                print(
+                    f"Warning: failed to cleanup temporary video file after logging: {p}: {exc}"
+                )
+                pass

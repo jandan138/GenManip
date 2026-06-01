@@ -293,7 +293,7 @@ class ProgressManager:
         with self.lock:
             if worker_id not in self.worker_to_task_map:
                 return None
-            task_name, task_seed, _ = self.worker_to_task_map[worker_id]
+            task_name, task_seed, config = self.worker_to_task_map[worker_id]
 
         episode_result = None
         if score is not None:
@@ -311,6 +311,8 @@ class ProgressManager:
         with self.lock:
             if score is not None:
                 self.result_list[task_name][task_seed] = score
+            else:
+                self._restore_unfinished_episode_locked(task_name, task_seed, config)
             self.worker_to_task_map.pop(worker_id, None)
 
         # Release the episode lock unless the caller keeps it for async finalize.
@@ -318,6 +320,18 @@ class ProgressManager:
             self.release_episode_lock(task_name, task_seed)
 
         return episode_result
+
+    def _restore_unfinished_episode_locked(
+        self, task_name: str, task_seed: str, config: dict
+    ) -> None:
+        """Put an assigned-but-unfinished episode back into the in-memory queue."""
+        if task_seed in self.result_list.get(task_name, {}):
+            return
+        if task_seed not in self.task_seed_list.get(task_name, []):
+            self.task_seed_list.setdefault(task_name, []).insert(0, task_seed)
+        if not any(c["task_name"] == task_name for c in self.config_list):
+            self.config_list.insert(0, config)
+        self.done = False
 
     def get_worker_task(self, worker_id: str) -> tuple[str, str, dict] | None:
         """Get the current task assigned to a worker."""
@@ -352,10 +366,7 @@ class ProgressManager:
 
             # Restore to queue if not completed
             if task_seed not in self.result_list.get(task_name, {}):
-                if task_seed not in self.task_seed_list.get(task_name, []):
-                    self.task_seed_list[task_name].insert(0, task_seed)
-                if not any(c["task_name"] == task_name for c in self.config_list[:1]):
-                    self.config_list.insert(0, config)
+                self._restore_unfinished_episode_locked(task_name, task_seed, config)
 
             return (task_name, task_seed, config)
 

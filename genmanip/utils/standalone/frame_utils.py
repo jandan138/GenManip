@@ -129,11 +129,13 @@ def create_video_from_image_folder(
     height, width, _ = frame.shape
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-    for image in images:
-        image_path = os.path.join(image_folder, image)
-        frame = cv2.imread(image_path)
-        video.write(frame)
-    video.release()
+    try:
+        for image in images:
+            image_path = os.path.join(image_folder, image)
+            frame = cv2.imread(image_path)
+            video.write(frame)
+    finally:
+        video.release()
 
 
 def create_video_from_image_list(
@@ -151,13 +153,15 @@ def create_video_from_image_list(
     height, width, _ = first_frame.shape
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-    for image in image_list:
-        frame = decode_image_frame(image)
-        if frame is None:
-            continue
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        video.write(frame_bgr)
-    video.release()
+    try:
+        for image in image_list:
+            frame = decode_image_frame(image)
+            if frame is None:
+                continue
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video.write(frame_bgr)
+    finally:
+        video.release()
 
 
 def create_video_from_image_array(
@@ -166,10 +170,12 @@ def create_video_from_image_array(
     height, width, _ = image_array[0].shape
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-    for frame in image_array:
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        video.write(frame)
-    video.release()
+    try:
+        for frame in image_array:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video.write(frame)
+    finally:
+        video.release()
 
 
 def save_image(image: np.ndarray, filepath: str) -> None:

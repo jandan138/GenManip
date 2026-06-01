@@ -39,8 +39,9 @@ NUM_GPUS_REQUIRED_PER_JOB = 1.0 / max(
 )
 FINALIZE_LOCK_HEARTBEAT_TIMEOUT_SECONDS = 3000.0
 LOCK_LOST_FAILURE_THRESHOLD = 3
-NEXT_TASK_WAIT_TIMEOUT_SECONDS = 120.0
+NEXT_TASK_WAIT_TIMEOUT_SECONDS = 600.0
 NEXT_TASK_WAIT_POLL_SECONDS = 1.0
+NEXT_TASK_RECONCILE_INTERVAL_SECONDS = 30.0
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -421,6 +422,7 @@ class IsaacWorkerPool:
         if self.progress_manager is None:
             raise ValueError("No job started")
         deadline = time.monotonic() + timeout_seconds
+        next_reconcile_at = time.monotonic() + NEXT_TASK_RECONCILE_INTERVAL_SECONDS
         while True:
             if self._worker_cancelled(w_id):
                 return None, None
@@ -429,10 +431,34 @@ class IsaacWorkerPool:
                 return config, task_seed
             if self.progress_manager.check_finished():
                 return None, None
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f"No task became available for worker {w_id} within {timeout_seconds}s"
+            now = time.monotonic()
+            if now >= next_reconcile_at:
+                all_done_on_disk = (
+                    self.progress_manager.reconcile_task_state_from_filesystem()
                 )
+                config, task_seed = self.progress_manager.get_next_task(str(w_id))
+                if config is not None:
+                    return config, task_seed
+                if all_done_on_disk or self.progress_manager.check_finished():
+                    return None, None
+                next_reconcile_at = now + NEXT_TASK_RECONCILE_INTERVAL_SECONDS
+            if time.monotonic() >= deadline:
+                all_done_on_disk = (
+                    self.progress_manager.reconcile_task_state_from_filesystem()
+                )
+                config, task_seed = self.progress_manager.get_next_task(str(w_id))
+                if config is not None:
+                    return config, task_seed
+                if all_done_on_disk or self.progress_manager.check_finished():
+                    return None, None
+                if self.logger is not None:
+                    self.logger.warning(
+                        "No task became available for worker=%s within %.1fs after "
+                        "filesystem reconcile; leaving worker idle until client reset",
+                        w_id,
+                        timeout_seconds,
+                    )
+                return None, None
             time.sleep(NEXT_TASK_WAIT_POLL_SECONDS)
 
     def _worker_cancelled(self, w_id: str) -> bool:
@@ -560,6 +586,18 @@ class IsaacWorkerPool:
                 continue
 
             config, task_seed = self.progress_manager.get_next_task(str(w_id))
+            if config is None and not self.progress_manager.check_finished():
+                if self.logger is not None:
+                    self.logger.warning(
+                        "No task available during reset for worker=%s; "
+                        "reconciling task state from filesystem",
+                        w_id,
+                    )
+                all_done_on_disk = (
+                    self.progress_manager.reconcile_task_state_from_filesystem()
+                )
+                if not all_done_on_disk:
+                    config, task_seed = self.progress_manager.get_next_task(str(w_id))
 
             if config is None:
                 resp = {
@@ -708,6 +746,17 @@ class IsaacWorkerPool:
                 self.logger.exception(
                     "Pending reset future failed for worker=%s", str(w_id)
                 )
+            if self.progress_manager is not None:
+                released = self.progress_manager.release_worker_task(str(w_id))
+                if released is not None and self.logger is not None:
+                    task_name, task_seed, _ = released
+                    self.logger.warning(
+                        "Released failed pending reset task back to queue: "
+                        "worker=%s task=%s seed=%s",
+                        str(w_id),
+                        task_name,
+                        task_seed,
+                    )
             raise
 
     def _spawn_worker(self, w_id: str):
@@ -1010,6 +1059,7 @@ class IsaacWorkerPool:
         action_chunk: List[Dict[str, Any]],
         render_mode: str = "lite",
         subframes: int = 2,
+        render_suffix: int = 2,
     ) -> dict[str, Any]:
         """
         Execute multiple steps in one server call.
@@ -1066,7 +1116,7 @@ class IsaacWorkerPool:
                 pass
             else:
                 future = self.workers[single_wid].step_chunk.remote(
-                    per_worker, render_mode, subframes
+                    per_worker, render_mode, subframes, render_suffix
                 )
                 result = ray.get(future)
                 final_obs, final_done, final_info, executed_steps = result

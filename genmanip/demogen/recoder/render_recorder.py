@@ -281,10 +281,10 @@ class RenderRecorder:
         # actions
         self.add_scalar_data(f"ee_pose_action", self.embodiment.fk_single(action))
         self.add_scalar_data(
-            f"arm_action", action[: len(self.embodiment.default_arm_dof_indices)]
+            f"arm_action", action[self.embodiment.default_arm_dof_indices]
         )
         self.add_scalar_data(
-            f"gripper_action", action[len(self.embodiment.default_arm_dof_indices) :]
+            f"gripper_action", action[self.embodiment.default_gripper_dof_indices]
         )
         self.add_scalar_data(f"gripper_close", gripper_close)
         self.add_scalar_data(f"base_motion", base_motion)
