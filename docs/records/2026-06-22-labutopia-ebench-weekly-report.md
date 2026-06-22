@@ -96,32 +96,21 @@ EOS/其他工程师任务: 8087
 
 ## 有没有渲染图验证？
 
-目前没有保留“产品可审阅”的渲染图或视频证据。
-
-原因是这次 smoke 的目标是先验证接入链路，所以运行时使用了：
+已补三张静态渲染图，放在 HTML 汇报页里：
 
 ```text
---no_save_process
---frame_save_interval 0
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick.jpg
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place.jpg
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg
 ```
 
-这会关闭过程图片/视频保存，减少运行成本和干扰。因此当前证据主要是：
+这三张图来自同一个 LabUtopia Franka POC 任务包和同一个 LabUtopia overlay 资产根目录，均在 Isaac/Replicator 中从 EBench/GenManip 加载后的 stage 抓取。它们可以作为“资产可见性证据”，但还不能作为“画面/视频/任务布局已经验收”的结论。
 
-- server/client 成功完成
-- 场景资产路径解析正确
-- reset/step 正常返回
-- 3 个任务都有 `result_info.json`
-- 最终 status 是 `complete`
+需要特别说明：
 
-这能证明“链路跑通”，但不能证明“画面渲染效果符合产品预期”。渲染图验收需要作为后续单独一项补上。
-
-建议下一次渲染验收保留：
-
-```text
-reset 后第一帧截图
-每个任务一张关键视角截图
-必要时保留短视频或 merged mp4
-```
+- `run_id=labutopia_franka_render_smoke_20260622_150819` 跑过保存帧 smoke，但 eval recorder 的 `camera2` 帧当前是黑屏。
+- 因此 HTML 里使用的是同一加载路径下的直渲静态截图，只补了报告用光照和相机视角，不改变任务配置、结果分数或 evaluator 逻辑。
+- 当前还观察到部分对象的可见 mesh bbox、wrapper pose、任务语义坐标没有完全对齐；下一步必须修复这个问题，再做 reset 后关键帧验收。
 
 ## 本周遇到的问题和解决方式
 
@@ -130,6 +119,8 @@ reset 后第一帧截图
 | 资产根目录不对 | 系统一开始会去错误目录找 LabUtopia 场景 | 增加 LabUtopia manifest 识别逻辑，运行时切换到 overlay asset root | 已解决 |
 | 缺少 `meta_info.pkl` | 传统 GenManip 任务依赖采集包里的元信息，LabUtopia POC 没有这份文件 | 针对 LabUtopia POC，从实时场景里自动生成最小可用元信息 | 已解决 |
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
+| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出黑屏 | 已补同一加载路径下的直渲静态图用于 PM 可见性汇报 | 待修复 |
+| 可见 mesh 与 wrapper pose 未完全对齐 | 部分对象 bbox、wrapper pose、任务语义坐标存在偏移 | 先降级为“资产可见性证据”，不宣称任务布局验收完成 | 待闭环 |
 | 最终进度不 complete | 任务已跑完，但进度没有写入，导致客户端最后等待超时 | 任务结束时写最小 `result_info.json`，并修复进度统计 | 已解决 |
 | 后处理异常可能被误记为完成 | 如果后处理报错，不能用 0 分兜底伪装成成功 | 增加 fail-fast 逻辑和回归测试 | 已解决 |
 | 端口/结果混淆风险 | EOS 侧也有人在跑任务，担心互相影响 | 使用独立 worktree、独立 run_id、独立端口 18088，并复核 8087 状态 | 已解决 |
@@ -141,7 +132,7 @@ reset 后第一帧截图
 | LabUtopia 场景接入 | 已跑通 | 场景资产能加载，任务链路能跑完 |
 | Franka POC smoke | 已完成 | 3 个任务全部 complete |
 | 结果落盘 | 已完成 | per-task 和 final result 都能写出 |
-| 渲染图/视频验收 | 未完成 | 本轮没有保存图片/视频，需要后续补 |
+| 渲染图/视频验收 | 已补静态可见性证据 | 已有三张直渲图；`camera2`、视频和 reset 后任务布局仍需闭环 |
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | 官方 baseline | 未进入本周结论 | 后续单独讨论和规划 |
 
@@ -175,14 +166,22 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../level1_open_door/000/result_info.json
 ```
 
+渲染补证：
+
+```text
+run_id=labutopia_franka_render_smoke_20260622_150819
+eval recorder camera2 frames: black
+static direct-render evidence: 3 jpg files under docs/records/evidence/.../assets/
+```
+
 ## 下周建议
 
-先补一个“渲染图验收”小闭环，再进入下一阶段机器人/baseline 讨论。
+先把“渲染和布局验收”补成真正闭环，再进入下一阶段机器人/baseline 讨论。
 
 建议顺序：
 
-1. 开一轮保存图片的短 smoke。
-2. 为三个任务各保留 reset 后截图。
-3. 检查截图里场景、目标物、桌面、门/干燥箱是否可见且位置合理。
-4. 更新本周证据文档，明确“渲染验收通过/未通过”。
-5. 再进入下一阶段机器人和 baseline 的细化讨论。
+1. 修复 eval recorder 的 `camera2` 黑屏问题。
+2. 修复或解释可见 mesh bbox、wrapper pose、任务语义坐标的偏移。
+3. 为三个任务各保留 reset 后关键截图。
+4. 检查截图里目标物、桌面、门/干燥箱是否可见且位置合理。
+5. 再进入 Lift2 复合资产预检和官方 baseline 路线。
