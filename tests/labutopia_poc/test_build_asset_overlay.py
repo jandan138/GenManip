@@ -36,13 +36,36 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
         manifest["usd_name"]
         == "scene_usds/labutopia/level1_poc/lab_001/scene"
     )
-    assert set(manifest["task_prims"]) == {
-        "level1_pick",
-        "level1_place",
-        "level1_open_door",
+    assert manifest["task_prims"] == {
+        "level1_pick": ["/World/conical_bottle02"],
+        "level1_place": ["/World/beaker2", "/World/target_plat"],
+        "level1_open_door": [
+            "/World/DryingBox_01",
+            "/World/DryingBox_01/handle",
+            "/World/DryingBox_01/RevoluteJoint",
+        ],
     }
-    assert manifest["prim_rename_map"]["conical_bottle02"] == "obj_conical_bottle02"
-    assert "obj_conical_bottle02" in manifest["required_genmanip_object_uids"]
+    assert manifest["prim_rename_map"] == {
+        "/World/conical_bottle02": "obj_conical_bottle02",
+        "/World/beaker2": "obj_beaker2",
+        "/World/target_plat": "obj_target_plat",
+        "/World/DryingBox_01": "obj_DryingBox_01",
+        "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
+        "/World/table": "obj_table",
+    }
+    assert manifest["required_genmanip_object_uids"] == [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+        "obj_DryingBox_01",
+        "obj_DryingBox_01_handle",
+        "obj_table",
+    ]
+    assert manifest["notes"] == [
+        "scene.usda payloads the raw LabUtopia scene under /World/_scene.",
+        "The builder does not rewrite source prim names.",
+        "GenManip runtime discovery still needs a rename/wrapper pass before smoke if raw prim names are retained.",
+    ]
 
     copied_scene = next(
         item

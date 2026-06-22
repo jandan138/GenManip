@@ -21,32 +21,29 @@ USD_NAME = "scene_usds/labutopia/level1_poc/lab_001/scene"
 MANIFEST_RELATIVE = Path("manifests/labutopia_level1_poc.json")
 
 PRIM_RENAME_MAP = {
-    "conical_bottle02": "obj_conical_bottle02",
-    "beaker2": "obj_beaker2",
-    "target_plat": "obj_target_plat",
-    "DryingBox_01_handle": "obj_DryingBox_01_handle",
+    "/World/conical_bottle02": "obj_conical_bottle02",
+    "/World/beaker2": "obj_beaker2",
+    "/World/target_plat": "obj_target_plat",
+    "/World/DryingBox_01": "obj_DryingBox_01",
+    "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
+    "/World/table": "obj_table",
 }
 TASK_PRIMS = {
-    "level1_pick": {
-        "object_uid": "obj_conical_bottle02",
-        "prim_path": "/World/_scene/obj_conical_bottle02",
-    },
-    "level1_place": {
-        "object_uid": "obj_beaker2",
-        "target_uid": "obj_target_plat",
-        "object_prim_path": "/World/_scene/obj_beaker2",
-        "target_prim_path": "/World/_scene/obj_target_plat",
-    },
-    "level1_open_door": {
-        "object_uid": "obj_DryingBox_01_handle",
-        "prim_path": "/World/_scene/obj_DryingBox_01_handle",
-    },
+    "level1_pick": ["/World/conical_bottle02"],
+    "level1_place": ["/World/beaker2", "/World/target_plat"],
+    "level1_open_door": [
+        "/World/DryingBox_01",
+        "/World/DryingBox_01/handle",
+        "/World/DryingBox_01/RevoluteJoint",
+    ],
 }
 REQUIRED_GENMANIP_OBJECT_UIDS = [
     "obj_conical_bottle02",
     "obj_beaker2",
     "obj_target_plat",
+    "obj_DryingBox_01",
     "obj_DryingBox_01_handle",
+    "obj_table",
 ]
 TABLE_UID = "table"
 
@@ -146,8 +143,9 @@ def build_asset_overlay(
         "required_genmanip_object_uids": REQUIRED_GENMANIP_OBJECT_UIDS,
         "copied_files": _copied_files(overlay_root, copied_paths),
         "notes": [
-            "This overlay does not rewrite the LabUtopia USD stage.",
-            "The obj_* names are the GenManip-facing contract; verify source prims before relying on automated rename assumptions.",
+            "scene.usda payloads the raw LabUtopia scene under /World/_scene.",
+            "The builder does not rewrite source prim names.",
+            "GenManip runtime discovery still needs a rename/wrapper pass before smoke if raw prim names are retained.",
         ],
     }
 
