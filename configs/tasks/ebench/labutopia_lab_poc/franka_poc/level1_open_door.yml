@@ -1,0 +1,45 @@
+evaluation_configs:
+  - task_name: ebench/labutopia_lab_poc/franka_poc/level1_open_door
+    instruction: Open the door of the drying box.
+    usd_name: scene_usds/labutopia/level1_poc/lab_001/scene
+    table_uid: table
+    mode: manual
+    num_test: 1
+    num_steps: 1000
+    physics_dt: 0.0166666667
+    rendering_dt: 0.0166666667
+    robots:
+      - type: manip/franka/panda_hand
+        position: [-0.4, 0.0, 0.71]
+    domain_randomization:
+      cameras:
+        config_path: configs/cameras/labutopia_franka_poc.yml
+        type: fixed
+      random_environment:
+        has_wall: false
+        hdr: false
+        robot_base_position: false
+        robot_eepose: false
+        table_texture: false
+        table_type: false
+        wall_texture: false
+      rewrite_instruction: false
+    generation_config:
+      action_path:
+        mode: manual
+        robot: 0
+      goal:
+        - - - type: manip/labutopia/handle_displacement
+              obj_uid: obj_DryingBox_01_handle
+              min_distance: 0.12
+              skip_steps: 1
+              succ_cnts: 59
+      mode: manual
+      planner: curobo
+    object_config: {}
+    preprocess_config: []
+    layout_config:
+      ignored_objects: []
+      type: null
+    env_vars:
+      MDL_SYSTEM_PATH: "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"

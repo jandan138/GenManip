@@ -1,0 +1,16 @@
+camera1:
+  name: camera_1
+  exists: false
+  prim_path: /LabUtopiaCamera1
+  position: [2.0, 0.0, 2.0]
+  orientation: [0.61237, 0.35355, 0.35355, 0.61237]
+  resolution: [256, 256]
+  image_type: rgb
+camera2:
+  name: camera_2
+  exists: false
+  prim_path: /LabUtopiaCamera2
+  position: [0.1, 0.0, 2.5]
+  orientation: [0.70711, 0.0, 0.0, -0.70711]
+  resolution: [256, 256]
+  image_type: rgb

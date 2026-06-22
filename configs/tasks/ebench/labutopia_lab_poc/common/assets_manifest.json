@@ -1,0 +1,21 @@
+{
+    "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "runtime_usd_name": "scene_usds/labutopia/level1_poc/lab_001/scene",
+    "generated_manifest": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/labutopia_level1_poc.json",
+    "required_object_uids": [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+        "obj_DryingBox_01",
+        "obj_DryingBox_01_handle",
+        "obj_table"
+    ],
+    "table_uid": "table",
+    "env_vars": {
+        "MDL_SYSTEM_PATH": "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+    },
+    "runtime_notes": [
+        "The current overlay does not rewrite raw LabUtopia prim names.",
+        "Smoke must verify or perform a rename wrapper before runtime if GenManip object discovery requires the generated obj_* UIDs."
+    ]
+}

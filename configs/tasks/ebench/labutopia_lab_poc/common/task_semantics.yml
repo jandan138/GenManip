@@ -1,0 +1,99 @@
+level1_pick:
+  source_config: /cpfs/shared/simulation/zhuzihou/dev/LabUtopia/config/level1_pick.yaml
+  source_task_name: Level1_pick
+  source_task_type: pick
+  source_controller_type: pick
+  source_usd_path: assets/chemistry_lab/lab_001/lab_001.usd
+  instruction: Pick up the conical bottle from the table.
+  max_steps: 800
+  source_objects:
+    - path: /World/conical_bottle02
+      role: object_to_pick
+      position_range:
+        x: [0.21, 0.36]
+        y: [-0.08, 0.08]
+        z: [0.80, 0.80]
+  genmanip_objects:
+    object: obj_conical_bottle02
+    table: obj_table
+  metric:
+    type: manip/labutopia/object_height_delta
+    sub_goal_setting:
+      obj_uid: obj_conical_bottle02
+      axis: z
+      min_delta: 0.10
+      skip_steps: 1
+      succ_cnts: 59
+level1_place:
+  source_config: /cpfs/shared/simulation/zhuzihou/dev/LabUtopia/config/level1_place.yaml
+  source_task_name: Level1_place
+  source_task_type: place
+  source_controller_type: place
+  source_usd_path: assets/chemistry_lab/lab_001/lab_001.usd
+  instruction: Pick up the beaker and place it on the target platform.
+  max_steps: 2000
+  source_objects:
+    - path: /World/beaker2
+      role: object_to_place
+      position_range:
+        x: [0.19, 0.34]
+        y: [0.10, 0.25]
+        z: [0.84, 0.84]
+    - path: /World/target_plat
+      role: target_platform
+      position_range:
+        x: [0.18, 0.33]
+        y: [-0.32, -0.17]
+        z: [0.776, 0.776]
+  genmanip_objects:
+    object: obj_beaker2
+    target: obj_target_plat
+    table: obj_table
+  metric:
+    type: manip/labutopia/object_at_target
+    sub_goal_setting:
+      obj_uid: obj_beaker2
+      target_uid: obj_target_plat
+      xy_radius: 0.05
+      z_tolerance: 0.05
+      skip_steps: 1
+      succ_cnts: 59
+level1_open_door:
+  source_config: /cpfs/shared/simulation/zhuzihou/dev/LabUtopia/config/level1_open_door.yaml
+  source_task_name: Level1_open
+  source_task_type: openclose
+  source_controller_type: open
+  source_usd_path: assets/chemistry_lab/lab_001/lab_001.usd
+  instruction: Open the door of the drying box.
+  max_steps: 1000
+  source_objects:
+    - path: /World/DryingBox_01
+      role: articulated_drying_box
+      position_range:
+        x: [0.70, 0.80]
+        y: [0.05, 0.15]
+        z: [0.78, 0.78]
+    - path: /World/DryingBox_01/handle
+      role: door_handle
+    - path: /World/DryingBox_01/RevoluteJoint
+      role: preferred_door_joint
+  genmanip_objects:
+    articulated_object: obj_DryingBox_01
+    handle: obj_DryingBox_01_handle
+    table: obj_table
+  metrics:
+    preferred:
+      type: manip/labutopia/joint_angle_delta
+      sub_goal_setting:
+        obj_uid: obj_DryingBox_01
+        joint_name: RevoluteJoint
+        min_delta_rad: 0.35
+        skip_steps: 1
+        succ_cnts: 59
+    fallback:
+      type: manip/labutopia/handle_displacement
+      sub_goal_setting:
+        obj_uid: obj_DryingBox_01_handle
+        min_distance: 0.12
+        skip_steps: 1
+        succ_cnts: 59
