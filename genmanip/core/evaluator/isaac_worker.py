@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import sys
 import time
@@ -31,6 +32,40 @@ def import_modules():
     import torch
     import numpy
     from pydantic import BaseModel, Field
+
+
+def _ensure_isaac_compatible_asyncio_loop(logger: logging.Logger | None = None) -> None:
+    """Reset this worker thread to a CPython asyncio loop before Isaac starts."""
+    try:
+        current_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        current_loop = None
+
+    required_private_attrs = ("_check_closed", "_ready", "_scheduled")
+    if current_loop is not None and all(
+        hasattr(current_loop, attr) for attr in required_private_attrs
+    ):
+        return
+
+    original_policy = asyncio.get_event_loop_policy().__class__.__module__ + "." + (
+        asyncio.get_event_loop_policy().__class__.__name__
+    )
+    original_loop = (
+        "<none>"
+        if current_loop is None
+        else current_loop.__class__.__module__ + "." + current_loop.__class__.__name__
+    )
+
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+    if logger is not None:
+        logger.info(
+            "Reset asyncio loop for Isaac Sim compatibility. "
+            "original_policy=%s original_loop=%s",
+            original_policy,
+            original_loop,
+        )
 
 
 def _read_proc_status_memory_kb() -> dict[str, int]:
@@ -97,6 +132,7 @@ class IsaacWorker:
 
         # ---------- Isaac modules ----------
         import_modules()
+        _ensure_isaac_compatible_asyncio_loop(self.logger)
 
         from isaacsim import SimulationApp  # type: ignore
 

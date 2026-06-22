@@ -21,7 +21,11 @@ from genmanip.core.evaluator.progress_manager import (
     ProgressManager,
     HEARTBEAT_INTERVAL_SECONDS,
 )
+from genmanip.core.evaluator.episode_result import resolve_episode_score
 from genmanip.core.evaluator.isaac_worker import IsaacWorker
+from genmanip.core.evaluator.labutopia_assets import (
+    resolve_labutopia_poc_assets_override,
+)
 from genmanip.core.evaluator.utils import (
     finalize_episode_recorder_payload,
     parse_configs_and_benchmark_id,
@@ -103,6 +107,7 @@ class IsaacWorkerPool:
         self.default_config = load_default_config(
             self.current_dir, "__None__.json", "local" if self.args.local else "default"
         )
+        self._default_assets_dir = self.default_config.get("ASSETS_DIR")
         # worker env timeout
         self.step_call_timeout = 1200
         self.reset_call_timeout = 1200
@@ -213,6 +218,32 @@ class IsaacWorkerPool:
 
         return env_vars_reference if env_vars_reference is not None else {}
 
+    def _reset_assets_dir_override(self) -> None:
+        if self._default_assets_dir is None:
+            self.default_config.pop("ASSETS_DIR", None)
+        else:
+            self.default_config["ASSETS_DIR"] = self._default_assets_dir
+
+    def _maybe_apply_labutopia_assets_override(
+        self, evaluation_config_path_or_group: str
+    ) -> None:
+        override = resolve_labutopia_poc_assets_override(
+            self.current_dir, evaluation_config_path_or_group
+        )
+        if override is None:
+            return
+
+        previous_assets_dir = self.default_config.get("ASSETS_DIR", "")
+        self.default_config["ASSETS_DIR"] = override.overlay_root
+        if self.logger is not None:
+            self.logger.info(
+                "Using LabUtopia POC assets overlay. previous_ASSETS_DIR=%s "
+                "ASSETS_DIR=%s runtime_scene=%s",
+                previous_assets_dir,
+                override.overlay_root,
+                override.runtime_scene,
+            )
+
     def start_new_job(self, run_id: str, evaluation_config_path_list: list[str]):
         """
         Start a new evaluation job.
@@ -254,12 +285,14 @@ class IsaacWorkerPool:
         effective_run_id = self._validate_run_id(effective_run_id)
         self.args.run_id = effective_run_id
         self.configure_logging(effective_run_id)
+        self._reset_assets_dir_override()
 
         # Parse configs and determine benchmark_id
         self.benchmark_id = None
         all_configs: list[tuple[list[dict], dict[str, list[str]], dict[str, int]]] = []
 
         for evaluation_config_path_or_group in evaluation_config_path_list:
+            self._maybe_apply_labutopia_assets_override(evaluation_config_path_or_group)
             evaluation_config_list, benchmark_id, is_genmanip_package = (
                 parse_configs_and_benchmark_id(
                     evaluation_config_path_or_group, self.current_dir
@@ -1145,11 +1178,12 @@ class IsaacWorkerPool:
             }
 
         # Get result from worker
-        result = None
+        post_episode_result = None
+        post_episode_error: Exception | None = None
         finalize_payload = None
         if "error" not in info and "info" in info and info["info"] != "Done":
             try:
-                result = self._ray_get_with_timeout(
+                post_episode_result = self._ray_get_with_timeout(
                     call_remote=lambda: self.workers[
                         w_id
                     ].post_episode_process.remote(),
@@ -1157,15 +1191,26 @@ class IsaacWorkerPool:
                     context=f"Worker {w_id} post_episode_process",
                 )
             except Exception as e:
+                post_episode_error = e
                 if self._is_worker_unavailable_error(e):
                     self._replace_worker(w_id, reason=e)
                 if self.logger is not None:
                     self.logger.exception(
                         "Post-episode processing failed for worker=%s", w_id
                     )
-        if isinstance(result, dict):
-            finalize_payload = result.get("finalize_payload")
-            result = result.get("score")
+        if isinstance(post_episode_result, dict):
+            finalize_payload = post_episode_result.get("finalize_payload")
+        result = resolve_episode_score(
+            post_episode_result,
+            info,
+            allow_done_info_fallback=post_episode_error is None,
+        )
+        if post_episode_error is not None:
+            self.progress_manager.release_worker_task(str(w_id))
+            raise RuntimeError(
+                f"Post-episode processing failed for worker={w_id}: "
+                f"{type(post_episode_error).__name__}: {post_episode_error}"
+            ) from post_episode_error
 
         if self._worker_cancelled(w_id):
             return {

@@ -6,6 +6,11 @@ camera1:
   orientation: [0.61237, 0.35355, 0.35355, 0.61237]
   resolution: [256, 256]
   image_type: rgb
+  with_distance: false
+  with_semantic: false
+  with_bbox2d: false
+  with_bbox3d: false
+  with_motion_vector: false
 camera2:
   name: camera_2
   exists: false
@@ -14,3 +19,8 @@ camera2:
   orientation: [0.70711, 0.0, 0.0, -0.70711]
   resolution: [256, 256]
   image_type: rgb
+  with_distance: false
+  with_semantic: false
+  with_bbox2d: false
+  with_bbox3d: false
+  with_motion_vector: false

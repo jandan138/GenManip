@@ -313,11 +313,30 @@ class ProgressManager:
                 self.result_list[task_name][task_seed] = score
             self.worker_to_task_map.pop(worker_id, None)
 
+        if score is not None and release_lock:
+            self._write_minimal_result_info(task_name, task_seed, float(score))
+
         # Release the episode lock unless the caller keeps it for async finalize.
         if release_lock:
             self.release_episode_lock(task_name, task_seed)
 
         return episode_result
+
+    def _write_minimal_result_info(
+        self, task_name: str, task_seed: str, score: float
+    ) -> None:
+        self._atomic_json_write(
+            str(self._get_result_info_path(task_name, task_seed)),
+            {
+                "score": score,
+                "success_rate": 1 if abs(score - 1) < 1e-6 else 0,
+                "log_info": {
+                    "episode_start_time": None,
+                    "episode_end_time": None,
+                    "metric_score": [],
+                },
+            },
+        )
 
     def get_worker_task(self, worker_id: str) -> tuple[str, str, dict] | None:
         """Get the current task assigned to a worker."""

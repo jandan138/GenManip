@@ -13,6 +13,9 @@ from genmanip.core.evaluator.utils import (
     parse_embodiment_action,
     remove_dir_best_effort,
 )
+from genmanip.core.evaluator.labutopia_layout import (
+    load_or_build_labutopia_poc_meta_info,
+)
 from genmanip.utils.loader.domain_randomization import (
     random_texture_for_eval,
     reset_scene,
@@ -22,7 +25,6 @@ from genmanip.utils.loader.scene import (
     recovery_scene,
 )
 from genmanip.utils.standalone.file_utils import (
-    load_dict_from_pkl,
     make_dir,
 )
 from genmanip.utils.standalone.io_utils import serialize_data, _jpeg
@@ -653,8 +655,12 @@ class IsaacEvalEnvRay:
         task_dir = self.default_config["TASKS_DIR"]
         task_name = scene_config.task_name
         # Load data
-        meta_info = load_dict_from_pkl(
-            os.path.join(task_dir, task_name, f"{seed}/meta_info.pkl")
+        meta_info = load_or_build_labutopia_poc_meta_info(
+            os.path.join(task_dir, task_name, f"{seed}/meta_info.pkl"),
+            task_name,
+            seed,
+            scene,
+            scene_config,
         )
         reset_scene(scene)
 

@@ -51,6 +51,13 @@ PROFILE_EXPECTATIONS = {
         "camera_config": "configs/cameras/fixed_camera_lift2_simbox.yml",
     },
 }
+CAMERA_CLEANUP_FLAGS = {
+    "with_bbox2d",
+    "with_bbox3d",
+    "with_motion_vector",
+    "with_semantic",
+    "with_distance",
+}
 ALLOWED_METRICS = {
     "manip/labutopia/object_height_delta": {
         "obj_uid",
@@ -161,6 +168,17 @@ def _validate_assets_manifest() -> None:
         manifest.get("runtime_usd_name") == RUNTIME_USD_NAME,
         f"{path}: runtime_usd_name must be {RUNTIME_USD_NAME!r}",
     )
+    overlay_root = manifest.get("overlay_root")
+    _assert(
+        isinstance(overlay_root, str) and overlay_root,
+        f"{path}: overlay_root must be a non-empty path",
+    )
+    overlay_path = Path(overlay_root).expanduser()
+    if not overlay_path.is_absolute():
+        overlay_path = ROOT / overlay_path
+    runtime_scene = overlay_path / f"{RUNTIME_USD_NAME}.usda"
+    if not runtime_scene.exists():
+        raise FileNotFoundError(f"{path}: runtime scene does not exist: {runtime_scene}")
     _assert(
         manifest.get("wrapper_prim_paths") == EXPECTED_WRAPPER_PRIM_PATHS,
         f"{path}: wrapper_prim_paths must preserve GenManip key stripping",
@@ -211,6 +229,23 @@ def _validate_task_semantics() -> None:
     )
     for key in ("articulation_obj_uid", "joint_name", "angle_deg_range"):
         _assert(key in settings, f"{path}: open_door preferred metric missing {key}")
+
+
+def _validate_camera_configs() -> None:
+    for profile, expected in PROFILE_EXPECTATIONS.items():
+        path = ROOT / expected["camera_config"]
+        data = _load_yaml(path)
+        _assert(isinstance(data, dict), f"{path}: expected camera mapping")
+        for camera_name, camera in data.items():
+            _assert(
+                isinstance(camera, dict),
+                f"{path}:{camera_name}: expected camera settings mapping",
+            )
+            missing = CAMERA_CLEANUP_FLAGS - set(camera)
+            _assert(
+                not missing,
+                f"{path}:{camera_name}: {profile} camera missing cleanup flags {missing}",
+            )
 
 
 def _walk_goal_dicts(value: Any, path: Path) -> list[dict[str, Any]]:
@@ -335,6 +370,7 @@ def _validate_metrics_manager_lazy_registration() -> None:
 def validate_task_package() -> None:
     _validate_assets_manifest()
     _validate_task_semantics()
+    _validate_camera_configs()
     for path in _indexed_task_yaml_paths():
         _validate_runtime_task(path)
     _validate_metrics_manager_lazy_registration()
