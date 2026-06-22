@@ -1,6 +1,9 @@
 import hashlib
 import json
 
+import pytest
+
+import standalone_tools.labutopia_poc.build_asset_overlay as build_overlay
 from standalone_tools.labutopia_poc.build_asset_overlay import build_asset_overlay
 
 
@@ -55,3 +58,29 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
     build_asset_overlay(labutopia_root=labutopia_root, overlay_root=overlay_root)
 
     assert not stale_path.exists()
+
+
+def test_build_asset_overlay_rejects_overlay_scene_inside_source_dir(
+    tmp_path, monkeypatch
+):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    def fail_if_copytree_runs(source, destination):
+        raise AssertionError(f"copytree should not run for {source} -> {destination}")
+
+    monkeypatch.setattr(build_overlay.shutil, "copytree", fail_if_copytree_runs)
+
+    with pytest.raises(ValueError, match="inside the LabUtopia source scene directory"):
+        build_asset_overlay(labutopia_root=labutopia_root, overlay_root=source_dir)
+
+    assert not (
+        source_dir
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene_usds"
+    ).exists()

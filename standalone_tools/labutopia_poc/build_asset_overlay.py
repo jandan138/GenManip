@@ -92,6 +92,21 @@ def _copied_files(overlay_root: Path, paths: list[Path]) -> list[dict[str, objec
     return entries
 
 
+def _reject_overlay_scene_inside_source(
+    source_dir: Path, overlay_scene_dir: Path
+) -> None:
+    resolved_source_dir = source_dir.resolve()
+    resolved_overlay_scene_dir = overlay_scene_dir.resolve()
+    try:
+        resolved_overlay_scene_dir.relative_to(resolved_source_dir)
+    except ValueError:
+        return
+    raise ValueError(
+        "Overlay scene directory must not be inside the LabUtopia source scene "
+        f"directory: {resolved_overlay_scene_dir} is within {resolved_source_dir}"
+    )
+
+
 def build_asset_overlay(
     labutopia_root: str | Path = DEFAULT_LABUTOPIA_ROOT,
     overlay_root: str | Path = DEFAULT_OVERLAY_ROOT,
@@ -104,6 +119,7 @@ def build_asset_overlay(
         raise FileNotFoundError(source_scene)
 
     overlay_scene_dir = overlay_root / OVERLAY_SCENE_RELATIVE
+    _reject_overlay_scene_inside_source(source_dir, overlay_scene_dir)
     if overlay_scene_dir.exists():
         shutil.rmtree(overlay_scene_dir)
     overlay_scene_dir.parent.mkdir(parents=True, exist_ok=True)
