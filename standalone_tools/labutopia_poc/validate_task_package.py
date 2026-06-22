@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 import sys
@@ -237,6 +238,7 @@ def _validate_metric(metric: dict[str, Any], path: Path) -> None:
 def _validate_runtime_task(path: Path) -> None:
     sys.path.insert(0, str(ROOT))
     from genmanip.core.scene.scene_config import SceneConfig
+    from genmanip.utils.standalone.version_utils import process_archived_config
 
     data = _load_yaml(path)
     configs = data.get("evaluation_configs") if isinstance(data, dict) else None
@@ -245,7 +247,8 @@ def _validate_runtime_task(path: Path) -> None:
     cfg = configs[0]
     _assert(isinstance(cfg, dict), f"{path}: evaluation config must be a mapping")
 
-    SceneConfig(**cfg)
+    runtime_cfg = process_archived_config(copy.deepcopy(cfg))
+    SceneConfig(**runtime_cfg)
     _assert(cfg.get("num_test") is not None, f"{path}: missing num_test")
     task_name = cfg.get("task_name")
     _assert(
@@ -269,7 +272,21 @@ def _validate_runtime_task(path: Path) -> None:
         f"{path}: {profile} camera config must be {expected['camera_config']!r}",
     )
 
-    goals = cfg.get("generation_config", {}).get("goal")
+    generation_config = cfg.get("generation_config")
+    _assert(
+        isinstance(generation_config, dict),
+        f"{path}: generation_config must be a mapping",
+    )
+    _assert(
+        "articulation" in generation_config,
+        f"{path}: generation_config.articulation is required by runtime config upgrade",
+    )
+    _assert(
+        isinstance(generation_config["articulation"], (list, dict)),
+        f"{path}: generation_config.articulation must be a list or mapping",
+    )
+
+    goals = generation_config.get("goal")
     _assert(goals is not None, f"{path}: missing generation_config.goal")
     metrics = _walk_goal_dicts(goals, path)
     _assert(metrics, f"{path}: generation_config.goal contains no metric dicts")

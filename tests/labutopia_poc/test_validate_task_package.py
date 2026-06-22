@@ -85,3 +85,11 @@ def test_validate_task_package_cli_reports_success():
     )
 
     assert "LabUtopia task package validation OK" in result.stdout
+
+
+def test_labutopia_tasks_define_runtime_articulation_contract():
+    for path in validate_task_package._indexed_task_yaml_paths():
+        data = validate_task_package._load_yaml(path)
+        cfg = data["evaluation_configs"][0]
+
+        assert "articulation" in cfg["generation_config"], str(path)
