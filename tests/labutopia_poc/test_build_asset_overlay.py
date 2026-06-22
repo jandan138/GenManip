@@ -1,5 +1,7 @@
 import hashlib
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -26,9 +28,22 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
     )
     assert (scene_dir / "scene.usd").exists()
     assert (scene_dir / "scene.usda").exists()
-    assert '@scene.usd@</World>' in (scene_dir / "scene.usda").read_text(
-        encoding="utf-8"
-    )
+    scene_usda = (scene_dir / "scene.usda").read_text(encoding="utf-8")
+    assert 'def Xform "World"' in scene_usda
+    assert 'def Xform "labutopia_level1_poc"' in scene_usda
+    assert 'def Xform "_scene"' not in scene_usda
+    assert (
+        'def Xform "obj_obj_conical_bottle02" (\n'
+        '            prepend payload = @scene.usd@</World/conical_bottle02>'
+    ) in scene_usda
+    assert (
+        'def Xform "obj_obj_DryingBox_01_handle" (\n'
+        '            prepend payload = @scene.usd@</World/DryingBox_01/handle>'
+    ) in scene_usda
+    assert (
+        'def Xform "obj_table" (\n'
+        '            prepend payload = @scene.usd@</World/table>'
+    ) in scene_usda
 
     manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -36,7 +51,8 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
         manifest["usd_name"]
         == "scene_usds/labutopia/level1_poc/lab_001/scene"
     )
-    assert manifest["task_prims"] == {
+    assert manifest["scene_uid"] == "labutopia_level1_poc"
+    assert manifest["source_task_prims"] == {
         "level1_pick": ["/World/conical_bottle02"],
         "level1_place": ["/World/beaker2", "/World/target_plat"],
         "level1_open_door": [
@@ -45,13 +61,29 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
             "/World/DryingBox_01/RevoluteJoint",
         ],
     }
-    assert manifest["prim_rename_map"] == {
+    assert manifest["source_to_runtime_object_key"] == {
         "/World/conical_bottle02": "obj_conical_bottle02",
         "/World/beaker2": "obj_beaker2",
         "/World/target_plat": "obj_target_plat",
         "/World/DryingBox_01": "obj_DryingBox_01",
         "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
-        "/World/table": "obj_table",
+        "/World/table": "table",
+    }
+    assert manifest["runtime_object_keys"] == [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+        "obj_DryingBox_01",
+        "obj_DryingBox_01_handle",
+        "table",
+    ]
+    assert manifest["wrapper_prim_paths"] == {
+        "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
+        "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
+        "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
+        "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
+        "table": "/World/labutopia_level1_poc/obj_table",
     }
     assert manifest["required_genmanip_object_uids"] == [
         "obj_conical_bottle02",
@@ -61,10 +93,11 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
         "obj_DryingBox_01_handle",
         "obj_table",
     ]
+    assert manifest["table_uid"] == "table"
     assert manifest["notes"] == [
-        "scene.usda payloads the raw LabUtopia scene under /World/_scene.",
-        "The builder does not rewrite source prim names.",
-        "GenManip runtime discovery still needs a rename/wrapper pass before smoke if raw prim names are retained.",
+        "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+        "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+        "Runtime object keys strip one leading obj_ from wrapper prim names.",
     ]
 
     copied_scene = next(
@@ -107,3 +140,31 @@ def test_build_asset_overlay_rejects_overlay_scene_inside_source_dir(
         / "lab_001"
         / "scene_usds"
     ).exists()
+
+
+def test_metrics_manager_lazily_registers_labutopia_metrics_without_omni():
+    script = """
+import sys
+
+assert 'omni' not in sys.modules
+from genmanip.core.metrics.metrics_manager import MetricsManager
+
+manager = MetricsManager([
+    [[{
+        'type': 'manip/labutopia/object_height_delta',
+        'sub_goal_setting': {
+            'obj_uid': 'obj_conical_bottle02',
+            'axis': 'z',
+            'min_delta': 0.1,
+        },
+    }]]
+])
+metric = manager.cur_union_metric[0][0]
+assert metric.__class__.__name__ == 'ObjectHeightDelta'
+assert 'omni' not in sys.modules
+"""
+    subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=build_overlay.Path(__file__).resolve().parents[2],
+        check=True,
+    )

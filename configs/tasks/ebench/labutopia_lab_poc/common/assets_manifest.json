@@ -2,6 +2,53 @@
     "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
     "runtime_usd_name": "scene_usds/labutopia/level1_poc/lab_001/scene",
     "generated_manifest": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/labutopia_level1_poc.json",
+    "scene_uid": "labutopia_level1_poc",
+    "source_prim_paths": [
+        "/World/conical_bottle02",
+        "/World/beaker2",
+        "/World/target_plat",
+        "/World/DryingBox_01",
+        "/World/DryingBox_01/handle",
+        "/World/table"
+    ],
+    "source_task_prims": {
+        "level1_pick": [
+            "/World/conical_bottle02"
+        ],
+        "level1_place": [
+            "/World/beaker2",
+            "/World/target_plat"
+        ],
+        "level1_open_door": [
+            "/World/DryingBox_01",
+            "/World/DryingBox_01/handle",
+            "/World/DryingBox_01/RevoluteJoint"
+        ]
+    },
+    "source_to_runtime_object_key": {
+        "/World/conical_bottle02": "obj_conical_bottle02",
+        "/World/beaker2": "obj_beaker2",
+        "/World/target_plat": "obj_target_plat",
+        "/World/DryingBox_01": "obj_DryingBox_01",
+        "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
+        "/World/table": "table"
+    },
+    "runtime_object_keys": [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+        "obj_DryingBox_01",
+        "obj_DryingBox_01_handle",
+        "table"
+    ],
+    "wrapper_prim_paths": {
+        "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
+        "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
+        "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
+        "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
+        "table": "/World/labutopia_level1_poc/obj_table"
+    },
     "required_object_uids": [
         "obj_conical_bottle02",
         "obj_beaker2",
@@ -15,7 +62,8 @@
         "MDL_SYSTEM_PATH": "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
     },
     "runtime_notes": [
-        "The current overlay does not rewrite raw LabUtopia prim names.",
-        "Smoke must verify or perform a rename wrapper before runtime if GenManip object discovery requires the generated obj_* UIDs."
+        "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+        "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+        "Runtime object keys strip one leading obj_ from wrapper prim names."
     ]
 }

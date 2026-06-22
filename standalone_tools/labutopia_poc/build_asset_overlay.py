@@ -19,16 +19,17 @@ SOURCE_DIR_RELATIVE = SOURCE_SCENE_RELATIVE.parent
 OVERLAY_SCENE_RELATIVE = Path("scene_usds/labutopia/level1_poc/lab_001")
 USD_NAME = "scene_usds/labutopia/level1_poc/lab_001/scene"
 MANIFEST_RELATIVE = Path("manifests/labutopia_level1_poc.json")
+SCENE_UID = "labutopia_level1_poc"
 
-PRIM_RENAME_MAP = {
+SOURCE_TO_RUNTIME_OBJECT_KEY = {
     "/World/conical_bottle02": "obj_conical_bottle02",
     "/World/beaker2": "obj_beaker2",
     "/World/target_plat": "obj_target_plat",
     "/World/DryingBox_01": "obj_DryingBox_01",
     "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
-    "/World/table": "obj_table",
+    "/World/table": "table",
 }
-TASK_PRIMS = {
+SOURCE_TASK_PRIMS = {
     "level1_pick": ["/World/conical_bottle02"],
     "level1_place": ["/World/beaker2", "/World/target_plat"],
     "level1_open_door": [
@@ -48,6 +49,19 @@ REQUIRED_GENMANIP_OBJECT_UIDS = [
 TABLE_UID = "table"
 
 
+def _wrapper_name(runtime_object_key: str) -> str:
+    if runtime_object_key == TABLE_UID:
+        return "obj_table"
+    return f"obj_{runtime_object_key}"
+
+
+def _wrapper_prim_paths() -> dict[str, str]:
+    return {
+        runtime_key: f"/World/{SCENE_UID}/{_wrapper_name(runtime_key)}"
+        for runtime_key in SOURCE_TO_RUNTIME_OBJECT_KEY.values()
+    }
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
@@ -57,7 +71,17 @@ def _sha256(path: Path) -> str:
 
 
 def _write_scene_wrapper(path: Path) -> None:
-    path.write_text(
+    wrapper_defs = []
+    for source_path, runtime_key in SOURCE_TO_RUNTIME_OBJECT_KEY.items():
+        wrapper_defs.append(
+            f"""        def Xform "{_wrapper_name(runtime_key)}" (
+            prepend payload = @scene.usd@<{source_path}>
+        )
+        {{
+        }}"""
+        )
+
+    scene_text = (
         """#usda 1.0
 (
     defaultPrim = "World"
@@ -65,13 +89,14 @@ def _write_scene_wrapper(path: Path) -> None:
 
 def Xform "World"
 {
-    def Xform "_scene" (
-        prepend payload = @scene.usd@</World>
+"""
+        + f'    def Xform "{SCENE_UID}"\n'
+        + "    {\n"
+        + "\n".join(wrapper_defs)
+        + "\n    }\n}\n"
     )
-    {
-    }
-}
-""",
+    path.write_text(
+        scene_text,
         encoding="utf-8",
     )
 
@@ -137,15 +162,19 @@ def build_asset_overlay(
         "source_scene": str(source_scene),
         "overlay_root": str(overlay_root),
         "usd_name": USD_NAME,
-        "task_prims": TASK_PRIMS,
-        "prim_rename_map": PRIM_RENAME_MAP,
+        "scene_uid": SCENE_UID,
+        "source_task_prims": SOURCE_TASK_PRIMS,
+        "source_prim_paths": list(SOURCE_TO_RUNTIME_OBJECT_KEY.keys()),
+        "source_to_runtime_object_key": SOURCE_TO_RUNTIME_OBJECT_KEY,
+        "runtime_object_keys": list(SOURCE_TO_RUNTIME_OBJECT_KEY.values()),
+        "wrapper_prim_paths": _wrapper_prim_paths(),
         "table_uid": TABLE_UID,
         "required_genmanip_object_uids": REQUIRED_GENMANIP_OBJECT_UIDS,
         "copied_files": _copied_files(overlay_root, copied_paths),
         "notes": [
-            "scene.usda payloads the raw LabUtopia scene under /World/_scene.",
-            "The builder does not rewrite source prim names.",
-            "GenManip runtime discovery still needs a rename/wrapper pass before smoke if raw prim names are retained.",
+            "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+            "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+            "Runtime object keys strip one leading obj_ from wrapper prim names.",
         ],
     }
 

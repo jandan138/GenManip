@@ -5,10 +5,34 @@ All rights reserved.
 Licensed under the MIT License.
 """
 
+import importlib.util
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import time
 
 from genmanip.core.metrics.utils import MetricFactory
+
+
+def _ensure_metric_registered(metric_type: str) -> None:
+    if metric_type in MetricFactory._registry:
+        return
+    if not metric_type.startswith("manip/labutopia/"):
+        return
+
+    module_path = (
+        Path(__file__).resolve().parents[2]
+        / "extensions"
+        / "metrics"
+        / "labutopia"
+        / "object_metrics.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "_genmanip_labutopia_object_metrics", module_path
+    )
+    if spec is None or spec.loader is None:
+        return
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
 
 
 class MetricsManager:
@@ -50,10 +74,13 @@ class MetricsManager:
         next_metric_setting = self.goal_setting.pop(0)
         self.long_stride_idx += 1
 
-        metrics = [
-            [MetricFactory.build(cfg["type"], **cfg) for cfg in inner]
-            for inner in next_metric_setting
-        ]
+        metrics = []
+        for inner in next_metric_setting:
+            collection_metrics = []
+            for cfg in inner:
+                _ensure_metric_registered(cfg["type"])
+                collection_metrics.append(MetricFactory.build(cfg["type"], **cfg))
+            metrics.append(collection_metrics)
         self.print_metrics_info(metrics)
         return metrics
 
