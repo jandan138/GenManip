@@ -20,6 +20,18 @@ TASK_PREFIX = "ebench/labutopia_lab_poc/"
 SCENE_UID = "labutopia_level1_poc"
 RUNTIME_USD_NAME = "scene_usds/labutopia/level1_poc/lab_001/scene"
 EXPECTED_TASKS = {"level1_pick", "level1_place", "level1_open_door"}
+EXPECTED_TASK_ORDER = ["level1_pick", "level1_place", "level1_open_door"]
+EXPECTED_TOP_INDEX_ENTRIES = [
+    "ebench/labutopia_lab_poc/franka_poc/franka_poc.json",
+    "ebench/labutopia_lab_poc/lift2_candidate/lift2_candidate.json",
+]
+EXPECTED_PROFILE_INDEX_ENTRIES = {
+    profile: [
+        f"ebench/labutopia_lab_poc/{profile}/{task}.yml"
+        for task in EXPECTED_TASK_ORDER
+    ]
+    for profile in ("franka_poc", "lift2_candidate")
+}
 EXPECTED_WRAPPER_PRIM_PATHS = {
     "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
     "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
@@ -96,7 +108,12 @@ def _load_index(path: Path) -> list[str]:
 
 def _indexed_task_yaml_paths() -> list[Path]:
     top_index = PACKAGE_ROOT / "labutopia_lab_poc.json"
-    profile_indexes = [_task_path(item, top_index) for item in _load_index(top_index)]
+    top_entries = _load_index(top_index)
+    _assert(
+        top_entries == EXPECTED_TOP_INDEX_ENTRIES,
+        f"{top_index}: expected profile indexes {EXPECTED_TOP_INDEX_ENTRIES!r}",
+    )
+    profile_indexes = [_task_path(item, top_index) for item in top_entries]
     _assert(
         {path.parent.name for path in profile_indexes}
         == {"franka_poc", "lift2_candidate"},
@@ -105,7 +122,23 @@ def _indexed_task_yaml_paths() -> list[Path]:
 
     task_paths: list[Path] = []
     for index_path in profile_indexes:
-        for item in _load_index(index_path):
+        profile = index_path.parent.name
+        expected_entries = EXPECTED_PROFILE_INDEX_ENTRIES[profile]
+        entries = _load_index(index_path)
+        _assert(
+            len(entries) == len(set(entries)) == 3,
+            f"{index_path}: expected 3 distinct task YAML entries",
+        )
+        _assert(
+            entries == expected_entries,
+            f"{index_path}: expected task entries {expected_entries!r}",
+        )
+        basenames = {Path(item).stem for item in entries}
+        _assert(
+            basenames == EXPECTED_TASKS,
+            f"{index_path}: expected task basenames {EXPECTED_TASKS!r}",
+        )
+        for item in entries:
             task_path = _task_path(item, index_path)
             _assert(task_path.suffix in {".yml", ".yaml"}, f"{task_path}: expected YAML")
             task_paths.append(task_path)
@@ -246,6 +279,12 @@ def _validate_runtime_task(path: Path) -> None:
 
 def _validate_metrics_manager_lazy_registration() -> None:
     sys.path.insert(0, str(ROOT))
+    for module_name in list(sys.modules):
+        if module_name == "genmanip.extensions.metrics" or module_name.startswith(
+            "genmanip.extensions.metrics."
+        ):
+            del sys.modules[module_name]
+
     from genmanip.core.metrics.metrics_manager import MetricsManager
 
     with contextlib.redirect_stdout(io.StringIO()):
@@ -269,6 +308,10 @@ def _validate_metrics_manager_lazy_registration() -> None:
     _assert(
         metric.__class__.__name__ == "ObjectHeightDelta",
         "MetricsManager did not lazily register LabUtopia object_height_delta",
+    )
+    _assert(
+        "genmanip.extensions.metrics" not in sys.modules,
+        "MetricsManager imported the full genmanip.extensions.metrics package",
     )
 
 
