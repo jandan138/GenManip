@@ -7,7 +7,7 @@ HTML 版产品汇报页：
 
 本周已经把 LabUtopia 的 Franka POC 跑通到端到端 smoke 阶段：任务可以提交、场景可以加载、三个 level-1 任务可以 reset/step、结果可以落盘、最终状态可以正常 complete。
 
-这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 复核后还要补充一点：当前渲染/布局验收是 blocked，三张静态渲染图未通过视觉 QA，不能继续作为 PM-ready 渲染证据。
+这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 到 2026-06-24 最新复核补充：三任务现在都能通过 EBench/evaluator 正常读回非黑渲染图，资产静态坐标也已经从“明显导错”修到合理工作区；最新任务级隐藏和构图后，`pick` 已清楚，`place` 基本可读但还可再放大，`open_door` 已从关节爆值和黑箱角推进到关闭位正确、门板/框架/单个橙色把手可见的诊断状态，但自动 `render_validation` 仍未放行，所以仍不能说官方 baseline 可评已经闭环。
 
 ## 本周完成了什么
 
@@ -32,7 +32,7 @@ score=0.0 for all tasks
 
 ### 2. LabUtopia 场景资产加载已跑通
 
-当前已经能正确加载 LabUtopia 的实验室场景资产，包括桌面、瓶子、烧杯、托盘、干燥箱、门把手等对象。
+当前已经能加载 LabUtopia 的实验室场景资产，包括桌面、瓶子、烧杯、托盘、干燥箱、门把手等对象。2026-06-23 P1 复核后，瓶子、烧杯、托盘、干燥箱和门把手的静态 USD 坐标/尺寸已经落在 Franka 工作区附近，门把手也不再作为一个独立飞走的顶层物体，而是挂在干燥箱内部路径上。
 
 简单理解，资产加载现在是这样做的：
 
@@ -65,7 +65,7 @@ DryingBox_01 -> obj_DryingBox_01
 table -> table
 ```
 
-这部分已经通过实际 smoke 验证。这里的“资产加载”只表示 scene overlay 和对象名映射能进入 runtime，不表示 reset 后任务布局、相机画面或可评测视频已经验收。
+这部分已经通过实际 smoke、静态 USD readback 和三任务 evaluator camera readback 验证。这里的“资产加载”仍然只表示 scene overlay、对象名映射和当前相机读回链路能进入 runtime；`pick/place` 当前诊断图已经可读，但还没有正式视觉 QA 签收，`open_door` 的底层物理读数已稳定且回到关闭位，当前正式相机图也能看出门板、框架和单个橙色把手，不过自动 `render_validation` 仍未通过。
 
 ### 3. 结果记录链路已修复
 
@@ -96,24 +96,37 @@ EOS/其他工程师任务: 8087
 
 ## 有没有渲染图验证？
 
-2026-06-23 复核结论：当前三张静态渲染图未通过视觉验收，不能继续作为“任务渲染已闭环”的证据。它们保留为历史问题样例，用来说明下一步必须修复 eval camera、任务布局和可复现截图链路。
+2026-06-23 到 2026-06-24 最新复核结论：现在已经有三张从 EBench/evaluator 路径读回的非黑图，说明“能不能通过评测链路拍到东西”这个问题已经推进了一大步。旧 JPG 保留为历史失败样例，新 PNG 是更可信的 eval-path 诊断图：`pick` 已清楚，`place` 基本可读，`open_door` 已从物理爆值和黑箱角推进到关闭位正确、门板/框架/单个橙色把手可识别，但自动 `render_validation` 仍未签收。
 
 ```text
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick.jpg
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place.jpg
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick-eval-readback-p1.png
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place-eval-readback-p1.png
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png
 ```
 
-这三张图来自同一个 LabUtopia Franka POC 任务包和同一个 LabUtopia overlay 资产根目录，但它们不是正常 eval recorder 产物，而是后补 direct-render 静态图。视觉复核后判定：`level1_pick` 只能算 WARN，`level1_place` 和 `level1_open_door` 是 FAIL。
+旧的三张 JPG 保留为历史失败样例。新的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们更适合说明今天的真实状态：链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手”推进到“关闭位正确、门板/框架/单把手可识别但仍未验收”。
+
+给产品经理看的前后对照：
+
+| 任务 | 旧图问题 | 已经做的修复 | 现在还差什么 |
+| --- | --- | --- | --- |
+| `level1_pick` | 抓取目标不明显，只看图无法判断“要抓哪个瓶子” | 修正 eval camera readback、相机朝向、光照，把瓶子归一到 Franka 工作区，并在 pick 任务里隐藏烧杯、托盘、干燥箱等非目标物体 | 当前新图已经能让 PM 看懂“抓这个蓝色瓶子”；还差正式 pixel/视觉 QA 签收 |
+| `level1_place` | 看不出源物体和目标托盘的关系，不像一个放置任务 | 修正托盘、烧杯、瓶子坐标和颜色标记，并在 place 任务里隐藏瓶子和干燥箱，只保留烧杯与目标托盘 | 当前新图能看懂“把烧杯放到黄色托盘附近”；后续可以再拉近相机 |
+| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 DryingBox runtime surrogate，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块和任务专用正面相机 | 最新图中关节已回到期望关闭位 `0.0`，门板、框架和单个橙色把手可识别；但自动 `render_validation` 仍未通过，下一步要把视觉 QA 和 Lift2 baseline gate 接上 |
 
 需要特别说明：
 
-- `run_id=labutopia_franka_render_smoke_20260622_150819` 跑过保存帧 smoke，但 eval recorder 的 `camera2` 帧当前是黑屏。
-- 三个任务各 32 帧的 eval `camera2` 抽样统计均为纯黑：RGB min/max/mean 都是 0。
-- 2026-06-23 新增 runtime 诊断后，三个任务都定位为 `readback_black_before_recorder`：黑帧在 `get_eval_camera_data()` 后就已经存在，recorder 写盘不是根因。
-- 进一步检查发现资产/layout 也有硬问题：瓶子/烧杯/托盘仍在源 LabUtopia 坐标的 x≈8-10，干燥箱在 x≈45，把手甚至出现在百米量级坐标。这说明不能只调相机，必须同步修复导入布局。
-- 当前 task YAML 仍是 `object_config: {}`、`layout_config.type: null`，还没有把 LabUtopia 原始 position_range 真正落成 GenManip reset-time 布局。
-- 因此下一步必须先修复 eval camera/readback、任务布局和可复现截图脚本，再做 reset 后关键帧验收。
+- 旧问题：早期 eval recorder `camera2` 纯黑，根因在 recorder 写盘之前的 readback 阶段。
+- 已推进：P0/P1 后，`level1_pick`、`level1_place`、`level1_open_door` 都是 `readback_visible`。
+- 已推进：静态 USD readback 显示瓶子、烧杯、托盘、干燥箱、门把手的坐标和尺寸合理；门把手路径是 `/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle`，不是独立飞走物体。
+- 已推进：任务级隐藏后，`level1_pick` 当前图只保留目标瓶，`level1_place` 当前图只保留烧杯和目标托盘，PM 可以看懂任务目标和关系。
+- 已推进：`level1_open_door` 旧版本运行期关节读数曾出现 `1.573e13` 量级；最新诊断只暴露 `RevoluteJoint`，关节读数为 `0.0`，仿真能完成 readback，问题已经从“爆掉不可看/只看到黑箱角”收敛到“门板、框架和单个橙色把手可识别”。
+- 已复核：独立视觉审阅认为当前 old-vs-current 对照可用于 PM 汇报；旧图确实支持“目标不清、放置关系缺失、看不到门把手”的问题描述，当前 open_door 候选图可以作为诊断证据。
+- 仍 blocked：`level1_open_door` 当前图只能作为 PM 诊断图，不能作为官方 baseline 可评证据，因为 diagnostics claim boundary 仍是 `render_validation_not_passed`、`task_render_accepted=false`、`official_baseline_evaluable=false`。
+- 因此下一步不是继续宣传截图，而是给三任务补正式视觉 QA，并把 Lift2 baseline 所需的复合资产和官方 runner gate 接上。
 
 ## 本周遇到的问题和解决方式
 
@@ -122,9 +135,10 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 资产根目录不对 | 系统一开始会去错误目录找 LabUtopia 场景 | 增加 LabUtopia manifest 识别逻辑，运行时切换到 overlay asset root | 已解决 |
 | 缺少 `meta_info.pkl` | 传统 GenManip 任务依赖采集包里的元信息，LabUtopia POC 没有这份文件 | 针对 LabUtopia POC，从实时场景里自动生成最小可用元信息 | 已解决 |
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
-| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已定位到 `readback_black_before_recorder`；recorder 写盘被排除，下一步修 camera axes/pose、lighting 和 readback 源头 | 待修复 |
-| 当前三张渲染图未通过视觉验收 | `pick` 目标不清，`place` 缺 beaker，`open_door` 缺门/把手/开门状态 | 降级为历史失败样例，新增调研记录和 P0-P2 修复计划 | 待重拍 |
-| 资产导入/layout 坐标不闭环 | 任务物体仍在源 lab 坐标，open-door handle 导入后坐标异常放大 | 需要重建或补充 overlay，保留 nested part composed transform，并把任务物体归一到机器人工作空间 | 待闭环 |
+| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已修 camera axes/pose、deterministic lighting 和工作区相机；三任务当前 eval readback 均非黑 | 黑屏解除 |
+| 当前新图仍未全部验收 | `pick` 已清楚，`place` 基本可读但还可放大；`open_door` 已能读回且关闭位正确，门板/框架/单把手可识别，但自动 `render_validation` 仍未放行 | pick/place 补正式视觉 QA；open_door 把当前正面图纳入同一验收门槛，并继续接 Lift2 baseline 所需的复合资产和官方 runner gate | 部分通过诊断 |
+| `open_door` 运行期物理不稳定 | 旧版本 runtime articulation joint position 爆到 `1.573e13`，并伴随 PhysX transform warning | 已用 DryingBox runtime surrogate、固定底座、对齐后的门铰链和关节目标回放修复；最新读数为 `0.0 rad` 且只暴露 `RevoluteJoint` | 物理层已解决 |
+| 资产导入/layout 静态坐标 | 之前任务物体在源 lab 坐标，handle 变成异常放大的独立物体 | P1 已把对象归一到 Franka 工作区，并把 handle 保留为 DryingBox 内部子路径 | 静态层已推进 |
 | 最终进度不 complete | 任务已跑完，但进度没有写入，导致客户端最后等待超时 | 任务结束时写最小 `result_info.json`，并修复进度统计 | 已解决 |
 | 后处理异常可能被误记为完成 | 如果后处理报错，不能用 0 分兜底伪装成成功 | 增加 fail-fast 逻辑和回归测试 | 已解决 |
 | 端口/结果混淆风险 | EOS 侧也有人在跑任务，担心互相影响 | 使用独立 worktree、独立 run_id、独立端口 18088，并复核 8087 状态 | 已解决 |
@@ -136,9 +150,9 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | LabUtopia 场景接入 | 已跑通 | 场景资产能加载，任务链路能跑完 |
 | Franka POC smoke | 已完成 | 3 个任务全部 complete |
 | 结果落盘 | 已完成 | per-task 和 final result 都能写出 |
-| 渲染图/视频验收 | 未通过 | 当前三张直渲图视觉 QA 不合格；`camera2`、视频和 reset 后任务布局仍需闭环 |
+| 渲染图/视频验收 | 部分通过诊断 | 三任务 eval readback 已非黑；pick 已清楚，place 基本可读，open_door 已可诊断且关闭位正确、门板/框架/单把手可识别，但自动 `render_validation` 仍未签收 |
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
-| 官方 baseline | 未进入本周结论 | 后续单独讨论和规划 |
+| 官方 baseline | 不能宣称可评 | 三任务正式视觉验收、Lift2 复合资产和官方 runner 还没闭环，diagnostics claim boundary 仍是 `official_baseline_evaluable=false` |
 
 ## 验证证据
 
@@ -155,13 +169,16 @@ total_episodes=3
 
 ```text
 python -m pytest tests/labutopia_poc -q
-25 passed, 1 skipped
+56 passed, 1 skipped
 
 python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q
 2 passed
 
 python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
+
+report display QA
+Chromium headless desktop/mobile long screenshots passed; six report images exist and the DOM contains the old-image section, new eval readback section, latest single-handle `open_door`, and `render_validation_not_passed` boundary text. Evidence: `/tmp/labutopia_weekly_old_new_review_20260624/desktop_full_report.png`, `/tmp/labutopia_weekly_old_new_review_20260624/mobile_full_report_long.png`, `/tmp/labutopia_weekly_old_new_review_20260624/audit.json`. This checks report display only, not task visual acceptance.
 ```
 
 结果文件：
@@ -179,6 +196,10 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - eval recorder `camera2` frames: black, sampled RGB min/max/mean all 0
 - runtime diagnostics: `level1_pick/place/open_door` all `readback_black_before_recorder`
 - evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json](../labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json)
+- P1 follow-up: `level1_pick/place/open_door` now `readback_visible`; latest task-level hiding makes pick readable and place basically readable, while open_door is diagnosable with closed joint target `[0.0]` and visible door/frame/single orange handle, but diagnostics still report `render_validation_not_passed`
+- independent image-only review: old-vs-current comparison is PASS for PM-facing diagnostic evidence; open_door is PASS/WARN as diagnostic evidence and must not be described as official baseline acceptance
+- P0a/P0b evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json)
+- P1 evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -189,14 +210,15 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 
 建议顺序：
 
-1. P0a：修相机 axes/pose 支持，让 `camera2` 从 eval readback 直接产出非黑帧。
-2. P0b：补 deterministic lighting，避免只靠 direct-render 临时灯光。
-3. P1：重建或补充 LabUtopia overlay，把任务对象和 nested handle 保持正确 transform，并放到 Franka 工作空间。
-4. P2：用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并通过独立视觉 QA。
-5. P3：图像验收通过后再替换 HTML 里的三张图，并恢复 PM 可见性汇报。
-6. P4：再进入 Lift2 复合资产预检和官方 baseline 路线。
+1. P0a/P0b：已修相机 readback 和 deterministic lighting，让 eval path 不再黑屏。
+2. P1a：已把对象静态坐标和 nested handle 归一到 Franka 工作区。
+3. P1b：已用 DryingBox surrogate 和关节目标回放修复 `open_door` runtime articulation/PhysX 爆值与关闭位问题。
+4. P1c：pick/place 补正式视觉 QA；open_door 使用最新单把手正式相机图继续验收，让门板、门面、把手和任务动作点在 evaluator 图里清楚可见。
+5. P2：用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并通过独立视觉 QA。
+6. P3：视觉和物理验收通过后，再进入 Lift2 复合资产根目录和官方 runner 发现。
 
 ## 新增调研和计划文档
 
 - [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
+- [docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json)

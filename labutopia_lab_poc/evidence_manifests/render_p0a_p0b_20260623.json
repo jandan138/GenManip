@@ -1,0 +1,91 @@
+{
+  "date": "2026-06-23",
+  "base_commit": "9e60237cd088c279b64f1ab0e1d3c14f911d09cd",
+  "working_tree_changes_required": true,
+  "direct_render": false,
+  "official_baseline_execution": false,
+  "task_render_accepted": false,
+  "official_baseline_evaluable": false,
+  "summary": "P0a/P0b source fixes make LabUtopia Franka POC camera2 eval-path readback non-black for pick/place, but the resulting frames are nearly flat gray and are not accepted task render evidence.",
+  "environment": {
+    "conda_env": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310",
+    "config": "ebench/labutopia_lab_poc/franka_poc",
+    "port_label": 18091,
+    "asset_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "camera_config": "configs/cameras/labutopia_franka_poc.yml"
+  },
+  "source_fixes": {
+    "p0a_camera_axes_pose": {
+      "files": [
+        "genmanip/utils/standalone/camera_pose_utils.py",
+        "genmanip/utils/usd_utils/camera_utils.py",
+        "configs/cameras/labutopia_franka_poc.yml"
+      ],
+      "camera2_world_position": [9.600000381469727, 0.0, 2.5],
+      "camera2_world_orientation": [
+        0.7071067811792221,
+        -0.0000032186508729419352,
+        0.7071067811792221,
+        0.0000032186508729419352
+      ],
+      "camera_axes": "usd"
+    },
+    "p0b_deterministic_lighting": {
+      "files": [
+        "standalone_tools/labutopia_poc/build_asset_overlay.py",
+        "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json",
+        "standalone_tools/labutopia_poc/validate_task_package.py"
+      ],
+      "runtime_light": {
+        "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+        "type": "DomeLight",
+        "intensity": 1000
+      },
+      "runtime_scene": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda"
+    }
+  },
+  "diagnostics": {
+    "level1_pick": {
+      "run_id": "labutopia_p0a_p0b_pick_20260623_155645",
+      "diagnostics_json": "saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/diagnostics.json",
+      "boundary_classification": "readback_visible",
+      "readback_frame": "saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/readback_after_get_eval_camera_data/camera2/00000.png",
+      "recorder_frame": "saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/recorder_png/camera2/00000.png",
+      "sha256": "8b3c6da3ad4aafdfdc586e684e7dfd539bf4183fede5202d890da909c3fe16d4",
+      "channel_min": [139.0, 139.0, 139.0],
+      "channel_max": [228.0, 228.0, 228.0],
+      "channel_mean": [227.973, 227.973, 227.974],
+      "nonzero_pixels": 65536,
+      "unique_rgb_colors": 36,
+      "rgb_std": [1.307, 1.305, 1.301],
+      "visual_qa": "FAIL_LOW_TEXTURE"
+    },
+    "level1_place": {
+      "run_id": "labutopia_p0a_p0b_place_20260623_155831",
+      "diagnostics_json": "saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/diagnostics.json",
+      "boundary_classification": "readback_visible",
+      "readback_frame": "saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/readback_after_get_eval_camera_data/camera2/00000.png",
+      "recorder_frame": "saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/recorder_png/camera2/00000.png",
+      "sha256": "399c69cdf511cae443f7f9f45a02d2ea26bdadbb446b0c4832f0fbb56a96632a",
+      "channel_min": [136.0, 136.0, 136.0],
+      "channel_max": [228.0, 228.0, 228.0],
+      "channel_mean": [227.973, 227.973, 227.973],
+      "nonzero_pixels": 65536,
+      "unique_rgb_colors": 40,
+      "rgb_std": [1.347, 1.346, 1.342],
+      "visual_qa": "FAIL_LOW_TEXTURE"
+    }
+  },
+  "claim_boundary": {
+    "allowed": [
+      "P0a/P0b removed the pure-black camera2 readback failure for pick/place controlled diagnostics.",
+      "Deterministic runtime lighting is now authored in the LabUtopia POC overlay and statically validated."
+    ],
+    "blocked": [
+      "PM-ready task render evidence.",
+      "All-three-task visual acceptance.",
+      "Reset-time task layout acceptance.",
+      "Official Lift2 baseline evaluability or score."
+    ]
+  }
+}
