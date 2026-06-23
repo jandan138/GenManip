@@ -38,6 +38,10 @@ from genmanip.utils.standalone.file_utils import load_yaml
 from genmanip.utils.usd_utils import get_src, setup_physics_scene
 from genmanip.utils.pointcloud.utils import MeshInfo, PointCloudInfo
 from genmanip.utils.loader.scene import relate_object_from_data
+from genmanip.utils.loader.preprocess_rules import (
+    apply_articulation_initial_targets,
+    resettable_scene_object_uids,
+)
 
 
 class AssetsLibrary:
@@ -278,6 +282,7 @@ class Scene:
         for key, articulation in self.articulation_list.items():
             if self.articulation_data[key]["is_articulated"]:
                 articulation._articulation_view.initialize()
+        apply_articulation_initial_targets(self)
         if not is_render or save_pointcloud:
             self.cache_library.mesh_dict = objectList2meshList(
                 self.object_list,
@@ -312,8 +317,12 @@ class Scene:
                     "configs/robots/tcp/franka_tcp.yaml",
                 )
             )
-        reset_object_xyz(self.object_list, self.meta_infos["world_pose_list"])
-        for key in self.object_list:
+        resettable_uids = resettable_scene_object_uids(self)
+        reset_object_xyz(
+            {key: self.object_list[key] for key in resettable_uids},
+            self.meta_infos["world_pose_list"],
+        )
+        for key in resettable_uids:
             clean_prim_velocity(self.object_list[key].prim_path)
 
     def _preprocess_scene(self) -> None:
@@ -377,6 +386,7 @@ class Scene:
     def post_initialize(self, skip_warmup: bool = False) -> None:
         if not skip_warmup:
             self._warmup_world()
+        apply_articulation_initial_targets(self)
         self.collect_meta_infos()
 
     def build_metrics_manager(

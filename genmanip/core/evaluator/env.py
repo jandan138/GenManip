@@ -24,6 +24,7 @@ from genmanip.utils.loader.scene import (
     clear_scene,
     recovery_scene,
 )
+from genmanip.utils.loader.preprocess_rules import apply_articulation_initial_targets
 from genmanip.utils.standalone.file_utils import (
     make_dir,
 )
@@ -686,6 +687,7 @@ class IsaacEvalEnvRay:
         # Warmup
         for _ in range(50):
             scene.world.step()
+        apply_articulation_initial_targets(scene)
 
         base_traj_dir = os.path.join(
             self.default_config["EVAL_RESULT_DIR"],

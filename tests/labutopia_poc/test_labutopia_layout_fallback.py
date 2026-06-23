@@ -47,6 +47,7 @@ class _Robot:
 
 class _GenerationConfig:
     goal = [[{"type": "manip/labutopia/object_height_delta", "obj_uid": "obj"}]]
+    articulation = {}
 
 
 class _SceneConfig:
@@ -84,6 +85,34 @@ class _Scene:
     cache_library = _CacheLibrary()
 
 
+class _Articulation:
+    prim_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+
+    def get_world_pose(self):
+        return [0.75, 0.18, 0.78], [1.0, 0.0, 0.0, 0.0]
+
+    def get_local_scale(self):
+        return [1.0, 1.0, 1.0]
+
+    def get_joint_positions(self):
+        return [0.7112835]
+
+
+class _OpenDoorGenerationConfig:
+    goal = []
+    articulation = {"obj_DryingBox_01": {"target_positions": [0.0]}}
+
+
+class _OpenDoorSceneConfig:
+    task_name = "ebench/labutopia_lab_poc/franka_poc/level1_open_door"
+    instruction = "Open the drying box door."
+    generation_config = _OpenDoorGenerationConfig()
+
+
+class _OpenDoorScene(_Scene):
+    articulation_list = {"obj_DryingBox_01": _Articulation()}
+
+
 def test_build_labutopia_poc_meta_info_from_current_scene():
     meta_info = build_labutopia_poc_meta_info(_Scene(), _SceneConfig(), "000")
 
@@ -108,3 +137,13 @@ def test_load_or_build_rejects_missing_non_labutopia_meta_info(tmp_path):
             _Scene(),
             _SceneConfig(),
         )
+
+
+def test_build_labutopia_poc_meta_info_uses_configured_articulation_target():
+    meta_info = build_labutopia_poc_meta_info(
+        _OpenDoorScene(), _OpenDoorSceneConfig(), "000"
+    )
+
+    articulation_layout = meta_info["task_data"]["initial_layout"]["obj_DryingBox_01"]
+
+    assert articulation_layout["joint_positions"] == [0.0]

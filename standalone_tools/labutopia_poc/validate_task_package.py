@@ -7,7 +7,9 @@ import contextlib
 import copy
 import io
 import json
+import math
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -38,8 +40,88 @@ EXPECTED_WRAPPER_PRIM_PATHS = {
     "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
     "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
     "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-    "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
+    "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
     "table": "/World/labutopia_level1_poc/obj_table",
+}
+EXPECTED_ARTICULATION_PART_PATHS = {
+    "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+}
+EXPECTED_RENDER_VISIBLE_OBJECTS = {
+    "level1_pick": ["obj_conical_bottle02"],
+    "level1_place": ["obj_beaker2", "obj_target_plat"],
+    "level1_open_door": ["obj_DryingBox_01", "obj_DryingBox_01_handle"],
+}
+EXPECTED_HIDDEN_NON_TASK_OBJECTS = {
+    "level1_pick": ["obj_beaker2", "obj_target_plat", "obj_DryingBox_01"],
+    "level1_place": ["obj_conical_bottle02", "obj_DryingBox_01"],
+    "level1_open_door": [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+    ],
+}
+EXPECTED_FRANKA_TASK_CAMERA_CONFIGS = {
+    "level1_pick": "configs/cameras/labutopia_franka_poc_pick.yml",
+    "level1_place": "configs/cameras/labutopia_franka_poc_place.yml",
+    "level1_open_door": "configs/cameras/labutopia_franka_poc_open_door.yml",
+}
+EXPECTED_FRANKA_TASK_CAMERA2_CONTRACTS = {
+    "level1_pick": {
+        "position": [0.28, -0.55, 1.2],
+        "orientation": [0.87184, 0.4898, 0.0, 0.0],
+        "resolution": [512, 512],
+    },
+    "level1_place": {
+        "position": [0.26, -0.7, 1.32],
+        "orientation": [0.87184, 0.4898, 0.0, 0.0],
+        "resolution": [512, 512],
+    },
+    "level1_open_door": {
+        "position": [0.75, -0.56, 1.02],
+        "orientation": [0.87184, 0.4898, 0.0, 0.0],
+        "resolution": [512, 512],
+        "focal_length": 5.0,
+        "horizontal_aperture": 10.0,
+    },
+}
+EXPECTED_RENDER_PIXEL_THRESHOLDS = {
+    "level1_pick": {
+        "obj_conical_bottle02": {
+            "min_width_px": 36,
+            "min_height_px": 48,
+            "min_area_fraction": 0.01,
+        },
+    },
+    "level1_place": {
+        "obj_beaker2": {
+            "min_width_px": 34,
+            "min_height_px": 34,
+            "min_area_fraction": 0.008,
+        },
+        "obj_target_plat": {
+            "min_width_px": 42,
+            "min_height_px": 24,
+            "min_area_fraction": 0.006,
+        },
+    },
+    "level1_open_door": {
+        "obj_DryingBox_01": {
+            "min_width_px": 160,
+            "min_height_px": 150,
+            "min_area_fraction": 0.12,
+        },
+        "obj_DryingBox_01_handle": {
+            "min_width_px": 18,
+            "min_height_px": 64,
+            "min_area_fraction": 0.004,
+        },
+    },
+}
+EXPECTED_RENDER_REJECTIONS = {
+    "black_frame",
+    "low_texture",
+    "required_object_missing",
+    "severe_clipping",
 }
 EXPECTED_DETERMINISTIC_LIGHTS = [
     {
@@ -48,11 +130,51 @@ EXPECTED_DETERMINISTIC_LIGHTS = [
         "intensity": 1000,
     }
 ]
+EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
+    "strategy": "sanitized_surrogate",
+    "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+    "base_joint_name": "BaseFixedJoint",
+    "joint_name": "RevoluteJoint",
+    "removed_source_joint_types": ["PhysicsPrismaticJoint"],
+    "source_payload_used": False,
+    "visual_affordances": [
+        {
+            "name": "high_contrast_door_panel",
+            "display_color": [0.28, 0.34, 0.42],
+        },
+        {
+            "name": "door_outline_seams",
+            "display_color": [0.04, 0.05, 0.06],
+        },
+        {
+            "name": "handle_mount_backplate",
+            "display_color": [0.05, 0.07, 0.09],
+        },
+        {
+            "name": "high_contrast_handle",
+            "display_color": [1.0, 0.18, 0.04],
+        },
+    ],
+}
+EXPECTED_DRYING_BOX_VISUAL_AFFORDANCE_TOKENS = [
+    'def Material "door_seam_mat"',
+    'def Material "handle_mount_mat"',
+    'def Cube "door_left_seam"',
+    'def Cube "door_right_seam"',
+    'def Cube "door_top_seam"',
+    'def Cube "door_bottom_seam"',
+    'def Cube "handle_mount_backplate"',
+    "double3 xformOp:translate = (0.18, -0.174, 0.05)",
+    "double3 xformOp:translate = (0.18, -0.22, 0.05)",
+    "double3 xformOp:scale = (0.075, 0.014, 0.28)",
+    "point3f physics:localPos0 = (0.18, -0.10, 0.04)",
+]
 EXPECTED_FRANKA_CAMERA_AXES = {
     "camera1": "usd",
     "camera2": "usd",
 }
-EXPECTED_FRANKA_CAMERA2_POSITION = [9.6, 0.0, 2.5]
+EXPECTED_FRANKA_CAMERA2_POSITION = [0.45, -1.1, 1.55]
+EXPECTED_FRANKA_CAMERA2_ORIENTATION = [0.87184, 0.4898, 0.0, 0.0]
 PROFILE_EXPECTATIONS = {
     "franka_poc": {
         "robot_type": "manip/franka/panda_hand",
@@ -89,6 +211,13 @@ ALLOWED_METRICS = {
     "manip/labutopia/handle_displacement": {
         "obj_uid",
         "min_distance",
+        "skip_steps",
+        "succ_cnts",
+    },
+    "manip/default/check_joint_angle": {
+        "articulation_obj_uid",
+        "joint_name",
+        "angle_deg_range",
         "skip_steps",
         "succ_cnts",
     },
@@ -196,8 +325,56 @@ def _validate_assets_manifest() -> None:
         f"{path}: wrapper_prim_paths must preserve GenManip key stripping",
     )
     _assert(
+        manifest.get("articulation_part_paths") == EXPECTED_ARTICULATION_PART_PATHS,
+        f"{path}: articulation_part_paths must expose the nested drying-box handle",
+    )
+    contracts = manifest.get("render_object_contracts")
+    _assert(
+        isinstance(contracts, dict),
+        f"{path}: render_object_contracts must be a mapping",
+    )
+    required_render_uids = {
+        uid
+        for required in EXPECTED_RENDER_VISIBLE_OBJECTS.values()
+        for uid in required
+    }
+    for uid in sorted(required_render_uids):
+        contract = contracts.get(uid)
+        _assert(isinstance(contract, dict), f"{path}: missing render contract {uid}")
+        _assert(
+            contract.get("wrapper_prim_path") == EXPECTED_WRAPPER_PRIM_PATHS[uid],
+            f"{path}: render contract {uid} wrapper_prim_path mismatch",
+        )
+        color = contract.get("display_color")
+        _assert(
+            isinstance(color, list)
+            and len(color) == 3
+            and all(isinstance(value, (int, float)) for value in color)
+            and all(0.0 <= float(value) <= 1.0 for value in color)
+            and color != [0.5, 0.5, 0.5],
+            f"{path}: render contract {uid} must declare visible display_color",
+        )
+        bbox = contract.get("expected_world_bbox_lwh_m")
+        _assert(
+            isinstance(bbox, dict)
+            and isinstance(bbox.get("min"), list)
+            and isinstance(bbox.get("max"), list)
+            and len(bbox["min"]) == len(bbox["max"]) == 3,
+            f"{path}: render contract {uid} must declare bbox min/max",
+        )
+    handle_contract = contracts.get("obj_DryingBox_01_handle", {})
+    _assert(
+        handle_contract.get("compose_nested_transform_with_parent")
+        == "obj_DryingBox_01",
+        f"{path}: handle contract must compose through obj_DryingBox_01",
+    )
+    _assert(
         manifest.get("deterministic_lights") == EXPECTED_DETERMINISTIC_LIGHTS,
         f"{path}: deterministic_lights must declare the runtime wrapper light",
+    )
+    _assert(
+        manifest.get("drying_box_runtime_asset") == EXPECTED_DRYING_BOX_RUNTIME_ASSET,
+        f"{path}: drying_box_runtime_asset must declare the sanitized surrogate",
     )
     runtime_scene_text = runtime_scene.read_text(encoding="utf-8")
     _assert(
@@ -212,6 +389,23 @@ def _validate_assets_manifest() -> None:
         "inputs:texture:file" not in runtime_scene_text,
         f"{runtime_scene}: DeterministicDomeLight must not depend on HDR texture",
     )
+    _assert(
+        'def Xform "obj_obj_DryingBox_01_handle" (' not in runtime_scene_text,
+        f"{runtime_scene}: drying-box handle must not be an independent payload",
+    )
+    _assert(
+        "primvars:displayColor" in runtime_scene_text,
+        f"{runtime_scene}: missing task object displayColor overrides",
+    )
+    _assert(
+        '"MaterialBindingAPI"' in runtime_scene_text,
+        f"{runtime_scene}: material-bound task objects must apply MaterialBindingAPI",
+    )
+    for token in EXPECTED_DRYING_BOX_VISUAL_AFFORDANCE_TOKENS:
+        _assert(
+            token in runtime_scene_text,
+            f"{runtime_scene}: drying-box door visual affordance missing {token}",
+        )
 
     generated_manifest = manifest.get("generated_manifest")
     _assert(
@@ -231,6 +425,9 @@ def _validate_assets_manifest() -> None:
         "wrapper_prim_paths": "wrapper_prim_paths",
         "source_to_runtime_object_key": "source_to_runtime_object_key",
         "deterministic_lights": "deterministic_lights",
+        "articulation_part_paths": "articulation_part_paths",
+        "render_object_contracts": "render_object_contracts",
+        "drying_box_runtime_asset": "drying_box_runtime_asset",
     }.items():
         _assert(
             manifest.get(common_key) == generated.get(generated_key),
@@ -261,35 +458,199 @@ def _validate_task_semantics() -> None:
         _assert(key in settings, f"{path}: open_door preferred metric missing {key}")
 
 
-def _validate_camera_configs() -> None:
-    for profile, expected in PROFILE_EXPECTATIONS.items():
-        path = ROOT / expected["camera_config"]
-        data = _load_yaml(path)
-        _assert(isinstance(data, dict), f"{path}: expected camera mapping")
-        if profile == "franka_poc":
-            _assert(
-                set(EXPECTED_FRANKA_CAMERA_AXES).issubset(data),
-                f"{path}: franka_poc cameras must include {sorted(EXPECTED_FRANKA_CAMERA_AXES)}",
-            )
-        for camera_name, camera in data.items():
-            _assert(
-                isinstance(camera, dict),
-                f"{path}:{camera_name}: expected camera settings mapping",
-            )
-            missing = CAMERA_CLEANUP_FLAGS - set(camera)
-            _assert(
-                not missing,
-                f"{path}:{camera_name}: {profile} camera missing cleanup flags {missing}",
-            )
-            if profile == "franka_poc":
-                expected_axes = EXPECTED_FRANKA_CAMERA_AXES.get(camera_name)
-                if expected_axes is not None:
-                    _assert(
-                        camera.get("camera_axes") == expected_axes,
-                        f"{path}:{camera_name}: camera_axes must remain {expected_axes!r}",
+def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, Any]:
+    from pxr import Usd, UsdPhysics
+
+    stage = Usd.Stage.Open(str(runtime_scene))
+    _assert(stage is not None, f"{runtime_scene}: failed to open USD stage")
+    root_path = EXPECTED_WRAPPER_PRIM_PATHS["obj_DryingBox_01"]
+    root = stage.GetPrimAtPath(root_path)
+    _assert(root and root.IsValid(), f"{runtime_scene}: missing {root_path}")
+
+    def _attr_value(prim: Any, attr_name: str) -> Any:
+        attr = prim.GetAttribute(attr_name)
+        if not attr or not attr.IsValid():
+            return None
+        return attr.Get()
+
+    def _float_list(value: Any) -> list[float]:
+        if value is None:
+            return []
+        if hasattr(value, "GetReal") and hasattr(value, "GetImaginary"):
+            imaginary = value.GetImaginary()
+            return [float(value.GetReal())] + [float(item) for item in imaginary]
+        try:
+            return [float(item) for item in value]
+        except TypeError:
+            return [float(value)]
+
+    def _rounded(values: list[float]) -> list[float]:
+        return [round(value, 6) for value in values]
+
+    def _all_finite(values: list[float]) -> bool:
+        return bool(values) and all(math.isfinite(value) for value in values)
+
+    def _is_zero_principal_axes(values: list[float]) -> bool:
+        return bool(values) and all(abs(value) <= 1e-9 for value in values)
+
+    root_scale = _float_list(_attr_value(root, "xformOp:scale"))
+    rounded_root_scale = _rounded(root_scale)
+    non_identity_root_scale = bool(root_scale) and any(
+        abs(value - 1.0) > 1e-6 for value in root_scale
+    )
+
+    rigid_link_paths: list[str] = []
+    zero_mass_links: list[str] = []
+    zero_inertia_links: list[str] = []
+    invalid_center_of_mass_links: list[str] = []
+    invalid_principal_axes_links: list[str] = []
+    for prim in Usd.PrimRange(root):
+        if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            continue
+        path = str(prim.GetPath())
+        rigid_link_paths.append(path)
+        mass_api = UsdPhysics.MassAPI(prim)
+        mass_attr = mass_api.GetMassAttr()
+        mass = mass_attr.Get() if mass_attr and mass_attr.IsValid() else None
+        if mass is not None and float(mass) <= 0.0:
+            zero_mass_links.append(path)
+        inertia_attr = mass_api.GetDiagonalInertiaAttr()
+        inertia = inertia_attr.Get() if inertia_attr and inertia_attr.IsValid() else None
+        if inertia is not None and all(float(value) <= 0.0 for value in inertia):
+            zero_inertia_links.append(path)
+        center_of_mass = _float_list(_attr_value(prim, "physics:centerOfMass"))
+        if center_of_mass and not _all_finite(center_of_mass):
+            invalid_center_of_mass_links.append(path)
+        principal_axes = _float_list(_attr_value(prim, "physics:principalAxes"))
+        if principal_axes and (
+            not _all_finite(principal_axes)
+            or _is_zero_principal_axes(principal_axes)
+        ):
+            invalid_principal_axes_links.append(path)
+
+    duplicate_rigid_link_names = {
+        name: count
+        for name, count in Counter(Path(path).name for path in rigid_link_paths).items()
+        if count > 1
+    }
+
+    expected_joint_types = {"PhysicsFixedJoint", "PhysicsRevoluteJoint"}
+    unexpected_joint_types: list[str] = []
+    invalid_joint_body_targets: list[dict[str, str]] = []
+    world_fixed_base_joint_paths: list[str] = []
+    joint_paths: list[str] = []
+    body_link_path = f"{root_path}/body_link"
+    for prim in Usd.PrimRange(root):
+        type_name = prim.GetTypeName()
+        if "Joint" not in type_name:
+            continue
+        path = str(prim.GetPath())
+        joint_paths.append(path)
+        if type_name not in expected_joint_types and type_name not in unexpected_joint_types:
+            unexpected_joint_types.append(type_name)
+        for rel_name in ("physics:body0", "physics:body1"):
+            relationship = prim.GetRelationship(rel_name)
+            if not relationship:
+                continue
+            for target in relationship.GetTargets():
+                target_prim = stage.GetPrimAtPath(target)
+                if not target_prim or not target_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    invalid_joint_body_targets.append(
+                        {
+                            "joint_path": path,
+                            "relationship": rel_name,
+                            "target": str(target),
+                        }
                     )
+        if type_name == "PhysicsFixedJoint":
+            body0_rel = prim.GetRelationship("physics:body0")
+            body1_rel = prim.GetRelationship("physics:body1")
+            body0_targets = body0_rel.GetTargets() if body0_rel else []
+            body1_targets = body1_rel.GetTargets() if body1_rel else []
+            if not body0_targets and [str(target) for target in body1_targets] == [
+                body_link_path
+            ]:
+                world_fixed_base_joint_paths.append(path)
+
+    runtime_topology_ready = not any(
+        [
+            non_identity_root_scale,
+            duplicate_rigid_link_names,
+            invalid_center_of_mass_links,
+            invalid_principal_axes_links,
+            invalid_joint_body_targets,
+            unexpected_joint_types,
+            not world_fixed_base_joint_paths,
+        ]
+    )
+
+    return {
+        "root_path": root_path,
+        "root_scale": rounded_root_scale,
+        "non_identity_root_scale": non_identity_root_scale,
+        "rigid_link_paths": rigid_link_paths,
+        "duplicate_rigid_link_names": duplicate_rigid_link_names,
+        "zero_mass_links": zero_mass_links,
+        "zero_inertia_links": zero_inertia_links,
+        "invalid_center_of_mass_links": invalid_center_of_mass_links,
+        "invalid_principal_axes_links": invalid_principal_axes_links,
+        "joint_paths": joint_paths,
+        "world_fixed_base_joint_paths": world_fixed_base_joint_paths,
+        "invalid_joint_body_targets": invalid_joint_body_targets,
+        "unexpected_joint_types": sorted(unexpected_joint_types),
+        "runtime_topology_ready": runtime_topology_ready,
+        "sanitized_for_physx": not zero_mass_links and not zero_inertia_links,
+    }
+
+
+def _validate_camera_configs() -> None:
+    camera_config_paths: dict[str, list[tuple[str, str | None]]] = {
+        "franka_poc": [("base", None)]
+        + [
+            (config_path, task_name)
+            for task_name, config_path in EXPECTED_FRANKA_TASK_CAMERA_CONFIGS.items()
+        ],
+        "lift2_candidate": [
+            (PROFILE_EXPECTATIONS["lift2_candidate"]["camera_config"], None)
+        ],
+    }
+    for profile, path_items in camera_config_paths.items():
+        expected = PROFILE_EXPECTATIONS[profile]
+        for config_path, task_name in path_items:
+            path = ROOT / (
+                expected["camera_config"] if config_path == "base" else config_path
+            )
+            _validate_camera_config_file(path, profile, task_name)
+
+
+def _validate_camera_config_file(path: Path, profile: str, task_name: str | None) -> None:
+    data = _load_yaml(path)
+    _assert(isinstance(data, dict), f"{path}: expected camera mapping")
+    if profile == "franka_poc":
+        _assert(
+            set(EXPECTED_FRANKA_CAMERA_AXES).issubset(data),
+            f"{path}: franka_poc cameras must include {sorted(EXPECTED_FRANKA_CAMERA_AXES)}",
+        )
+    for camera_name, camera in data.items():
+        _assert(
+            isinstance(camera, dict),
+            f"{path}:{camera_name}: expected camera settings mapping",
+        )
+        missing = CAMERA_CLEANUP_FLAGS - set(camera)
+        _assert(
+            not missing,
+            f"{path}:{camera_name}: {profile} camera missing cleanup flags {missing}",
+        )
         if profile == "franka_poc":
-            camera2 = data.get("camera2", {})
+            expected_axes = EXPECTED_FRANKA_CAMERA_AXES.get(camera_name)
+            if expected_axes is not None:
+                _assert(
+                    camera.get("camera_axes") == expected_axes,
+                    f"{path}:{camera_name}: camera_axes must remain {expected_axes!r}",
+                )
+    if profile == "franka_poc":
+        camera2 = data.get("camera2", {})
+        if task_name is None:
             position = camera2.get("position")
             _assert(
                 isinstance(position, list) and len(position) == 3,
@@ -301,6 +662,32 @@ def _validate_camera_configs() -> None:
                     for actual, expected in zip(position, EXPECTED_FRANKA_CAMERA2_POSITION)
                 ),
                 f"{path}:camera2 position must remain {EXPECTED_FRANKA_CAMERA2_POSITION!r}",
+            )
+            orientation = camera2.get("orientation")
+            _assert(
+                isinstance(orientation, list) and len(orientation) == 4,
+                f"{path}:camera2 orientation must be a quaternion",
+            )
+            _assert(
+                all(
+                    abs(float(actual) - expected) < 1e-6
+                    for actual, expected in zip(
+                        orientation,
+                        EXPECTED_FRANKA_CAMERA2_ORIENTATION,
+                    )
+                ),
+                f"{path}:camera2 orientation must remain {EXPECTED_FRANKA_CAMERA2_ORIENTATION!r}",
+            )
+        else:
+            contract = EXPECTED_FRANKA_TASK_CAMERA2_CONTRACTS[task_name]
+            for key, expected_value in contract.items():
+                _assert(
+                    camera2.get(key) == expected_value,
+                    f"{path}:camera2 {key} must be {expected_value!r}",
+                )
+            _assert(
+                camera2.get("task_view") == task_name,
+                f"{path}:camera2 task_view must be {task_name!r}",
             )
 
 
@@ -324,6 +711,148 @@ def _validate_metric(metric: dict[str, Any], path: Path) -> None:
     )
     missing = ALLOWED_METRICS[metric_type] - set(metric)
     _assert(not missing, f"{path}: metric {metric_type} missing top-level params {missing}")
+
+
+def _task_leaf_name(task_name: str) -> str:
+    return task_name.rsplit("/", 1)[-1]
+
+
+def _validate_render_validation(
+    cfg: dict[str, Any], path: Path, camera_names: set[str]
+) -> None:
+    task_name = str(cfg.get("task_name"))
+    leaf_name = _task_leaf_name(task_name)
+    if path.parent.name != "franka_poc":
+        return
+    expected_objects = EXPECTED_RENDER_VISIBLE_OBJECTS.get(leaf_name)
+    _assert(
+        expected_objects is not None,
+        f"{path}: unexpected Franka task leaf {leaf_name!r}",
+    )
+    validation = cfg.get("labutopia_render_validation")
+    _assert(
+        isinstance(validation, dict),
+        f"{path}: missing labutopia_render_validation",
+    )
+    _assert(
+        validation.get("schema_version") == 1,
+        f"{path}: labutopia_render_validation.schema_version must be 1",
+    )
+    _assert(
+        validation.get("primary_camera") == "camera2",
+        f"{path}: primary_camera must be camera2",
+    )
+    expected_camera_config = EXPECTED_FRANKA_TASK_CAMERA_CONFIGS[leaf_name]
+    _assert(
+        cfg.get("domain_randomization", {})
+        .get("cameras", {})
+        .get("config_path")
+        == expected_camera_config,
+        f"{path}: franka_poc camera config must be {expected_camera_config!r}",
+    )
+    _assert(
+        validation.get("evidence_camera_config") == expected_camera_config,
+        f"{path}: evidence_camera_config must be {expected_camera_config!r}",
+    )
+    required_cameras = validation.get("required_camera_names")
+    _assert(
+        isinstance(required_cameras, list)
+        and set(required_cameras).issubset(camera_names),
+        f"{path}: required_camera_names must exist in camera config",
+    )
+    _assert(
+        validation.get("required_visible_objects") == expected_objects,
+        f"{path}: required_visible_objects must be {expected_objects!r}",
+    )
+    expected_hidden_objects = EXPECTED_HIDDEN_NON_TASK_OBJECTS[leaf_name]
+    _assert(
+        validation.get("hidden_non_task_objects") == expected_hidden_objects,
+        f"{path}: hidden_non_task_objects must be {expected_hidden_objects!r}",
+    )
+    active_rules = [
+        item
+        for item in cfg.get("preprocess_config", [])
+        if isinstance(item, dict) and item.get("type") == "set_object_active"
+    ]
+    _assert(
+        active_rules
+        == [
+            {
+                "type": "set_object_active",
+                "config": {"active": False, "uids": expected_hidden_objects},
+            }
+        ],
+        f"{path}: preprocess_config must hide exactly {expected_hidden_objects!r}",
+    )
+    thresholds = validation.get("object_pixel_thresholds")
+    expected_thresholds = EXPECTED_RENDER_PIXEL_THRESHOLDS[leaf_name]
+    _assert(
+        isinstance(thresholds, dict),
+        f"{path}: missing object_pixel_thresholds",
+    )
+    _assert(
+        set(thresholds) == set(expected_thresholds),
+        f"{path}: object_pixel_thresholds must cover {sorted(expected_thresholds)}",
+    )
+    for uid, expected in expected_thresholds.items():
+        actual = thresholds.get(uid)
+        _assert(isinstance(actual, dict), f"{path}: {uid} threshold must be a mapping")
+        for key, value in expected.items():
+            _assert(
+                actual.get(key) == value,
+                f"{path}: {uid}.{key} must be {value!r}",
+            )
+    _assert(
+        validation.get("evidence_policy") == {"direct_render": False},
+        f"{path}: evidence_policy must forbid direct render evidence",
+    )
+    rejection_rules = validation.get("reject_frame_if")
+    _assert(
+        isinstance(rejection_rules, list)
+        and EXPECTED_RENDER_REJECTIONS.issubset(set(rejection_rules)),
+        f"{path}: reject_frame_if missing required rules",
+    )
+
+
+def _validate_open_door_articulation_contract(cfg: dict[str, Any], path: Path) -> None:
+    if _task_leaf_name(str(cfg.get("task_name"))) != "level1_open_door":
+        return
+    object_config = cfg.get("object_config")
+    _assert(isinstance(object_config, dict), f"{path}: object_config must be a mapping")
+    drying_box = object_config.get("obj_DryingBox_01")
+    _assert(
+        isinstance(drying_box, dict),
+        f"{path}: open_door must configure obj_DryingBox_01 articulation",
+    )
+    _assert(
+        drying_box.get("type") == "existed_object",
+        f"{path}: obj_DryingBox_01 must be an existed_object",
+    )
+    _assert(
+        drying_box.get("uid_list") == ["obj_DryingBox_01"],
+        f"{path}: obj_DryingBox_01 uid_list mismatch",
+    )
+    _assert(
+        drying_box.get("is_articulated") is True,
+        f"{path}: obj_DryingBox_01 must be articulated",
+    )
+    _assert(
+        drying_box.get("target_positions") == [0.0],
+        f"{path}: obj_DryingBox_01 must start closed with target_positions [0.0]",
+    )
+    articulation_info = drying_box.get("articulation_info")
+    _assert(
+        isinstance(articulation_info, dict),
+        f"{path}: obj_DryingBox_01 missing articulation_info",
+    )
+    _assert(
+        articulation_info.get("is_articulated") is True,
+        f"{path}: articulation_info.is_articulated must be true",
+    )
+    _assert(
+        articulation_info.get("part", {}).get("handle") == "/handle",
+        f"{path}: articulation_info.part.handle must point to /handle",
+    )
 
 
 def _validate_runtime_task(path: Path) -> None:
@@ -358,10 +887,19 @@ def _validate_runtime_task(path: Path) -> None:
         f"{path}: {profile} robot type must be {expected['robot_type']!r}",
     )
     camera = cfg.get("domain_randomization", {}).get("cameras", {})
-    _assert(
-        camera.get("config_path") == expected["camera_config"],
-        f"{path}: {profile} camera config must be {expected['camera_config']!r}",
+    expected_camera_config = (
+        EXPECTED_FRANKA_TASK_CAMERA_CONFIGS[_task_leaf_name(str(task_name))]
+        if profile == "franka_poc"
+        else expected["camera_config"]
     )
+    _assert(
+        camera.get("config_path") == expected_camera_config,
+        f"{path}: {profile} camera config must be {expected_camera_config!r}",
+    )
+    camera_path = ROOT / expected_camera_config
+    camera_names = set(_load_yaml(camera_path))
+    _validate_render_validation(cfg, path, camera_names)
+    _validate_open_door_articulation_contract(cfg, path)
 
     generation_config = cfg.get("generation_config")
     _assert(
@@ -425,6 +963,19 @@ def _validate_metrics_manager_lazy_registration() -> None:
 
 def validate_task_package() -> None:
     _validate_assets_manifest()
+    manifest = _load_json(PACKAGE_ROOT / "common/assets_manifest.json")
+    runtime_scene = (
+        Path(manifest["overlay_root"]) / f"{manifest['runtime_usd_name']}.usda"
+    )
+    physics_report = _inspect_drying_box_articulation_physics(runtime_scene)
+    _assert(
+        physics_report["sanitized_for_physx"],
+        f"{runtime_scene}: DryingBox articulation physics is not sanitized: {physics_report}",
+    )
+    _assert(
+        physics_report["runtime_topology_ready"],
+        f"{runtime_scene}: DryingBox articulation topology is not runtime-ready: {physics_report}",
+    )
     _validate_task_semantics()
     _validate_camera_configs()
     for path in _indexed_task_yaml_paths():

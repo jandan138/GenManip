@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.10, Isaac Sim 4.1 conda env, GenManip evaluator, EBench server/client, Pillow-based image stats, pytest, static GitHub Pages docs.
 
+**Current status update, 2026-06-24 00:30 UTC:** P0 black-frame readback is resolved for all three Franka POC tasks. P1 static asset/layout normalization is partially resolved: required objects are in the Franka workspace and the DryingBox handle is a nested part again. Task-level visibility isolation now makes `level1_pick` readable and `level1_place` basically readable for PM diagnosis. The `open_door` runtime articulation has been stabilized with a sanitized DryingBox surrogate, aligned hinge, target replay, handle-side correction, duplicate marker removal, and a formal front-camera config; the latest formal retake starts at the expected closed joint target and shows the DryingBox frame, door panel, and one orange handle/action point. Independent image-only QA rates the old-vs-current PM comparison PASS, with open_door PASS/WARN as diagnostic evidence. Formal task render acceptance remains false because diagnostics still report `render_validation_not_passed`.
+
 ---
 
 ## Claim Boundary
@@ -66,9 +68,13 @@ after P0a/P0b:
 level1_pick: readback_visible, low-texture frame, not task accepted
 level1_place: readback_visible, low-texture frame, not task accepted
 level1_open_door: not revalidated; remains blocked by asset/layout work
+after P1 asset/layout normalization:
+level1_pick: readback_visible, target visible after task-level hiding, pending formal QA
+level1_place: readback_visible, beaker/target relation basically readable after task-level hiding, pending formal QA
+level1_open_door: readback_visible, runtime stable after sanitized surrogate and target replay, visual QA WARN/not accepted
 ```
 
-Recorder writing is now ruled out as the primary black-frame source. P0a/P0b source fixes remove the pure-black readback failure for controlled pick/place diagnostics, but task render acceptance remains blocked by asset/layout defects.
+Recorder writing is now ruled out as the primary black-frame source. P0a/P0b source fixes remove the pure-black readback failure. Task-level visibility isolation improves pick/place screenshots. The open-door physics blocker has been reduced to a visual framing blocker; task render acceptance remains blocked until formal visual QA passes.
 
 **Files:**
 - Create: `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py`
@@ -333,20 +339,54 @@ python standalone_tools/labutopia_poc/validate_task_package.py -> OK
 ```
 
 3. Asset/layout normalization:
-   - Rebuild the overlay or add explicit local task assets so required objects are in the robot workspace and nested parts preserve composed transforms.
-   - Acceptance: object centers/scales/bounds pass static validation before Isaac runtime capture.
+   - Static layer is partially done: required objects are in the robot workspace and the nested handle preserves the DryingBox parent transform.
+   - Task-level visibility isolation is done for POC diagnosis: pick hides beaker/target/DryingBox, place hides bottle/DryingBox, open_door hides bottle/beaker/target.
+   - Runtime physics is now diagnosable for the POC `open_door` diagnostic after the sanitized DryingBox surrogate, aligned hinge, and target replay; the closed-start joint now matches the expected `0.0`.
+   - Remaining acceptance gap: `open_door` now shows the DryingBox frame, door panel, and one orange handle/action point, but must not be upgraded beyond diagnostic evidence until `render_validation` and formal visual QA pass.
 4. Eval-path regeneration:
-   - Rerun the three diagnostics and independent visual QA.
-   - Acceptance: all three task frames are non-black and show task-relevant objects.
+   - Three P1 diagnostics now produce non-black evaluator readback frames.
+   - Current P1 visibility images make pick readable and place basically readable, while the latest open_door single-handle front-camera image is PM-usable diagnostic evidence but still not accepted for baseline claims.
 
 ## P1: Reset-Time Task Layout Closure
+
+Current P1 status:
+
+```text
+static_usd_ok: true
+camera_readback_visible: true for level1_pick/place/open_door
+task_visibility_isolated: true for level1_pick/place/open_door
+pick_place_pm_readable: true, pending formal visual QA
+runtime_physics_stable: true for latest open_door diagnostic, joint_positions = [0.0], expected_joint_positions = [0.0]
+open_door_visual_qa: PASS/WARN diagnostic/not accepted, DryingBox frame + door panel + single handle visible, render_validation_not_passed
+task_render_accepted: false
+official_baseline_evaluable: false
+```
+
+Evidence:
+
+```text
+saved/diagnostics/labutopia_p1_visibility_pick_20260623_175050/diagnostics.json
+saved/diagnostics/labutopia_p1_visibility_place_20260623_175232/diagnostics.json
+saved/diagnostics/labutopia_p1_open_door_single_handle_formal_20260624_0001/diagnostics.json
+docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json
+```
+
+Immediate next order:
+
+1. Keep static validation so malformed DryingBox USD/PhysX topology fails before runtime.
+2. Keep the sanitized DryingBox asset and runtime sanity gate in place; do not regress to source DryingBox physics.
+3. Keep the runtime sanity gate for finite articulation joint positions and finite object transforms.
+4. Run formal visual QA for pick/place; keep `task_render_accepted=false` until signed off.
+5. Keep the formal single-handle front-camera open_door image as PM-facing diagnostic evidence only; rerun browser display QA and formal task visual QA, and keep `task_render_accepted=false` until `render_validation` passes.
 
 **Files:**
 - Modify: `configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_pick.yml`
 - Modify: `configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_place.yml`
 - Modify: `configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml`
 - Modify: `configs/cameras/labutopia_franka_poc.yml` or create task-specific camera configs
+- Modify: `genmanip/utils/loader/preprocess_rules.py`
 - Test: `tests/labutopia_poc/test_validate_task_package.py`
+- Test: `tests/labutopia_poc/test_scene_preprocess_rules.py`
 
 - [ ] **Step 1: Add static validation for render-layout readiness**
 
@@ -368,6 +408,14 @@ Per-task required objects:
 level1_pick: obj_conical_bottle02
 level1_place: obj_beaker2, obj_target_plat
 level1_open_door: obj_DryingBox_01, obj_DryingBox_01_handle
+```
+
+Also require each task to declare the non-task objects hidden for diagnostic readability:
+
+```text
+level1_pick hidden: obj_beaker2, obj_target_plat, obj_DryingBox_01
+level1_place hidden: obj_conical_bottle02, obj_DryingBox_01
+level1_open_door hidden: obj_conical_bottle02, obj_beaker2, obj_target_plat
 ```
 
 - [ ] **Step 2: Add failing tests for missing render-validation block**
@@ -438,6 +486,42 @@ Outcome D: task-specific view needed -> create task-specific camera config for o
 ```
 
 Do not change all variables at once.
+
+- [x] **Step 4a: Add task-level visibility isolation**
+
+Implemented `set_object_active` preprocessing so the runtime can hide non-task objects before eval readback. Targeted tests:
+
+```text
+python -m pytest tests/labutopia_poc/test_scene_preprocess_rules.py -q
+2 passed
+python -m pytest tests/labutopia_poc/test_validate_task_package.py::test_franka_tasks_hide_non_task_objects_for_evidence_readability -q
+1 passed
+python standalone_tools/labutopia_poc/validate_task_package.py
+LabUtopia task package validation OK
+```
+
+Latest diagnostic outcome:
+
+```text
+level1_pick: readback_visible, PM-readable target bottle
+level1_place: readback_visible, beaker and target platform visible together
+level1_open_door: readback_visible, runtime_stable, visual_QA_WARN_NOT_ACCEPTED
+```
+
+- [ ] **Step 4b: Add DryingBox articulation topology validation**
+
+Extend static validation to fail on:
+
+```text
+non-identity articulation root scale
+duplicate rigid-link basenames such as mesh
+non-finite physics:centerOfMass
+zero or invalid physics:principalAxes
+joint body targets that are not PhysicsRigidBodyAPI prims
+unexpected extra DOFs if open-door should only expose the door revolute joint
+```
+
+This step must go red on the current overlay before building a sanitized DryingBox runtime asset.
 
 - [ ] **Step 5: Run package validation**
 
@@ -531,19 +615,25 @@ Reject the manifest if any image has `direct_render=true`, missing `source_frame
 
 - [ ] **Step 4: Replace report images only after visual QA passes**
 
-Replace:
+Keep old JPGs in the report as historical failed samples. Replace or add current diagnostic PNGs only with clear labels:
 
 ```text
-docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick.jpg
-docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place.jpg
-docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick-eval-readback-p1.png
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place-eval-readback-p1.png
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png
 ```
 
 Do not replace them with direct-render images unless the report clearly labels them as non-eval-path diagnostic images.
 
 - [ ] **Step 5: Update PM report wording**
 
-Allowed wording after the gate passes:
+Allowed wording after the partial P1 visibility update:
+
+```text
+旧 JPG 是历史失败样例；新 PNG 来自 evaluator camera readback。当前 pick 已清楚、place 基本可读，open_door 已从物理爆值和黑箱角推进到关闭位正确、门板/框架/单个橙色把手可识别。该图可用于 PM 诊断汇报，但 diagnostics 仍是 render_validation_not_passed，不能作为 baseline 可评证据。
+```
+
+Allowed wording after the full gate passes:
 
 ```text
 三任务已有可复现的 eval-path reset 渲染证据，能看到各自任务关键对象；这证明渲染/布局闭环，不代表策略求解成功，也不代表官方 Lift2 baseline 成绩。
@@ -561,7 +651,8 @@ python - <<'PY'
 from pathlib import Path
 html = Path('docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html').read_text(encoding='utf-8')
 for text in [
-    '当前三张渲染图未通过视觉验收',
+    '旧图：历史失败样例',
+    'level1_open_door · 可诊断 / 未验收',
     'render_visual_investigation_20260623.md',
     '2026-06-23-labutopia-ebench-render-layout-closure.md',
 ]:

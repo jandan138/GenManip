@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import os
 import sys
+import traceback
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -88,6 +90,118 @@ def classify_boundary(
     ):
         return "recorder_write_black"
     return "readback_visible"
+
+
+def classify_articulation_runtime_state(
+    articulation_state: dict[str, dict[str, Any]],
+    *,
+    required_articulations: list[str] | None = None,
+    max_abs_joint_position_rad: float = math.tau,
+    expected_joint_positions: dict[str, list[float]] | None = None,
+    joint_position_tolerance_rad: float = 1e-3,
+) -> dict[str, Any]:
+    required = sorted(set(required_articulations or []))
+    expected = expected_joint_positions or {}
+    missing = [name for name in required if name not in articulation_state]
+    report: dict[str, Any] = {
+        "runtime_physics_stable": not missing,
+        "required_articulations": required,
+        "missing_articulations": missing,
+        "expected_joint_positions": expected,
+        "joint_position_tolerance_rad": joint_position_tolerance_rad,
+        "articulations": {},
+    }
+    for name in missing:
+        report["articulations"][name] = {
+            "status": "missing_articulation",
+            "joint_positions": None,
+            "invalid_joint_positions": [],
+        }
+    for name, state in sorted(articulation_state.items()):
+        item: dict[str, Any] = {
+            "status": "stable",
+            "joint_positions": state.get("joint_positions"),
+        }
+        if "dof_names" in state:
+            item["dof_names"] = state["dof_names"]
+        if "joint_positions_error" in state:
+            item["status"] = "joint_positions_error"
+            item["joint_positions_error"] = state["joint_positions_error"]
+            item["invalid_joint_positions"] = []
+            report["runtime_physics_stable"] = False
+            report["articulations"][name] = item
+            continue
+        joint_positions = state.get("joint_positions")
+        if not isinstance(joint_positions, list):
+            item["status"] = "missing_joint_positions"
+            item["invalid_joint_positions"] = []
+            report["runtime_physics_stable"] = False
+            report["articulations"][name] = item
+            continue
+        invalid_positions: list[float] = []
+        for position in joint_positions:
+            try:
+                value = float(position)
+            except (TypeError, ValueError):
+                invalid_positions.append(position)  # type: ignore[arg-type]
+                continue
+            if not math.isfinite(value) or abs(value) > max_abs_joint_position_rad:
+                invalid_positions.append(value)
+        if invalid_positions:
+            item["status"] = "unstable_joint_positions"
+            item["invalid_joint_positions"] = invalid_positions
+            item["max_abs_joint_position_rad"] = max_abs_joint_position_rad
+            report["runtime_physics_stable"] = False
+        else:
+            item["invalid_joint_positions"] = []
+        expected_positions = expected.get(name)
+        if expected_positions is not None and not invalid_positions:
+            observed = [float(position) for position in joint_positions]
+            expected_values = [float(position) for position in expected_positions]
+            errors = [
+                abs(obs - exp)
+                for obs, exp in zip(observed, expected_values)
+            ]
+            length_mismatch = len(observed) != len(expected_values)
+            if length_mismatch or any(
+                error > joint_position_tolerance_rad for error in errors
+            ):
+                item["status"] = "target_position_mismatch"
+                item["expected_joint_positions"] = expected_values
+                item["joint_position_errors"] = errors
+                item["joint_position_length_mismatch"] = length_mismatch
+                report["runtime_physics_stable"] = False
+        report["articulations"][name] = item
+    return report
+
+
+def build_claim_boundary(
+    *,
+    boundary_classification: str | None,
+    render_validation_passed: bool,
+    runtime_physics_stable: bool,
+    diagnostic_completed: bool = True,
+    diagnostic_error: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if not diagnostic_completed:
+        blockers.append("runtime_diagnostic_not_completed")
+    if diagnostic_error is not None:
+        blockers.append("runtime_diagnostic_exception")
+    readback_visible = boundary_classification == "readback_visible"
+    if not readback_visible:
+        blockers.append("eval_camera_readback_not_visible")
+    if not render_validation_passed:
+        blockers.append("render_validation_not_passed")
+    if not runtime_physics_stable:
+        blockers.append("runtime_physics_unstable")
+    task_render_accepted = readback_visible and render_validation_passed
+    official_baseline_evaluable = task_render_accepted and runtime_physics_stable
+    return {
+        "task_render_accepted": task_render_accepted,
+        "official_baseline_evaluable": official_baseline_evaluable,
+        "blockers": blockers,
+    }
 
 
 def _jsonable(value: Any) -> Any:
@@ -220,6 +334,26 @@ def _apply_env_vars(eval_config: dict[str, Any], default_config: dict[str, Any])
     return applied
 
 
+def apply_camera_config_override(
+    eval_config: dict[str, Any],
+    override_config_path: str | None,
+) -> dict[str, str] | None:
+    if not override_config_path:
+        return None
+    domain_randomization = eval_config.setdefault("domain_randomization", {})
+    if not isinstance(domain_randomization, dict):
+        raise TypeError("domain_randomization must be a mapping")
+    cameras = domain_randomization.setdefault("cameras", {})
+    if not isinstance(cameras, dict):
+        raise TypeError("domain_randomization.cameras must be a mapping")
+    previous = cameras.get("config_path")
+    cameras["config_path"] = override_config_path
+    return {
+        "previous_config_path": str(previous) if previous is not None else "",
+        "override_config_path": override_config_path,
+    }
+
+
 def _camera_render_product_path(camera: Any) -> str | None:
     for attr_name in ("render_product_path", "_render_product_path"):
         value = getattr(camera, attr_name, None)
@@ -292,6 +426,16 @@ def _named_prim_metadata(named_prims: dict[str, Any]) -> dict[str, dict[str, Any
                 item["joint_positions"] = _jsonable(prim.get_joint_positions())
             except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
                 item["joint_positions_error"] = repr(exc)
+        dof_names = getattr(prim, "dof_names", None)
+        if dof_names is None:
+            articulation_view = getattr(prim, "_articulation_view", None)
+            dof_names = getattr(articulation_view, "dof_names", None)
+        if dof_names is not None:
+            item["dof_names"] = _jsonable(dof_names)
+            try:
+                item["dof_count"] = len(dof_names)
+            except TypeError:
+                pass
         metadata[str(name)] = item
     return metadata
 
@@ -327,6 +471,47 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def _required_articulation_uids(eval_config: dict[str, Any]) -> list[str]:
+    required: list[str] = []
+    for uid, cfg in (eval_config.get("object_config") or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        articulation_info = cfg.get("articulation_info") or {}
+        if cfg.get("is_articulated") is True or articulation_info.get("is_articulated") is True:
+            required.append(str(uid))
+    return sorted(set(required))
+
+
+def _expected_articulation_joint_positions(
+    eval_config: dict[str, Any],
+) -> dict[str, list[float]]:
+    expected: dict[str, list[float]] = {}
+    for uid, cfg in (eval_config.get("object_config") or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        target_positions = cfg.get("target_positions")
+        if target_positions is None:
+            continue
+        expected[str(uid)] = [float(position) for position in target_positions]
+    return expected
+
+
+def _scene_collection_keys(scene: Any | None) -> dict[str, Any]:
+    if scene is None:
+        return {
+            "camera_names": [],
+            "object_uids": [],
+            "articulation_uids": [],
+            "robot_count": 0,
+        }
+    return {
+        "camera_names": sorted(str(key) for key in (getattr(scene, "camera_list", {}) or {}).keys()),
+        "object_uids": sorted(str(key) for key in (getattr(scene, "object_list", {}) or {}).keys()),
+        "articulation_uids": sorted(str(key) for key in (getattr(scene, "articulation_list", {}) or {}).keys()),
+        "robot_count": len(getattr(scene, "robot_list", []) or []),
+    }
+
+
 def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
     current_dir = REPO_ROOT
     output_dir = Path(args.output_dir)
@@ -351,7 +536,13 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         task_name=args.task,
         current_dir=current_dir,
     )
+    camera_config_override = apply_camera_config_override(
+        eval_config,
+        args.camera_config_override,
+    )
     applied_env_vars = _apply_env_vars(eval_config, default_config)
+    required_articulations = _required_articulation_uids(eval_config)
+    expected_joint_positions = _expected_articulation_joint_positions(eval_config)
 
     from isaacsim import SimulationApp  # type: ignore
 
@@ -369,19 +560,32 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         "port": args.port,
         "reset_frame_capture": True,
         "assets_override": asdict(assets_override) if assets_override is not None else None,
+        "camera_config_override": camera_config_override,
         "applied_env_vars": applied_env_vars,
         "camera_frames": [],
         "camera_poses": {},
         "render_products": {},
         "render_product_binding": {},
+        "scene_collections": _scene_collection_keys(None),
         "object_world_poses": {},
         "object_extents": {},
         "projected_object_centers": {},
         "articulation_state": {},
-        "claim_boundary": {
-            "task_render_accepted": False,
-            "official_baseline_evaluable": False,
-        },
+        "required_articulations": required_articulations,
+        "expected_articulation_joint_positions": expected_joint_positions,
+        "runtime_sanity": classify_articulation_runtime_state(
+            {},
+            required_articulations=required_articulations,
+            expected_joint_positions=expected_joint_positions,
+        ),
+        "boundary_classification": None,
+        "diagnostic_error": None,
+        "claim_boundary": build_claim_boundary(
+            boundary_classification=None,
+            render_validation_passed=False,
+            runtime_physics_stable=False,
+            diagnostic_completed=False,
+        ),
     }
 
     try:
@@ -437,6 +641,7 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             )
             env.reset(args.seed, eval_config, default_config)
             scene = env.scene
+            diagnostics["scene_collections"] = _scene_collection_keys(scene)
             if scene is not None:
                 diagnostics["object_world_poses"] = _named_prim_metadata(
                     getattr(scene, "object_list", {}) or {}
@@ -456,7 +661,41 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             readback_stats,
             recorder_stats,
         )
+        diagnostics["runtime_sanity"] = classify_articulation_runtime_state(
+            diagnostics["articulation_state"],
+            required_articulations=required_articulations,
+            expected_joint_positions=expected_joint_positions,
+        )
+        diagnostics["claim_boundary"] = build_claim_boundary(
+            boundary_classification=diagnostics["boundary_classification"],
+            render_validation_passed=False,
+            runtime_physics_stable=bool(
+                diagnostics["runtime_sanity"]["runtime_physics_stable"]
+            ),
+            diagnostic_completed=True,
+        )
         diagnostics["recorder_traj_log_dir"] = env.traj_log_dir if env is not None else None
+    except Exception as exc:
+        diagnostics["diagnostic_error"] = {
+            "type": type(exc).__name__,
+            "repr": repr(exc),
+            "traceback": traceback.format_exc(),
+        }
+        diagnostics["scene_collections"] = _scene_collection_keys(
+            env.scene if env is not None else None
+        )
+        diagnostics["runtime_sanity"] = classify_articulation_runtime_state(
+            diagnostics["articulation_state"],
+            required_articulations=required_articulations,
+            expected_joint_positions=expected_joint_positions,
+        )
+        diagnostics["claim_boundary"] = build_claim_boundary(
+            boundary_classification=diagnostics["boundary_classification"],
+            render_validation_passed=False,
+            runtime_physics_stable=False,
+            diagnostic_completed=False,
+            diagnostic_error=diagnostics["diagnostic_error"],
+        )
     finally:
         _write_json(output_dir / "diagnostics.json", diagnostics)
         if env is not None:
@@ -506,6 +745,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Compatibility flag. Reset-frame capture is always enabled and writes 00000.png.",
     )
     parser.add_argument("--local", action="store_true", help="Run Isaac with GUI.")
+    parser.add_argument(
+        "--camera-config-override",
+        default=None,
+        help="Diagnostics-only camera config path to apply to the selected eval config.",
+    )
     return parser.parse_args(argv)
 
 

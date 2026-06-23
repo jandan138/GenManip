@@ -105,6 +105,14 @@ This fixes the pure-black readback failure for controlled pick/place P0 diagnost
 
 The initial weekly report used static direct-render screenshots from the same EBench/GenManip-loaded LabUtopia stage and the same overlay asset root. Follow-up visual QA on 2026-06-23 found those screenshots are not acceptable as task-scene evidence. The direct render changed report lighting and camera viewpoint, and it did not prove task configuration, evaluator logic, result scores, or reset-time visual correctness.
 
+Superseded update, 2026-06-23:
+
+- The "report images must not be replaced yet" note above applied to the P0a/P0b nearly flat gray frames only.
+- The weekly report now keeps the old JPGs as historical failed evidence and also includes evaluator readback PNGs.
+- `level1_pick` and `level1_place` are PM-readable diagnostic frames, pending formal visual QA.
+- `level1_open_door` runtime physics has been stabilized with a sanitized DryingBox surrogate, aligned hinge, and target replay; the latest diagnostic starts closed and shows a high-contrast handle marker, but visual QA is still WARN/not accepted because the interaction point is small and edge-adjacent.
+- The current claim boundary remains `task_render_accepted=false` and `official_baseline_evaluable=false`.
+
 ## Report images
 
 Committed report assets:
@@ -126,7 +134,7 @@ Follow-up visual QA:
 - Keep P0a/P0b evidence scoped correctly: camera2 readback is no longer pure black for pick/place, but frames are still not task-accepted.
 - Close the gap between visible mesh bbox, wrapper pose, and task semantic coordinates.
 - Make LabUtopia reset-time task layout explicit instead of relying on fallback live-scene metadata.
-- Fix LabUtopia asset import/layout red flags: selected objects are still in source-lab coordinates, and the open-door handle is imported as an invalid independent child transform.
+- Continue from the superseded asset/layout red flags: selected objects have since been normalized into the Franka workspace, and the open-door handle is nested under the DryingBox runtime assembly. The remaining render risk is `open_door` camera framing and handle/interaction-point clarity.
 - Capture reset-time keyframes for all three tasks through the normal eval recording path.
 - Replace the current report images only after independent visual QA passes.
 - Keep official Lift2 baseline claims blocked until Lift2 composite assets and official runner discovery are complete.

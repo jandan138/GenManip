@@ -5,6 +5,8 @@ import pickle
 from pathlib import Path
 from typing import Any
 
+from genmanip.utils.loader.preprocess_rules import articulation_target_for_uid
+
 
 LABUTOPIA_POC_TASK_PREFIX = "ebench/labutopia_lab_poc/"
 
@@ -18,7 +20,7 @@ def _object_world_pose(obj: Any) -> tuple[Any, Any]:
     return position, orientation
 
 
-def _build_initial_layout(scene: Any) -> dict[str, dict[str, Any]]:
+def _build_initial_layout(scene: Any, scene_config: Any) -> dict[str, dict[str, Any]]:
     layout: dict[str, dict[str, Any]] = {}
     cache_library = getattr(scene, "cache_library", None)
     usd_path_list = getattr(cache_library, "preloaded_object_path_list", {}) or {}
@@ -46,12 +48,17 @@ def _build_initial_layout(scene: Any) -> dict[str, dict[str, Any]]:
 
     for key, articulation in scene.articulation_list.items():
         position, orientation = articulation.get_world_pose()
+        target_positions = articulation_target_for_uid(scene_config, key)
         layout[key] = {
             "type": "articulation",
             "position": position,
             "orientation": orientation,
             "scale": articulation.get_local_scale(),
-            "joint_positions": articulation.get_joint_positions(),
+            "joint_positions": (
+                target_positions
+                if target_positions is not None
+                else articulation.get_joint_positions()
+            ),
             "prim_path": articulation.prim_path,
         }
 
@@ -74,7 +81,7 @@ def build_labutopia_poc_meta_info(
     """Build minimal eval metadata for LabUtopia POC tasks from the live scene."""
     task_data = {
         "initial_scene_graph": None,
-        "initial_layout": _build_initial_layout(scene),
+        "initial_layout": _build_initial_layout(scene, scene_config),
         "goal": copy.deepcopy(scene_config.generation_config.goal),
         "instruction": scene_config.instruction,
         "frame_status": {},

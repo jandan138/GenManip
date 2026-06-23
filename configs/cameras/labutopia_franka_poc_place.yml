@@ -1,7 +1,7 @@
 camera1:
   name: camera_1
   exists: false
-  prim_path: /LabUtopiaCamera1
+  prim_path: /LabUtopiaPlaceCamera1
   position: [2.0, 0.0, 2.0]
   orientation: [0.61237, 0.35355, 0.35355, 0.61237]
   camera_axes: usd
@@ -15,12 +15,13 @@ camera1:
 camera2:
   name: camera_2
   exists: false
-  prim_path: /LabUtopiaCamera2
-  position: [0.45, -1.1, 1.55]
+  prim_path: /LabUtopiaPlaceCamera2
+  position: [0.26, -0.7, 1.32]
   orientation: [0.87184, 0.4898, 0.0, 0.0]
   camera_axes: usd
-  resolution: [256, 256]
+  resolution: [512, 512]
   image_type: rgb
+  task_view: level1_place
   with_distance: false
   with_semantic: false
   with_bbox2d: false

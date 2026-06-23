@@ -1,6 +1,6 @@
 # EBench LabUtopia POC Status
 
-Updated: 2026-06-22
+Updated: 2026-06-23
 
 ## PM Summary
 
@@ -17,8 +17,8 @@ This is a wiring and platform-readiness milestone, not a task-solving milestone.
 | Scene metadata | Ready for smoke | Missing collected-package `meta_info.pkl` is synthesized from the live LabUtopia scene for POC tasks. |
 | Camera cleanup | Ready for smoke | POC camera configs now include cleanup flags required by GenManip camera reset. |
 | Result lifecycle | Ready for smoke | Episodes that terminate before recorder finalize persist minimal `result_info.json`; real post-processing exceptions now fail fast instead of being hidden as completed results. |
-| Render/readback evidence | Blocked | 2026-06-23 pre-fix diagnostics showed all three tasks as `readback_black_before_recorder`; P0a/P0b follow-up moved pick/place to `readback_visible`, but the frames are still low-texture and open_door is not revalidated. |
-| Asset/layout acceptance | Blocked | Selected objects remain in source LabUtopia coordinates and the open-door handle transform is invalid after direct child payload import. |
+| Render/readback evidence | Partially readable | 2026-06-23 diagnostics moved all three tasks to `readback_visible`; task-level hiding makes `level1_pick` readable and `level1_place` basically readable for PM diagnosis. Latest `level1_open_door` is now diagnosable after the earlier joint explosion: the closed-start joint target matches `[0.0]` and a high-contrast handle marker is visible, but door/handle visual QA is still WARN/not accepted. |
+| Asset/layout acceptance | Partially resolved | Static selected objects now sit in the Franka workspace and the DryingBox handle is nested again. DryingBox runtime USD/PhysX topology is stabilized for the POC through a sanitized surrogate, but visual acceptance is still open. |
 | Lift2 official baseline | Not yet proven | Architecture is prepared to add/evaluate the lift2 candidate profile, but the official baseline smoke still needs to be run. |
 
 ## Evidence
@@ -30,7 +30,7 @@ Latest isolated smoke:
 - Existing EOS/other-engineer port: `8087`, left untouched and still online after the run
 - Final status: `complete`, `3/3` episodes completed
 - Final result: all three tasks recorded `score=0.0`, `sr=0.0`
-- Regression tests: `python -m pytest tests/labutopia_poc -q` -> `34 passed, 1 skipped`
+- Regression tests: `python -m pytest tests/labutopia_poc -q` -> `56 passed, 1 skipped`
 - Diagnostics contract: `python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q` -> `2 passed`
 - Package validator: `python standalone_tools/labutopia_poc/validate_task_package.py` -> `LabUtopia task package validation OK`
 
@@ -49,11 +49,12 @@ Reason: it is already compatible with Isaac Sim 4.1, Ray, GenManip client, cuRob
 The next lane is planned in
 `docs/superpowers/plans/2026-06-22-ebench-labutopia-lift2-baseline-lane.md`.
 
-1. P0 render source fix: camera axes/pose handling and deterministic lighting now make pick/place `camera2` readback non-black; keep open_door and visual acceptance scoped to P1/P2.
-2. P1 asset/layout fix: rebuild or supplement the LabUtopia overlay so required objects and nested parts preserve valid transforms and sit in the robot workspace.
-3. P2 evidence regeneration: rerun the three Franka tasks through eval-path capture, require visual QA PASS, and write a manifest before replacing report images.
-4. P3 runtime asset preflight: build/verify a LabUtopia composite asset root before running lift2. Current observation: the scene overlay exists, but lift2 robot and cuRobo assets are not present under the scene-only overlay root.
-5. P4 lift2 dry smoke: run `ebench/labutopia_lab_poc/lift2_candidate` on an isolated port, require `complete` and `3/3` result files, keep `official_baseline_execution=false`.
-6. P5 official baseline discovery: locate official EBench lift2/OpenPI runner files, retain paths and hashes, do not execute policy yet.
-7. P6 official baseline local contrast: run one official-style online loop only after P5 passes, retain source terminal evidence, keep `standard_model_score=null` until a separate score-release gate.
-8. Closure: write EOS-style dated records with artifact linkage, forbidden-claims, and path-leakage checks before changing PM-facing claims.
+1. P0 render source fix: camera axes/pose handling and deterministic lighting now make all three tasks `camera2` readback non-black.
+2. P1 asset/layout fix: static objects and nested handle are normalized into the robot workspace; task-level hiding now makes pick/place PM-readable diagnostics.
+3. P1b open_door physics fix: stronger DryingBox USD/PhysX validation and sanitized articulation topology are in place for the POC; keep the runtime sanity gate active.
+4. P2 evidence regeneration: retake open_door with a closer front-oblique camera, rerun the three Franka tasks through eval-path capture, require visual QA PASS, and write a manifest before any accepted-render claim.
+5. P3 runtime asset preflight: build/verify a LabUtopia composite asset root before running lift2. Current observation: the scene overlay exists, but lift2 robot and cuRobo assets are not present under the scene-only overlay root.
+6. P4 lift2 dry smoke: run `ebench/labutopia_lab_poc/lift2_candidate` on an isolated port, require `complete` and `3/3` result files, keep `official_baseline_execution=false`.
+7. P5 official baseline discovery: locate official EBench lift2/OpenPI runner files, retain paths and hashes, do not execute policy yet.
+8. P6 official baseline local contrast: run one official-style online loop only after P5 passes, retain source terminal evidence, keep `standard_model_score=null` until a separate score-release gate.
+9. Closure: write EOS-style dated records with artifact linkage, forbidden-claims, and path-leakage checks before changing PM-facing claims.

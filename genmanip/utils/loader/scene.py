@@ -42,6 +42,7 @@ from genmanip.utils.loader.preload_rules import (
     generate_long_horizon_by_materials,
     generate_long_horizon_by_shape,
 )
+from genmanip.utils.loader.preprocess_rules import set_scene_object_active
 from genmanip.utils.usd_utils import set_mdl, create_dome_light, set_texture
 from genmanip.utils.pointcloud.pointcloud import (
     objectList2meshList,
@@ -905,6 +906,9 @@ def collect_assets(assets_dir: str) -> dict:
 def preprocess_scene(scene: "Scene", demogen_config: SceneConfig) -> None:
     preprocess_config = demogen_config.preprocess_config
     for preprocess_info in preprocess_config:
+        if preprocess_info["type"] == "set_object_active":
+            config = preprocess_info["config"]
+            set_scene_object_active(scene, config["uids"], bool(config["active"]))
         if preprocess_info["type"] == "disable_contact_offset":
             for object in scene.object_list.values():
                 remove_contact_offset(object.prim_path)

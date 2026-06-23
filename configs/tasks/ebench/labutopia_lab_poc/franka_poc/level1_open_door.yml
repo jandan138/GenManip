@@ -13,7 +13,7 @@ evaluation_configs:
         position: [-0.4, 0.0, 0.71]
     domain_randomization:
       cameras:
-        config_path: configs/cameras/labutopia_franka_poc.yml
+        config_path: configs/cameras/labutopia_franka_poc_open_door.yml
         type: fixed
       random_environment:
         has_wall: false
@@ -30,17 +30,66 @@ evaluation_configs:
         robot: 0
       articulation: []
       goal:
-        - - - type: manip/labutopia/handle_displacement
-              obj_uid: obj_DryingBox_01_handle
-              min_distance: 0.12
+        - - - type: manip/default/check_joint_angle
+              articulation_obj_uid: obj_DryingBox_01
+              joint_name: RevoluteJoint
+              angle_deg_range: [30, 120]
               skip_steps: 1
               succ_cnts: 59
       mode: manual
       planner: curobo
-    object_config: {}
-    preprocess_config: []
+    object_config:
+      obj_DryingBox_01:
+        type: existed_object
+        uid_list:
+          - obj_DryingBox_01
+        is_articulated: true
+        target_positions: [0.0]
+        articulation_info:
+          is_articulated: true
+          part:
+            handle: /handle
+    preprocess_config:
+      - type: set_object_active
+        config:
+          active: false
+          uids:
+            - obj_conical_bottle02
+            - obj_beaker2
+            - obj_target_plat
     layout_config:
       ignored_objects: []
       type: null
+    labutopia_render_validation:
+      schema_version: 1
+      primary_camera: camera2
+      evidence_camera_config: configs/cameras/labutopia_franka_poc_open_door.yml
+      required_camera_names:
+        - camera1
+        - camera2
+      required_visible_objects:
+        - obj_DryingBox_01
+        - obj_DryingBox_01_handle
+      hidden_non_task_objects:
+        - obj_conical_bottle02
+        - obj_beaker2
+        - obj_target_plat
+      object_pixel_thresholds:
+        obj_DryingBox_01:
+          min_width_px: 160
+          min_height_px: 150
+          min_area_fraction: 0.12
+        obj_DryingBox_01_handle:
+          min_width_px: 18
+          min_height_px: 64
+          min_area_fraction: 0.004
+      task_visual_goal: door_and_handle_visible
+      reject_frame_if:
+        - black_frame
+        - low_texture
+        - required_object_missing
+        - severe_clipping
+      evidence_policy:
+        direct_render: false
     env_vars:
       MDL_SYSTEM_PATH: "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"

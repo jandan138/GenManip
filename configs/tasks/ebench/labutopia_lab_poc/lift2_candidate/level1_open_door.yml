@@ -30,14 +30,25 @@ evaluation_configs:
         robot: 0
       articulation: []
       goal:
-        - - - type: manip/labutopia/handle_displacement
-              obj_uid: obj_DryingBox_01_handle
-              min_distance: 0.12
+        - - - type: manip/default/check_joint_angle
+              articulation_obj_uid: obj_DryingBox_01
+              joint_name: RevoluteJoint
+              angle_deg_range: [30, 120]
               skip_steps: 1
               succ_cnts: 59
       mode: manual
       planner: curobo
-    object_config: {}
+    object_config:
+      obj_DryingBox_01:
+        type: existed_object
+        uid_list:
+          - obj_DryingBox_01
+        is_articulated: true
+        target_positions: [0.0]
+        articulation_info:
+          is_articulated: true
+          part:
+            handle: /handle
     preprocess_config: []
     layout_config:
       ignored_objects: []

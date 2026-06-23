@@ -12,26 +12,26 @@
         "/World/table"
     ],
     "source_task_prims": {
+        "level1_open_door": [
+            "/World/DryingBox_01",
+            "/World/DryingBox_01/handle",
+            "/World/DryingBox_01/RevoluteJoint"
+        ],
         "level1_pick": [
             "/World/conical_bottle02"
         ],
         "level1_place": [
             "/World/beaker2",
             "/World/target_plat"
-        ],
-        "level1_open_door": [
-            "/World/DryingBox_01",
-            "/World/DryingBox_01/handle",
-            "/World/DryingBox_01/RevoluteJoint"
         ]
     },
     "source_to_runtime_object_key": {
-        "/World/conical_bottle02": "obj_conical_bottle02",
-        "/World/beaker2": "obj_beaker2",
-        "/World/target_plat": "obj_target_plat",
         "/World/DryingBox_01": "obj_DryingBox_01",
         "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
-        "/World/table": "table"
+        "/World/beaker2": "obj_beaker2",
+        "/World/conical_bottle02": "obj_conical_bottle02",
+        "/World/table": "table",
+        "/World/target_plat": "obj_target_plat"
     },
     "runtime_object_keys": [
         "obj_conical_bottle02",
@@ -42,19 +42,207 @@
         "table"
     ],
     "wrapper_prim_paths": {
-        "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
-        "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
-        "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
         "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
+        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+        "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
+        "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
+        "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
         "table": "/World/labutopia_level1_poc/obj_table"
+    },
+    "articulation_part_paths": {
+        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+    },
+    "render_object_contracts": {
+        "obj_DryingBox_01": {
+            "desired_runtime_translation": [
+                0.75,
+                0.1,
+                0.78
+            ],
+            "display_color": [
+                0.82,
+                0.84,
+                0.88
+            ],
+            "expected_world_bbox_lwh_m": {
+                "max": [
+                    0.75,
+                    0.9,
+                    0.8
+                ],
+                "min": [
+                    0.45,
+                    0.5,
+                    0.45
+                ]
+            },
+            "role": "articulated_drying_box",
+            "source_prim_path": "/World/DryingBox_01",
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+        },
+        "obj_DryingBox_01_handle": {
+            "compose_nested_transform_with_parent": "obj_DryingBox_01",
+            "display_color": [
+                1.0,
+                0.18,
+                0.04
+            ],
+            "expected_world_bbox_lwh_m": {
+                "max": [
+                    0.08,
+                    0.08,
+                    0.26
+                ],
+                "min": [
+                    0.03,
+                    0.03,
+                    0.14
+                ]
+            },
+            "role": "door_handle",
+            "source_prim_path": "/World/DryingBox_01/handle",
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+        },
+        "obj_beaker2": {
+            "desired_runtime_translation": [
+                0.27,
+                0.18,
+                0.84
+            ],
+            "display_color": [
+                0.1,
+                0.72,
+                0.54
+            ],
+            "expected_world_bbox_lwh_m": {
+                "max": [
+                    0.16,
+                    0.16,
+                    0.14
+                ],
+                "min": [
+                    0.07,
+                    0.07,
+                    0.05
+                ]
+            },
+            "role": "place_object",
+            "source_prim_path": "/World/beaker2",
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_beaker2"
+        },
+        "obj_conical_bottle02": {
+            "desired_runtime_translation": [
+                0.28,
+                0.0,
+                0.8
+            ],
+            "display_color": [
+                0.1,
+                0.48,
+                0.95
+            ],
+            "expected_world_bbox_lwh_m": {
+                "max": [
+                    0.14,
+                    0.14,
+                    0.22
+                ],
+                "min": [
+                    0.05,
+                    0.05,
+                    0.1
+                ]
+            },
+            "role": "pick_target",
+            "source_prim_path": "/World/conical_bottle02",
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_conical_bottle02"
+        },
+        "obj_target_plat": {
+            "desired_runtime_translation": [
+                0.26,
+                -0.24,
+                0.776
+            ],
+            "display_color": [
+                0.95,
+                0.78,
+                0.12
+            ],
+            "expected_world_bbox_lwh_m": {
+                "max": [
+                    0.14,
+                    0.14,
+                    0.02
+                ],
+                "min": [
+                    0.08,
+                    0.08,
+                    5e-05
+                ]
+            },
+            "role": "place_target",
+            "source_prim_path": "/World/target_plat",
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_target_plat"
+        }
     },
     "deterministic_lights": [
         {
+            "intensity": 1000,
             "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
-            "type": "DomeLight",
-            "intensity": 1000
+            "type": "DomeLight"
         }
+    ],
+    "drying_box_runtime_asset": {
+        "base_joint_name": "BaseFixedJoint",
+        "joint_name": "RevoluteJoint",
+        "removed_source_joint_types": [
+            "PhysicsPrismaticJoint"
+        ],
+        "source_payload_used": false,
+        "strategy": "sanitized_surrogate",
+        "visual_affordances": [
+            {
+                "display_color": [
+                    0.28,
+                    0.34,
+                    0.42
+                ],
+                "name": "high_contrast_door_panel"
+            },
+            {
+                "display_color": [
+                    0.04,
+                    0.05,
+                    0.06
+                ],
+                "name": "door_outline_seams"
+            },
+            {
+                "display_color": [
+                    0.05,
+                    0.07,
+                    0.09
+                ],
+                "name": "handle_mount_backplate"
+            },
+            {
+                "display_color": [
+                    1.0,
+                    0.18,
+                    0.04
+                ],
+                "name": "high_contrast_handle"
+            }
+        ],
+        "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    },
+    "required_genmanip_object_uids": [
+        "obj_conical_bottle02",
+        "obj_beaker2",
+        "obj_target_plat",
+        "obj_DryingBox_01",
+        "obj_DryingBox_01_handle",
+        "obj_table"
     ],
     "required_object_uids": [
         "obj_conical_bottle02",
@@ -70,7 +258,10 @@
     },
     "runtime_notes": [
         "scene.usda exposes a single scene uid under /World for GenManip discovery.",
-        "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+        "Immediate obj_* wrapper prims payload top-level LabUtopia source prims except DryingBox_01.",
+        "DryingBox_01 uses a sanitized runtime surrogate with identity root scale and finite inertial attributes.",
+        "The drying-box handle is exposed as an articulation part, not an independent payload.",
+        "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
         "A deterministic dome light is authored in the runtime wrapper scene.",
         "Runtime object keys strip one leading obj_ from wrapper prim names."
     ]
