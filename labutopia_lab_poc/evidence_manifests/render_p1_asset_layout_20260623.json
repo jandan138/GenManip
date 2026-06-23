@@ -1,12 +1,12 @@
 {
-  "date": "2026-06-23",
+  "date": "2026-06-24",
   "base_commit": "76e1da24e73f314808cadfe7e6ef36755a7a181f",
   "working_tree_changes_required": true,
   "direct_render": false,
   "official_baseline_execution": false,
-  "task_render_accepted": false,
+  "task_render_accepted": true,
   "official_baseline_evaluable": false,
-  "summary": "P1 moved the LabUtopia POC from black or cluttered frames to three evaluator readback-visible frames. Static USD placement and nested DryingBox handle discovery are sane. Task-level hiding makes pick readable and place basically readable for PM diagnosis. open_door runtime physics now starts at the expected closed joint target, and the latest formal single-handle front-camera retake makes the DryingBox frame, door panel, and one orange handle/action point visible. Independent image-only QA rates the old-vs-current PM comparison PASS, with open_door PASS/WARN as diagnostic evidence only. render_validation_not_passed remains the release blocker, so task_render_accepted and official_baseline_evaluable stay false.",
+  "summary": "P1 moved the LabUtopia POC from black or cluttered frames to three evaluator readback-visible task frames. Static USD placement, nested DryingBox handle discovery, task-level visibility isolation, and task-specific cameras are now sufficient for the three Franka POC task render gates. The latest formal diagnostics for pick, place, and open_door all report render_validation.passed=true and task_render_accepted=true. The official Lift2 baseline remains not evaluable because Lift2 composite assets and the official runner have not been validated.",
   "environment": {
     "conda_env": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310",
     "config": "ebench/labutopia_lab_poc/franka_poc",
@@ -18,33 +18,33 @@
       "level1_open_door": "configs/cameras/labutopia_franka_poc_open_door.yml"
     },
     "runtime_isolation": {
-      "ports_used": [18102, 18103, 18104, 18131, 18132, 18133, 18134, 18135],
+      "ports_used_for_final_formal_runs": [18091, 18092, 18093],
       "eos_port_8087_touched": false
     }
   },
-  "static_usd_readback": {
+  "historical_failed_images": {
+    "purpose": "Kept in the weekly HTML report as before/after evidence for PM readers.",
+    "level1_pick": {
+      "path": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick.jpg",
+      "problem": "Target bottle was not identifiable, so the image could not explain the pick task."
+    },
+    "level1_place": {
+      "path": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place.jpg",
+      "problem": "The beaker and target platform relation was missing, so the image could not explain the place task."
+    },
+    "level1_open_door": {
+      "path": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg",
+      "problem": "The frame only showed a dark box corner; door, hinge, handle, and action point were not clear."
+    }
+  },
+  "static_asset_layout": {
     "scene_opens": true,
-    "obj_conical_bottle02": {
-      "world_translate": [0.28, 0.0, 0.8],
-      "bbox_size": [0.092574, 0.092573, 0.164524]
-    },
-    "obj_beaker2": {
-      "world_translate": [0.27, 0.18, 0.84],
-      "bbox_size": [0.110653, 0.110653, 0.0904]
-    },
-    "obj_target_plat": {
-      "world_translate": [0.26, -0.24, 0.776],
-      "bbox_size": [0.1, 0.1, 0.0001]
-    },
-    "obj_DryingBox_01": {
-      "world_translate": [0.75, 0.1, 0.78],
-      "bbox_size": [0.57642, 0.740892, 0.63]
-    },
-    "obj_DryingBox_01_handle": {
+    "objects_normalized_to_franka_workspace": true,
+    "drying_box_handle": {
       "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
       "top_level_duplicate_removed": true,
-      "world_translate": [0.455606, 0.248763, 1.108592],
-      "bbox_size": [0.048367, 0.047912, 0.201624]
+      "runtime_handle_scale": [0.045, 0.075, 0.25],
+      "resolution": "The old oversized orange-panel handle was replaced with a slimmer high-contrast handle that remains a nested DryingBox part."
     }
   },
   "task_level_visibility_isolation": {
@@ -63,135 +63,170 @@
   },
   "diagnostics": {
     "level1_pick": {
-      "run_id": "labutopia_p1_visibility_pick_20260623_175050",
-      "diagnostics_json": "saved/diagnostics/labutopia_p1_visibility_pick_20260623_175050/diagnostics.json",
+      "run_id": "labutopia_p1_gate_pick_formal_20260624_0001",
+      "diagnostics_json": "saved/diagnostics/labutopia_p1_gate_pick_formal_20260624_0001/diagnostics.json",
       "boundary_classification": "readback_visible",
-      "readback_frame": "saved/diagnostics/labutopia_p1_visibility_pick_20260623_175050/readback_after_get_eval_camera_data/camera2/00000.png",
+      "readback_frame": "saved/diagnostics/labutopia_p1_gate_pick_formal_20260624_0001/readback_after_get_eval_camera_data/camera2/00000.png",
       "report_image": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick-eval-readback-p1.png",
-      "sha256": "78e193beb7bc469c5f8dd40eecb9e532c6cfe3b836b1db4a12c3275253e7755d",
-      "channel_min": [65.0, 145.0, 146.0],
-      "channel_max": [228.0, 228.0, 228.0],
-      "channel_mean": [179.716, 180.23, 180.45],
+      "sha256": "3bc822dec8204b1aa278b844e101076dede956b50fd1019679b3770dada49c81",
+      "channel_min": [61.0, 144.0, 147.0],
+      "channel_max": [228.0, 228.0, 229.0],
+      "channel_mean": [176.342, 177.134, 177.471],
       "nonzero_pixels": 262144,
-      "unique_rgb_colors": 1075,
-      "runtime_physics_stable": true,
-      "visual_review": "READABLE_PENDING_FORMAL_QA",
-      "visual_reason": "Task-level hiding leaves the target bottle clearly visible on the table. This is PM-readable diagnostic evidence, but formal visual/pixel QA has not yet been signed off."
+      "unique_rgb_colors": 1210,
+      "render_validation": {
+        "passed": true,
+        "required_objects": {
+          "obj_conical_bottle02": {
+            "bbox": [236, 222, 275, 299],
+            "bbox_area_fraction": 0.01190185546875,
+            "width_px": 40,
+            "height_px": 78,
+            "passed": true
+          }
+        }
+      },
+      "claim_boundary": {
+        "task_render_accepted": true,
+        "official_baseline_evaluable": false,
+        "baseline_blockers": ["official_baseline_not_validated"]
+      },
+      "visual_review": "PASS",
+      "visual_reason": "Task-level hiding leaves the target bottle clearly visible on the table."
     },
     "level1_place": {
-      "run_id": "labutopia_p1_visibility_place_20260623_175232",
-      "diagnostics_json": "saved/diagnostics/labutopia_p1_visibility_place_20260623_175232/diagnostics.json",
+      "run_id": "labutopia_p1_gate_place_formal_20260624_0001",
+      "diagnostics_json": "saved/diagnostics/labutopia_p1_gate_place_formal_20260624_0001/diagnostics.json",
       "boundary_classification": "readback_visible",
-      "readback_frame": "saved/diagnostics/labutopia_p1_visibility_place_20260623_175232/readback_after_get_eval_camera_data/camera2/00000.png",
+      "readback_frame": "saved/diagnostics/labutopia_p1_gate_place_formal_20260624_0001/readback_after_get_eval_camera_data/camera2/00000.png",
       "report_image": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place-eval-readback-p1.png",
-      "sha256": "4a5603401f35f18c0039f31ebab2efba6cb895ff606842a709febe2a2402ecac",
-      "channel_min": [62.0, 145.0, 116.0],
+      "sha256": "8e80231ab01ff998ec516e74a7187eca6ac028a8a3e887016d8b1d31ef1aa419",
+      "channel_min": [57.0, 143.0, 116.0],
       "channel_max": [228.0, 228.0, 228.0],
-      "channel_mean": [182.224, 182.371, 181.986],
+      "channel_mean": [169.452, 170.169, 168.271],
       "nonzero_pixels": 262144,
-      "unique_rgb_colors": 891,
-      "runtime_physics_stable": true,
-      "visual_review": "READABLE_PENDING_FORMAL_QA",
-      "visual_reason": "The beaker and yellow target platform are visible in the same evaluator frame. The relation is understandable, though a closer camera would improve final PM polish."
+      "unique_rgb_colors": 1334,
+      "render_validation": {
+        "passed": true,
+        "required_objects": {
+          "obj_beaker2": {
+            "bbox": [251, 208, 289, 263],
+            "bbox_area_fraction": 0.008331298828125,
+            "width_px": 39,
+            "height_px": 56,
+            "passed": true
+          },
+          "obj_target_plat": {
+            "bbox": [215, 398, 296, 459],
+            "bbox_area_fraction": 0.0193939208984375,
+            "width_px": 82,
+            "height_px": 62,
+            "passed": true
+          }
+        }
+      },
+      "claim_boundary": {
+        "task_render_accepted": true,
+        "official_baseline_evaluable": false,
+        "baseline_blockers": ["official_baseline_not_validated"]
+      },
+      "visual_review": "PASS",
+      "visual_reason": "The beaker and yellow target platform are visible in the same evaluator frame."
     },
     "level1_open_door": {
-      "run_id": "labutopia_p1_open_door_single_handle_formal_20260624_0001",
-      "diagnostics_json": "saved/diagnostics/labutopia_p1_open_door_single_handle_formal_20260624_0001/diagnostics.json",
+      "run_id": "labutopia_p1_gate_open_door_formal_20260624_0002",
+      "diagnostics_json": "saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json",
       "boundary_classification": "readback_visible",
-      "readback_frame": "saved/diagnostics/labutopia_p1_open_door_single_handle_formal_20260624_0001/readback_after_get_eval_camera_data/camera2/00000.png",
+      "readback_frame": "saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/readback_after_get_eval_camera_data/camera2/00000.png",
       "report_image": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png",
-      "sha256": "f9b6c1ee41ac0a51a2377e4eed372b50a51ac4c793e5c0a52f7ef4f27a9e3e86",
-      "channel_min": [27.0, 29.0, 31.0],
+      "sha256": "da670293ef61e0136b3522a07c9f2421a0ec73bca79ac0304eb1adf818644502",
+      "channel_min": [27.0, 28.0, 30.0],
       "channel_max": [228.0, 228.0, 228.0],
-      "channel_mean": [165.751, 165.583, 166.099],
+      "channel_mean": [162.518, 162.711, 163.53],
       "nonzero_pixels": 262144,
-      "unique_rgb_colors": 3860,
-      "pixel_stats": {
-        "orange_red_pixels": 2195,
-        "orange_red_bbox_xyxy": [241, 157, 276, 233],
-        "non_floor_dark_mid_pixels": 7607,
-        "non_floor_dark_mid_bbox_xyxy": [35, 107, 413, 245],
-        "bluegrey_door_panel_pixels": 163648,
-        "bluegrey_door_panel_bbox_xyxy": [0, 106, 511, 511]
+      "unique_rgb_colors": 4088,
+      "render_validation": {
+        "passed": true,
+        "required_objects": {
+          "obj_DryingBox_01": {
+            "bbox": [85, 94, 426, 246],
+            "bbox_area_fraction": 0.19960784912109375,
+            "width_px": 342,
+            "height_px": 153,
+            "passed": true
+          },
+          "obj_DryingBox_01_handle": {
+            "bbox": [246, 146, 273, 230],
+            "bbox_area_fraction": 0.0090789794921875,
+            "width_px": 28,
+            "height_px": 85,
+            "passed": true
+          }
+        }
       },
-      "visual_review": "WARN_DIAGNOSABLE_BUT_NOT_ACCEPTED",
-      "visual_reason": "The formal single-handle front-camera retake shows the DryingBox/cabinet frame, door panel, and one orange handle/action point in one evaluator readback frame. Independent image-only QA rates it PASS/WARN as PM-facing diagnostic evidence. It is not official task acceptance because diagnostics still report render_validation_not_passed.",
+      "claim_boundary": {
+        "task_render_accepted": true,
+        "official_baseline_evaluable": false,
+        "baseline_blockers": ["official_baseline_not_validated"]
+      },
       "runtime_physics": {
         "articulation_joint_positions": [0.0],
         "expected_articulation_joint_positions": [0.0],
         "dof_names": ["RevoluteJoint"],
-        "world_position": [0.75, 0.18000000715255737, 0.7799999713897705],
-        "runtime_physics_stable": true,
-        "status": "CLOSED_START_FIXED_SINGLE_HANDLE_FRONT_CAMERA_DIAGNOSTIC_ONLY"
-      }
+        "runtime_physics_stable": true
+      },
+      "visual_review": "PASS",
+      "visual_reason": "The final thin-handle retake shows the DryingBox frame, door panel, and orange handle/action point clearly enough for the task render gate."
     }
   },
   "open_door_root_cause_review": {
-    "summary": "GenManip task UID/articulation discovery is working; the instability is downstream of malformed DryingBox USD/PhysX topology.",
-    "findings": [
-      "The composed runtime prim still has root scale 0.001 instead of a baked identity-scale articulation.",
-      "Multiple rigid links use the basename mesh, matching duplicate link-name warnings.",
-      "Some rigid links retain non-finite centerOfMass or invalid principalAxes.",
-      "At least one fixed-joint body target resolves to a collision prim without PhysicsRigidBodyAPI.",
-      "The button prismatic joint adds an extra DOF, so runtime reports RevoluteJoint and PrismaticJoint."
-    ],
-    "recommended_fix_sequence": [
-      "Extend static validation to fail on non-identity articulation root scale, duplicate rigid-link basenames, non-finite COM, invalid principal axes, joint targets without rigid bodies, and unexpected extra DOFs.",
-      "Replace incremental over fixes with a sanitized DryingBox runtime asset: baked scale, identity root scale, unique rigid link names, required links/joints only, and stable handle placement.",
-      "Regenerate the LabUtopia overlay scene.usda and rerun open_door diagnostics.",
-      "Accept open_door only after finite joint positions, no duplicate-link warnings, stable runtime_sanity, and a visually plausible door/handle frame."
+    "problem": "The original DryingBox runtime asset could expose unstable articulation state and the early PM image did not show a useful door/handle target. An intermediate retake made the handle look like a broad orange panel.",
+    "fix_sequence": [
+      "Use a sanitized DryingBox surrogate with fixed base and one aligned revolute door joint.",
+      "Replay the expected closed joint target so reset starts at [0.0].",
+      "Keep the handle as a nested DryingBox child, move it to the non-hinge side, delete duplicate orange marker blocks, and reduce the handle scale to [0.045, 0.075, 0.25].",
+      "Use the formal front camera for the final task render gate."
     ],
     "latest_resolution": {
-      "strategy": "sanitized DryingBox surrogate with fixed base and one aligned revolute door joint",
-      "static_topology_ready": true,
       "runtime_joint_stable": true,
       "runtime_joint_target_matches": true,
-      "visible_high_contrast_marker": false,
       "single_physical_handle_visible": true,
       "duplicate_marker_removed": true,
-      "remaining_blocker": "diagnostics still report render_validation_not_passed, so official task render acceptance and baseline evaluability remain blocked"
-    }
-  },
-  "review": {
-    "visual_reviewer": {
-      "level1_pick": "READABLE_PENDING_FORMAL_QA",
-      "level1_place": "READABLE_PENDING_FORMAL_QA",
-      "level1_open_door": "PASS_WARN_DIAGNOSTIC_NOT_ACCEPTED"
-    },
-    "baseline_evaluability_reviewer": {
-      "official_baseline_evaluable": false,
-      "primary_blocker": "formal task render acceptance is not signed off",
-      "secondary_blocker": "Lift2 composite assets and official runner execution are not closed"
+      "task_render_accepted": true,
+      "remaining_baseline_blocker": "official_baseline_not_validated"
     }
   },
   "browser_visual_review": {
-    "tool": "Chromium headless CLI from ~/.cache/ms-playwright/chromium-1228",
-    "desktop_screenshot": "/tmp/labutopia_weekly_old_new_review_20260624/desktop_full_report.png",
-    "mobile_screenshot": "/tmp/labutopia_weekly_old_new_review_20260624/mobile_full_report_long.png",
-    "audit_json": "/tmp/labutopia_weekly_old_new_review_20260624/audit.json",
-    "image_requests": "static HTML parse found six report images and all six files exist; DOM dump contains required old/new/open_door/render_validation text",
+    "tool": "Playwright 1.61 via npx with cached Chromium",
+    "preview_url": "http://127.0.0.1:18080/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html",
+    "desktop_screenshot": "/tmp/labutopia_weekly_p1_gate_review_20260624/desktop_full_report.png",
+    "tablet_screenshot": "/tmp/labutopia_weekly_p1_gate_review_20260624/tablet_full_report.png",
+    "mobile_screenshot": "/tmp/labutopia_weekly_p1_gate_review_20260624/mobile_full_report.png",
+    "desktop_audit_json": "/tmp/labutopia_weekly_p1_gate_review_20260624/desktop_audit.json",
+    "tablet_audit_json": "/tmp/labutopia_weekly_p1_gate_review_20260624/tablet_audit.json",
+    "mobile_audit_json": "/tmp/labutopia_weekly_p1_gate_review_20260624/mobile_audit.json",
     "result": "PASS_FOR_REPORT_DISPLAY",
-    "notes": "Desktop and mobile long screenshots show old JPGs and new square evaluator PNGs, including the latest single-handle open_door eval PNG. Chromium emitted expected headless DBus warnings only. This display audit does not mean task visual acceptance."
+    "notes": "Desktop, tablet, and mobile full-page audits passed: six report images loaded, required old/new/render-gate/baseline-boundary text was present, no failed requests or horizontal page overflow were detected, and stale render_validation_not_passed wording was absent from the HTML report."
   },
   "claim_boundary": {
     "allowed": [
       "All three Franka POC tasks now produce non-black evaluator camera2 readback frames.",
       "Static USD readback shows task objects and the nested DryingBox handle in plausible workspace coordinates.",
       "The old top-level duplicated handle payload is removed; the handle is represented as part of the DryingBox assembly.",
-      "Task-level hiding makes pick and place readable as PM-facing diagnostic frames.",
-      "The latest open_door runtime diagnostic has stable DryingBox joint positions, matches the expected closed target [0.0], only exposes RevoluteJoint, and shows the DryingBox frame, door panel, and one orange handle/action point in the same eval readback frame."
+      "Task-level hiding makes pick and place readable as PM-facing task frames.",
+      "The latest open_door runtime diagnostic has stable DryingBox joint positions, matches the expected closed target [0.0], only exposes RevoluteJoint, and shows the DryingBox frame, door panel, and thin orange handle in the same eval readback frame.",
+      "The three Franka POC task render gates now pass with task_render_accepted=true."
     ],
     "blocked": [
-      "task_render_accepted=true.",
       "Official Lift2 baseline evaluability.",
-      "Any claim that open_door visual evidence is reliable for baseline evaluation.",
-      "Any claim that the current report display QA equals task visual acceptance."
+      "Any claim that task render acceptance equals policy success or score improvement.",
+      "Any claim that the official Lift2 runner has been executed.",
+      "Any claim that the current report display QA equals official baseline validation."
     ]
   },
   "next_steps": [
-    "Run formal visual QA for pick/place and keep task_render_accepted=false until signed off.",
-    "Keep diagnostics claim_boundary as the release gate; do not upgrade claims from readback_visible alone.",
-    "Use the latest single-handle front-camera open_door frame as PM-facing diagnostic evidence only.",
-    "Refresh browser display QA and formal task visual QA; keep task_render_accepted=false until render_validation passes."
+    "Build and validate the Lift2 composite asset root: LabUtopia scene overlay plus default robot_usds/lift2 plus default miscs/curobo.",
+    "Locate and hash the official EBench/OpenPI/Lift2 runner entrypoint before executing any official-style loop.",
+    "Run a Lift2 dry smoke in an isolated port and keep official_baseline_execution=false until the runner and assets are proven."
   ]
 }
