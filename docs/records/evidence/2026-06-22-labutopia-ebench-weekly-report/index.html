@@ -392,17 +392,17 @@
       <div>
         <p class="eyebrow">Weekly report · 2026-06-22 · PM-facing evidence page</p>
         <h1><span>LabUtopia x EBench</span><span>接入周报</span></h1>
-        <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。当前结论是“接入链路跑通”，不是“策略已经会做任务”，也不是“官方 baseline 成绩”。</p>
+        <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。当前结论是“接入链路跑通”；渲染/布局验收仍是 blocked，当前三张渲染图未通过视觉验收。</p>
         <div class="pill-row">
-          <span class="pill ok">Franka POC complete</span>
+          <span class="pill ok">wiring smoke complete</span>
           <span class="pill ok">3/3 episodes finalized</span>
           <span class="pill warn">score=0.0 expected</span>
-          <span class="pill plan">Lift2 baseline lane planned</span>
+          <span class="pill warn">render/layout blocked</span>
         </div>
       </div>
       <aside class="hero-note">
         <b>给产品经理的一句话</b>
-        LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，并已补三张静态可见性渲染图；下一步仍要修复 eval camera2 黑屏、确认任务布局，再做 Lift2 复合资产预检。
+        LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；但当前视觉证据未达汇报标准，下一步先修复 eval camera2 黑屏和 reset 后任务布局。
       </aside>
     </div>
   </header>
@@ -433,8 +433,8 @@
         </div>
         <div class="metric">
           <div class="label">渲染证据</div>
-          <div class="value status-warn">已补 3 张</div>
-          <div class="detail">静态可见性截图已补；eval recorder 的 <code>camera2</code> 仍需修复。</div>
+          <div class="value status-blocked">未通过</div>
+          <div class="detail">三张直渲图视觉 QA 不合格；eval recorder 的 <code>camera2</code> 仍为黑屏。</div>
         </div>
         <div class="metric">
           <div class="label">官方 Lift2 baseline</div>
@@ -467,7 +467,7 @@
               <td>场景资产加载</td>
               <td class="status-ok">Franka POC 闭环</td>
               <td>通过 manifest 把 LabUtopia overlay 资产根目录接入运行时，并映射对象名。</td>
-              <td>Franka POC 已验证；Lift2 还要补 robot/curobo 资产组合。</td>
+              <td>证明 scene overlay 可加载；不证明 reset 后布局或相机画面已验收。</td>
             </tr>
             <tr>
               <td>结果生命周期</td>
@@ -483,9 +483,9 @@
             </tr>
             <tr>
               <td>渲染图验收</td>
-              <td class="status-warn">已补静态证据</td>
-              <td>已从 EBench/GenManip 加载后的 Isaac stage 抓取三张静态图。</td>
-              <td>证明可见资产能被加载；暂不能证明任务布局、视频链路或策略成功。</td>
+              <td class="status-blocked">未通过视觉 QA</td>
+              <td>当前三张图保留为失败样例：<code>pick</code> WARN，<code>place</code>/<code>open_door</code> FAIL。</td>
+              <td>不能作为 PM-ready 渲染证据；需要 eval-path reset 帧重拍。</td>
             </tr>
           </tbody>
         </table>
@@ -542,8 +542,8 @@
           <text x="646" y="72" font-size="18" font-weight="700" fill="#1f2933">Franka POC runtime</text>
           <text x="646" y="98" font-size="14" fill="#44566b">scene.usda + object map verified</text>
           <rect x="36" y="176" width="260" height="78" rx="8" fill="#fff2d8" stroke="#e3c178"/>
-          <text x="58" y="207" font-size="18" font-weight="700" fill="#906211">Lift2 next gate</text>
-          <text x="58" y="232" font-size="14" fill="#44566b">scene overlay is not enough</text>
+          <text x="58" y="207" font-size="18" font-weight="700" fill="#906211">Lift2 later gate</text>
+          <text x="58" y="232" font-size="14" fill="#44566b">after render QA passes</text>
           <path d="M296 215 L395 215" stroke="#7f8fa3" stroke-width="3"/>
           <path d="M395 215 L384 208 M395 215 L384 222" stroke="#7f8fa3" stroke-width="3" fill="none"/>
           <rect x="406" y="176" width="250" height="78" rx="8" fill="#fae9e7" stroke="#e3aaa5"/>
@@ -553,41 +553,41 @@
           <path d="M743 215 L732 208 M743 215 L732 222" stroke="#7f8fa3" stroke-width="3" fill="none"/>
           <rect x="754" y="176" width="190" height="78" rx="8" fill="#eee9fb" stroke="#c9bbeb"/>
           <text x="776" y="207" font-size="18" font-weight="700" fill="#6b4bb1">Composite root</text>
-          <text x="776" y="232" font-size="14" fill="#44566b">P0 work item</text>
+          <text x="776" y="232" font-size="14" fill="#44566b">P3+ work item</text>
         </svg>
       </figure>
 
       <div class="split" style="margin-top: 16px;">
         <div class="panel ok">
           <h3>已经闭环的部分</h3>
-          <p>LabUtopia 场景 overlay 能被 Franka POC 加载，桌面、瓶子、烧杯、托盘、干燥箱、门把手等对象能通过运行时对象映射进入 evaluator。</p>
+          <p>LabUtopia 场景 overlay 能被 Franka POC 加载，相关对象名能通过运行时对象映射进入 evaluator。这只证明接入路径，不证明视觉截图、reset 布局或可评测视频。</p>
         </div>
         <div class="panel warn">
           <h3>还没闭环的部分</h3>
-          <p>Lift2 官方 baseline 不能只用 scene overlay，它还需要默认资产里的 <code>robot_usds/lift2</code> 和 <code>miscs/curobo</code>。因此下一步要做“复合资产根目录”，把 LabUtopia 场景资产和默认机器人资产组合起来。</p>
+          <p>Lift2 官方 baseline 不能只用 scene overlay，它还需要默认资产里的 <code>robot_usds/lift2</code> 和 <code>miscs/curobo</code>。这一步排在 P0-P2 渲染/布局闭环之后，再做“复合资产根目录”。</p>
         </div>
       </div>
     </section>
 
     <section id="renders">
       <h2>EBench 加载后的三任务渲染图</h2>
-      <p>下面三张图来自同一个 LabUtopia Franka POC 任务包和同一个 LabUtopia overlay 资产根目录，均在 Isaac/Replicator 中从 EBench/GenManip 加载后的 stage 抓取。它们是“资产可见性证据”，不是策略成功率、任务布局或官方 baseline 的验收结论。</p>
-      <div class="panel warn">
-        <h3>渲染证据边界</h3>
-        <p>自动 eval recorder 保存的 <code>camera2</code> 帧当前为黑屏；因此这里采用同一任务包、同一 overlay 加载路径下的直渲截图。直渲过程中只补了报告用光照和相机视角，不改变任务配置、结果分数或 evaluator 逻辑。</p>
+      <p>2026-06-23 复核结论：当前三张渲染图未通过视觉验收，不能作为任务渲染已闭环的证据。下面保留为历史失败样例，方便说明 P0 修复范围。</p>
+      <div class="panel blocked">
+        <h3>渲染证据状态</h3>
+        <p>自动 eval recorder 保存的 <code>camera2</code> 帧为纯黑；三张 direct-render 静态图不是正常 eval recorder 产物，也没有可复现生产脚本。视觉 QA 结果为 <code>level1_pick=WARN</code>、<code>level1_place=FAIL</code>、<code>level1_open_door=FAIL</code>。</p>
       </div>
       <div class="render-grid">
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-pick.jpg" alt="level1_pick task render after EBench LabUtopia asset loading">
-          <figcaption><b>level1_pick</b>Pick up the conical bottle. 当前能看到加载后的局部桌面目标资产；后续还要修复 wrapper pose 与可见 mesh bbox 的一致性。</figcaption>
+          <figcaption><b>level1_pick · WARN</b>目标物不够清晰，材质和裁切让 pick object 难以确认；只能作为失败样例，不能作为验收图。</figcaption>
         </figure>
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-place.jpg" alt="level1_place target platform render after EBench LabUtopia asset loading">
-          <figcaption><b>level1_place</b>Pick up beaker and place on target platform. 当前 target platform 可见；beaker 与 target 的相对布局仍需做 reset 后截图闭环。</figcaption>
+          <figcaption><b>level1_place · FAIL</b>只看到 target platform，看不到 beaker，也看不到放置关系；必须通过 eval-path reset 帧重拍。</figcaption>
         </figure>
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-open-door.jpg" alt="level1_open_door drying box render after EBench LabUtopia asset loading">
-          <figcaption><b>level1_open_door</b>Open the drying box door. 当前干燥箱几何可见；door handle 与 joint/metric 的可评估闭环仍需要下一轮修复。</figcaption>
+          <figcaption><b>level1_open_door · FAIL</b>只看到箱体角落，看不到门、把手、铰链或开门状态；必须使用任务相关视角重拍。</figcaption>
         </figure>
       </div>
     </section>
@@ -622,7 +622,12 @@
             <tr>
               <td>render smoke</td>
               <td><code>labutopia_franka_render_smoke_20260622_150819</code></td>
-              <td>同一任务包跑过保存帧 smoke；eval recorder 的 <code>camera2</code> 帧为黑屏，静态直渲图作为补充可见性证据。</td>
+              <td>同一任务包跑过保存帧 smoke；eval recorder 的 <code>camera2</code> 帧为纯黑，静态直渲图已被复核为视觉证据不合格。</td>
+            </tr>
+            <tr>
+              <td>visual QA</td>
+              <td class="status-blocked"><code>WARN / FAIL / FAIL</code></td>
+              <td><code>pick</code> WARN，<code>place</code> FAIL，<code>open_door</code> FAIL；详见 2026-06-23 调研记录。</td>
             </tr>
             <tr>
               <td>pytest</td>
@@ -678,13 +683,19 @@
             <tr>
               <td>eval recorder camera2 黑屏</td>
               <td>保存过程帧时 <code>camera2</code> 输出为黑屏。</td>
-              <td>已补同一加载路径的直渲静态图，先满足 PM 可见性汇报。</td>
-              <td class="status-warn">待修复</td>
+              <td>确认三个任务各 32 帧抽样均为纯黑；直渲截图不能替代 eval-path 证据。</td>
+              <td class="status-blocked">P0 阻塞</td>
+            </tr>
+            <tr>
+              <td>当前三张渲染图未通过视觉验收</td>
+              <td><code>pick</code> 目标不清，<code>place</code> 缺 beaker，<code>open_door</code> 缺门/把手/开门状态。</td>
+              <td>降级为历史失败样例；新增调研记录和 P0-P2 render/layout closure 计划。</td>
+              <td class="status-blocked">待重拍</td>
             </tr>
             <tr>
               <td>可见 mesh 与 wrapper pose 未完全对齐</td>
               <td>部分对象 bbox、wrapper pose、任务语义坐标存在偏移，影响截图和后续可评性判断。</td>
-              <td>报告中降级为“资产可见性证据”，不宣称任务布局验收完成。</td>
+              <td>报告中降级为“历史失败样例”，不宣称任务布局或资产可见性验收完成。</td>
               <td class="status-warn">待闭环</td>
             </tr>
             <tr>
@@ -713,7 +724,7 @@
             <li>LabUtopia Franka POC 已经能通过 GenManip/EBench server-client 链路本地跑完。</li>
             <li>三个 level-1 任务能完成 reset/step/finalize，并生成 per-task 和 final result。</li>
             <li>Franka POC 的 LabUtopia scene overlay 加载路径已经验证。</li>
-            <li>已补三张通过同一 EBench/GenManip 加载路径抓取的静态可见性截图。</li>
+            <li>当前三张渲染图已经完成复核，并明确判定为不合格历史样例。</li>
           </ul>
         </div>
         <div class="panel blocked">
@@ -721,7 +732,7 @@
           <ul>
             <li>不能说任务已经求解成功，当前默认动作得分是 <code>0.0</code>。</li>
             <li>不能说官方 Lift2 baseline 已经可评，Lift2 复合资产和官方 runner 还没闭环。</li>
-            <li>不能说画面/视频/任务布局已经验收，当前只有静态可见性补证。</li>
+            <li>不能说画面/视频/任务布局已经验收；当前三张图视觉 QA 未通过，eval <code>camera2</code> 仍是黑屏。</li>
           </ul>
         </div>
       </div>
@@ -732,28 +743,38 @@
       <div class="timeline">
         <div class="milestone">
           <span class="tag">P0</span>
-          <h3>渲染和布局闭环</h3>
-          <p>先修复 <code>camera2</code> 黑屏、对象 bbox/pose 偏移和 reset 后关键截图，再进入 Lift2 资产预检。</p>
+          <h3>Camera 黑屏诊断</h3>
+          <p>定位 eval recorder <code>camera2</code> 黑屏是 pose、lighting、render product 绑定还是 readback 问题，并输出 object pose/bbox/projection 诊断。</p>
         </div>
         <div class="milestone">
           <span class="tag">P1</span>
-          <h3>Lift2 资产预检</h3>
-          <p>构建复合资产根目录：LabUtopia scene overlay + 默认 <code>robot_usds/lift2</code> + 默认 <code>miscs/curobo</code>。</p>
+          <h3>Reset 布局显式化</h3>
+          <p>把 task position_range、必看对象和任务特定相机要求落成可验证的 reset-time 布局，先让三任务关键对象进入画面。</p>
         </div>
         <div class="milestone">
           <span class="tag">P2</span>
+          <h3>Eval-path 重拍验收</h3>
+          <p>用正常 eval recorder 重新抓三任务关键帧，写 evidence manifest，并要求三张报告图独立视觉 QA 全部 <code>PASS</code>。</p>
+        </div>
+        <div class="milestone">
+          <span class="tag">P3</span>
+          <h3>Lift2 资产预检</h3>
+          <p>渲染/布局证据通过后，再构建复合资产根目录：LabUtopia scene overlay + 默认 <code>robot_usds/lift2</code> + 默认 <code>miscs/curobo</code>。</p>
+        </div>
+        <div class="milestone">
+          <span class="tag">P4</span>
           <h3>Lift2 dry smoke</h3>
           <p>在独立端口运行 <code>lift2_candidate</code>，要求 3/3 complete，但仍保持 <code>official_baseline_execution=false</code>。</p>
         </div>
         <div class="milestone">
-          <span class="tag">P3</span>
+          <span class="tag">P5</span>
           <h3>官方 runner 发现</h3>
           <p>定位官方 EBench/OpenPI/Lift2 runner 文件，记录路径、hash 和入口，不直接执行策略。</p>
         </div>
         <div class="milestone">
-          <span class="tag">P4</span>
+          <span class="tag">P6</span>
           <h3>官方式本地尝试</h3>
-          <p>只有 P3 过后，才做一轮官方风格 online loop，并保留 terminal evidence。</p>
+          <p>只有 P5 过后，才做一轮官方风格 online loop，并保留 terminal evidence。</p>
         </div>
       </div>
     </section>
@@ -782,8 +803,18 @@
             </tr>
             <tr>
               <td>Franka render smoke 记录</td>
-              <td>三任务渲染补证、camera2 黑屏和当前风险边界。</td>
+              <td>三任务失败渲染样例、camera2 黑屏和当前风险边界。</td>
               <td><a href="../../../labutopia_lab_poc/franka_render_smoke.md">打开</a></td>
+            </tr>
+            <tr>
+              <td>Render visual investigation</td>
+              <td>6/23 多角度复核：当前三张图未通过视觉验收，camera2 为纯黑。</td>
+              <td><a href="../../../labutopia_lab_poc/render_visual_investigation_20260623.md">打开</a></td>
+            </tr>
+            <tr>
+              <td>Render/layout closure plan</td>
+              <td>P0-P2 修复计划：camera 诊断、reset 布局、eval-path 重拍和视觉 QA。</td>
+              <td><a href="../../../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md">打开</a></td>
             </tr>
             <tr>
               <td>Lift2 baseline lane plan</td>

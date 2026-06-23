@@ -6,7 +6,7 @@ Date: 2026-06-22
 
 This record tracks the render evidence added for the LabUtopia Franka POC weekly report.
 
-The render evidence is PM-facing asset-visibility evidence only. It does not prove task success, official baseline readiness, video recording readiness, or correct reset-time task layout.
+The render evidence is historical failed evidence. It does not prove asset visibility, task success, official baseline readiness, video recording readiness, or correct reset-time task layout.
 
 ## Environment
 
@@ -60,7 +60,7 @@ Observed implication:
 eval recorder camera2: not usable for PM visual evidence yet
 ```
 
-To keep the weekly report useful while preserving claim boundaries, the report uses static direct-render screenshots from the same EBench/GenManip-loaded LabUtopia stage and the same overlay asset root. The direct render only changes report lighting and camera viewpoint. It does not change task configuration, evaluator logic, or result scores.
+The initial weekly report used static direct-render screenshots from the same EBench/GenManip-loaded LabUtopia stage and the same overlay asset root. Follow-up visual QA on 2026-06-23 found those screenshots are not acceptable as task-scene evidence. The direct render changed report lighting and camera viewpoint, and it did not prove task configuration, evaluator logic, result scores, or reset-time visual correctness.
 
 ## Report images
 
@@ -72,15 +72,22 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg
 ```
 
-Interpretation:
+Follow-up visual QA:
 
-- `level1_pick`: static visibility of the loaded local tabletop target asset.
-- `level1_place`: static visibility of the loaded target platform asset.
-- `level1_open_door`: static visibility of the loaded drying-box geometry.
+- `level1_pick`: WARN. Some object-like shapes are visible, but the pick target is not clearly identifiable.
+- `level1_place`: FAIL. Only the target platform/slab is visible; the beaker and place relation are missing.
+- `level1_open_door`: FAIL. Only a drying-box corner/cuboid is visible; door, handle, hinge, and open state are not identifiable.
 
 ## Open risks
 
-- Fix eval recorder `camera2` black frames.
+- Fix eval recorder `camera2` black frames and prove camera readback before recorder writing.
 - Close the gap between visible mesh bbox, wrapper pose, and task semantic coordinates.
+- Make LabUtopia reset-time task layout explicit instead of relying on fallback live-scene metadata.
 - Capture reset-time keyframes for all three tasks through the normal eval recording path.
+- Replace the current report images only after independent visual QA passes.
 - Keep official Lift2 baseline claims blocked until Lift2 composite assets and official runner discovery are complete.
+
+## Follow-up Records
+
+- [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](render_visual_investigation_20260623.md)
+- [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
