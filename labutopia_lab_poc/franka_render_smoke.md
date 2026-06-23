@@ -60,6 +60,30 @@ Observed implication:
 eval recorder camera2: not usable for PM visual evidence yet
 ```
 
+Follow-up eval-path diagnostics on 2026-06-23 narrowed the failure boundary:
+
+```text
+level1_pick: readback_black_before_recorder
+level1_place: readback_black_before_recorder
+level1_open_door: readback_black_before_recorder
+```
+
+That means the frame is already pure black immediately after `get_eval_camera_data()` and before `EpisodeRecorder` writes PNG files. Recorder writing is therefore ruled out as the primary black-frame source.
+
+Diagnostic runs:
+
+```text
+saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/diagnostics.json
+```
+
+Evidence manifest:
+
+```text
+docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json
+```
+
 The initial weekly report used static direct-render screenshots from the same EBench/GenManip-loaded LabUtopia stage and the same overlay asset root. Follow-up visual QA on 2026-06-23 found those screenshots are not acceptable as task-scene evidence. The direct render changed report lighting and camera viewpoint, and it did not prove task configuration, evaluator logic, result scores, or reset-time visual correctness.
 
 ## Report images
@@ -80,9 +104,11 @@ Follow-up visual QA:
 
 ## Open risks
 
-- Fix eval recorder `camera2` black frames and prove camera readback before recorder writing.
+- Fix eval recorder `camera2` black frames at the source. Readback is now proven black before recorder writing.
 - Close the gap between visible mesh bbox, wrapper pose, and task semantic coordinates.
 - Make LabUtopia reset-time task layout explicit instead of relying on fallback live-scene metadata.
+- Fix LabUtopia asset import/layout red flags: selected objects are still in source-lab coordinates, and the open-door handle is imported as an invalid independent child transform.
+- Add deterministic lighting to the runtime overlay before accepting any render evidence.
 - Capture reset-time keyframes for all three tasks through the normal eval recording path.
 - Replace the current report images only after independent visual QA passes.
 - Keep official Lift2 baseline claims blocked until Lift2 composite assets and official runner discovery are complete.

@@ -1,0 +1,94 @@
+{
+  "date": "2026-06-23",
+  "commit": "2517e8e625e2ac2b68d5d4f815a7ede04337cf8b",
+  "direct_render": false,
+  "official_baseline_execution": false,
+  "task_render_accepted": false,
+  "official_baseline_evaluable": false,
+  "summary": "Three LabUtopia Franka POC eval-path diagnostics prove camera2 RGB is already black immediately after get_eval_camera_data(), before EpisodeRecorder writes PNG files.",
+  "environment": {
+    "conda_env": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310",
+    "config": "ebench/labutopia_lab_poc/franka_poc",
+    "port_label": 18091,
+    "asset_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "camera_config": "configs/cameras/labutopia_franka_poc.yml"
+  },
+  "diagnostics": {
+    "level1_pick": {
+      "run_id": "labutopia_render_diag_pick_20260623_070712",
+      "diagnostics_json": "saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/diagnostics.json",
+      "boundary_classification": "readback_black_before_recorder",
+      "readback_frame": "saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/readback_after_get_eval_camera_data/camera2/00000.png",
+      "recorder_frame": "saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/recorder_png/camera2/00000.png",
+      "sha256": "3f4d71b63cd17da7aeda885c59160ea2e69ed17cfc27915ffaffe7f874e1b95c",
+      "channel_max": [0.0, 0.0, 0.0],
+      "nonzero_pixels": 0,
+      "visual_qa": "FAIL"
+    },
+    "level1_place": {
+      "run_id": "labutopia_render_diag_level1_place_20260623_070855",
+      "diagnostics_json": "saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/diagnostics.json",
+      "run_log": "saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/run.log",
+      "boundary_classification": "readback_black_before_recorder",
+      "readback_frame": "saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/readback_after_get_eval_camera_data/camera2/00000.png",
+      "recorder_frame": "saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/recorder_png/camera2/00000.png",
+      "sha256": "3f4d71b63cd17da7aeda885c59160ea2e69ed17cfc27915ffaffe7f874e1b95c",
+      "channel_max": [0.0, 0.0, 0.0],
+      "nonzero_pixels": 0,
+      "visual_qa": "FAIL"
+    },
+    "level1_open_door": {
+      "run_id": "labutopia_render_diag_level1_open_door_20260623_070933",
+      "diagnostics_json": "saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/diagnostics.json",
+      "run_log": "saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/run.log",
+      "boundary_classification": "readback_black_before_recorder",
+      "readback_frame": "saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/readback_after_get_eval_camera_data/camera2/00000.png",
+      "recorder_frame": "saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/recorder_png/camera2/00000.png",
+      "sha256": "3f4d71b63cd17da7aeda885c59160ea2e69ed17cfc27915ffaffe7f874e1b95c",
+      "channel_max": [0.0, 0.0, 0.0],
+      "nonzero_pixels": 0,
+      "visual_qa": "FAIL"
+    }
+  },
+  "camera2": {
+    "prim_path": "/Camera/LabUtopiaCamera2",
+    "render_product_path": "/Render/RenderProduct_Replicator_01",
+    "render_product_camera_relationship_target": "/Camera/LabUtopiaCamera2",
+    "world_position": [0.10000000149011612, 0.0, 2.5],
+    "world_orientation": [-0.7071067811865475, -3.061617183860266e-17, 3.061617183860266e-17, 0.7071067811865476]
+  },
+  "layout_red_flags": {
+    "obj_conical_bottle02": {
+      "world_position": [10.23592472076416, 0.12754562497138977, 0.285481333732605],
+      "local_scale": [0.00009999999747378752, 0.00009999999747378752, 0.00009999999747378752]
+    },
+    "obj_beaker2": {
+      "world_position": [9.747695922851562, 0.6008090972900391, 0.07486330717802048],
+      "local_scale": [1.0, 1.0, 1.0]
+    },
+    "obj_target_plat": {
+      "world_position": [8.589698791503906, 0.0, 0.30000001192092896],
+      "local_scale": [0.10000000149011612, 0.10000000149011612, 0.00009999999747378752]
+    },
+    "obj_DryingBox_01": {
+      "world_position": [45.883541107177734, 1.9118263721466064, 0.0000010597782420518342],
+      "local_scale": [0.0010000000474974513, 0.0010000000474974513, 0.0010000000474974513]
+    },
+    "obj_DryingBox_01_handle": {
+      "world_position": [-148.7632293701172, -294.39349365234375, 328.591552734375],
+      "local_scale": [1.0, 1.0, 1.0]
+    }
+  },
+  "claim_boundary": {
+    "allowed": [
+      "LabUtopia Franka POC wiring smoke completes and writes result files.",
+      "Runtime diagnostics prove camera2 black frames are upstream of EpisodeRecorder writing."
+    ],
+    "blocked": [
+      "PM-ready task render evidence.",
+      "Eval video readiness.",
+      "Reset-time task layout acceptance.",
+      "Official Lift2 baseline evaluability or score."
+    ]
+  }
+}
