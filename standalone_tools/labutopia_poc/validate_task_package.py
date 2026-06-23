@@ -70,17 +70,21 @@ EXPECTED_FRANKA_TASK_CAMERA2_CONTRACTS = {
         "position": [0.28, -0.55, 1.2],
         "orientation": [0.87184, 0.4898, 0.0, 0.0],
         "resolution": [512, 512],
+        "focal_length": 5.6,
+        "horizontal_aperture": 10.0,
     },
     "level1_place": {
         "position": [0.26, -0.7, 1.32],
         "orientation": [0.87184, 0.4898, 0.0, 0.0],
         "resolution": [512, 512],
+        "focal_length": 10.0,
+        "horizontal_aperture": 10.0,
     },
     "level1_open_door": {
         "position": [0.75, -0.56, 1.02],
         "orientation": [0.87184, 0.4898, 0.0, 0.0],
         "resolution": [512, 512],
-        "focal_length": 5.0,
+        "focal_length": 5.4,
         "horizontal_aperture": 10.0,
     },
 }
@@ -89,31 +93,31 @@ EXPECTED_RENDER_PIXEL_THRESHOLDS = {
         "obj_conical_bottle02": {
             "min_width_px": 36,
             "min_height_px": 48,
-            "min_area_fraction": 0.01,
+            "min_bbox_area_fraction": 0.01,
         },
     },
     "level1_place": {
         "obj_beaker2": {
             "min_width_px": 34,
             "min_height_px": 34,
-            "min_area_fraction": 0.008,
+            "min_bbox_area_fraction": 0.008,
         },
         "obj_target_plat": {
             "min_width_px": 42,
             "min_height_px": 24,
-            "min_area_fraction": 0.006,
+            "min_bbox_area_fraction": 0.006,
         },
     },
     "level1_open_door": {
         "obj_DryingBox_01": {
             "min_width_px": 160,
             "min_height_px": 150,
-            "min_area_fraction": 0.12,
+            "min_bbox_area_fraction": 0.12,
         },
         "obj_DryingBox_01_handle": {
             "min_width_px": 18,
             "min_height_px": 64,
-            "min_area_fraction": 0.004,
+            "min_bbox_area_fraction": 0.004,
         },
     },
 }
@@ -167,6 +171,7 @@ EXPECTED_DRYING_BOX_VISUAL_AFFORDANCE_TOKENS = [
     "double3 xformOp:translate = (0.18, -0.174, 0.05)",
     "double3 xformOp:translate = (0.18, -0.22, 0.05)",
     "double3 xformOp:scale = (0.075, 0.014, 0.28)",
+    "double3 xformOp:scale = (0.045, 0.075, 0.25)",
     "point3f physics:localPos0 = (0.18, -0.10, 0.04)",
 ]
 EXPECTED_FRANKA_CAMERA_AXES = {

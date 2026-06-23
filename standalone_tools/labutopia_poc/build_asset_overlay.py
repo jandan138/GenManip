@@ -574,7 +574,7 @@ def _drying_box_surrogate_def(runtime_key: str) -> str:
         f"{_visual_cube_def('door_top_seam', translate=[0, -0.168, 0.225], scale=[0.52, 0.012, 0.012], color=seam_color, material_path=f'{root_path}/Looks/door_seam_mat')}\n"
         f"{_visual_cube_def('door_bottom_seam', translate=[0, -0.168, -0.205], scale=[0.52, 0.012, 0.012], color=seam_color, material_path=f'{root_path}/Looks/door_seam_mat')}\n"
         f"{_visual_cube_def('handle_mount_backplate', translate=[0.18, -0.174, 0.05], scale=[0.075, 0.014, 0.28], color=handle_mount_color, material_path=f'{root_path}/Looks/handle_mount_mat')}\n"
-        f"{_rigid_cube_def('handle', translate=[0.18, -0.22, 0.05], scale=[0.08, 0.06, 0.24], color=handle_color, mass=0.1, diagonal_inertia=[0.002, 0.002, 0.002], material_path=f'{root_path}/Looks/handle_mat')}\n"
+        f"{_rigid_cube_def('handle', translate=[0.18, -0.22, 0.05], scale=[0.045, 0.075, 0.25], color=handle_color, mass=0.1, diagonal_inertia=[0.002, 0.002, 0.002], material_path=f'{root_path}/Looks/handle_mat')}\n"
         f'            def PhysicsFixedJoint "BaseFixedJoint"\n'
         f"            {{\n"
         f"                point3f physics:localPos0 = (0, 0, 0)\n"

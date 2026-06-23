@@ -76,6 +76,8 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
     assert "double3 xformOp:translate = (0.18, -0.174, 0.05)" in scene_usda
     assert "double3 xformOp:scale = (0.075, 0.014, 0.28)" in scene_usda
     assert "double3 xformOp:translate = (0.18, -0.22, 0.05)" in scene_usda
+    assert "double3 xformOp:scale = (0.045, 0.075, 0.25)" in scene_usda
+    assert "double3 xformOp:scale = (0.08, 0.06, 0.24)" not in scene_usda
     assert 'def Cube "handle_visual_marker"' not in scene_usda
     assert "double3 xformOp:translate = (0.18, -0.165, 0.05)" not in scene_usda
     assert "double3 xformOp:scale = (0.035, 0.06, 0.18)" not in scene_usda

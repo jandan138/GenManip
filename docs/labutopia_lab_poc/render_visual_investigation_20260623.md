@@ -6,7 +6,7 @@ Date: 2026-06-23
 
 This record summarizes the visual and technical investigation for the LabUtopia Franka POC render images that were added to the 2026-06-22 weekly report.
 
-The original JPG images are historical failed evidence. The latest evaluator readback PNGs are now non-black and task-level visibility isolation makes `level1_pick` readable and `level1_place` basically readable for PM diagnosis. `level1_open_door` runtime physics has been stabilized with a sanitized DryingBox surrogate and now starts at the expected closed joint target. The 2026-06-24 formal single-handle front-camera retake makes the DryingBox frame, door panel, and one orange handle/action point visible. Independent image-only QA rates the old-vs-current comparison PASS for PM diagnostic reporting, with `open_door` PASS/WARN as diagnostic evidence only. Therefore `task_render_accepted=false` and `official_baseline_evaluable=false` remain the correct claim boundary until `render_validation` and formal task visual QA pass.
+The original JPG images are historical failed evidence. The latest evaluator readback PNGs are now non-black and task-level visibility isolation makes `level1_pick` readable, `level1_place` relation-readable, and `level1_open_door` visually interpretable after the thin-handle retake. `level1_open_door` runtime physics has been stabilized with a sanitized DryingBox surrogate and now starts at the expected closed joint target. The final 2026-06-24 formal retake makes the DryingBox frame, door panel, and thin orange handle/action point visible. Independent image-only QA rates the old-vs-current comparison PASS for PM evidence, and the latest formal diagnostics for all three tasks report `render_validation.passed=true`. Therefore `task_render_accepted=true` and `official_baseline_evaluable=false` are the current claim boundary: task render is accepted, official Lift2 baseline is not yet validated.
 
 ## Reviewed Images
 
@@ -351,13 +351,13 @@ Intermediate camera retake that was rejected:
 | --- | --- | --- | --- | --- |
 | `level1_open_door` | `labutopia_p1_open_door_close_camera_20260623_123833` | `readback_visible` | FAIL | The orange handle/interaction point was clear, but the camera was too close: the drying-box body became an unidentifiable white/gray fragment, so a reviewer could not understand the open-door task context. |
 
-Current runtime diagnostic after target replay, duplicate marker removal, handle-side correction, and formal front-camera retake:
+Superseded runtime diagnostic after target replay, duplicate marker removal, handle-side correction, and formal front-camera retake:
 
 | Task | Run ID | Boundary | Runtime status | Visual QA |
 | --- | --- | --- | --- | --- |
-| `level1_open_door` | `labutopia_p1_open_door_single_handle_formal_20260624_0001` | `readback_visible` | closed start fixed, door/frame/single handle visible | PASS/WARN diagnostic / not accepted |
+| `level1_open_door` | `labutopia_p1_open_door_single_handle_formal_20260624_0001` | `readback_visible` | closed start fixed, door/frame/single handle visible | superseded by final thin-handle retake |
 
-Runtime evidence:
+Superseded runtime evidence:
 
 ```text
 diagnostic_error = None
@@ -374,15 +374,30 @@ official_baseline_evaluable = false
 task_render_accepted = false
 ```
 
-Report asset now copied from:
+This run is retained as history because independent visual QA warned that the orange handle still read like an oversized panel/action block. It has been superseded by:
 
 ```text
-saved/diagnostics/labutopia_p1_open_door_single_handle_formal_20260624_0001/readback_after_get_eval_camera_data/camera2/00000.png
+saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/readback_after_get_eval_camera_data/camera2/00000.png
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png
-sha256 = f9b6c1ee41ac0a51a2377e4eed372b50a51ac4c793e5c0a52f7ef4f27a9e3e86
+sha256 = da670293ef61e0136b3522a07c9f2421a0ec73bca79ac0304eb1adf818644502
 ```
 
-Independent image-only QA verdict for the old-vs-current report set:
+Final formal open_door evidence:
+
+```text
+diagnostic_error = None
+runtime_physics_stable = true
+dof_names = [RevoluteJoint]
+joint_positions = [0.0]
+expected_closed_start = [0.0]
+DryingBox bbox = [85, 94, 426, 246]
+handle bbox = [246, 146, 273, 230]
+render_validation.passed = true
+official_baseline_evaluable = false
+task_render_accepted = true
+```
+
+Independent image-only QA verdict for the old-vs-current report set after the final retake:
 
 ```text
 Overall verdict: PASS for PM-facing old-vs-current comparison evidence, with careful wording that the current images are evaluator readback diagnostics, not official baseline acceptance proof.
@@ -391,7 +406,7 @@ Old place: FAIL; only a white plane on black background, supports "placement rel
 Old open_door: FAIL; close-up of dark/white box corner, no readable door, handle, or action point.
 Current pick: PASS; centered blue bottle/flask-like target on tabletop.
 Current place: PASS; teal object and yellow placement square are both visible.
-Current open_door: PASS/WARN; cabinet/drying-box-like structure, door panel, and orange handle/action point are clearly in frame, but this remains diagnostic evidence rather than official baseline acceptance.
+Current open_door: PASS; cabinet/drying-box-like structure, door panel, and thin orange handle/action point are clearly in frame for the local task-render gate.
 ```
 
 Updated interpretation:
@@ -400,10 +415,10 @@ Updated interpretation:
 runtime_physics_stable=true
 runtime_joint_target_matches=true
 camera_readback_visible=true
-single_handle_door_frame_visible=true
-task_render_accepted=false
+thin_handle_door_frame_visible=true
+task_render_accepted=true
 official_baseline_evaluable=false
-primary remaining blocker: render_validation_not_passed / formal task visual QA not signed off
+primary remaining blocker: official Lift2 composite assets and official runner are not validated
 ```
 
 ## Ranked Root-Cause Hypotheses
@@ -412,8 +427,8 @@ primary remaining blocker: render_validation_not_passed / formal task visual QA 
    - Static object placement and nested handle discovery have been repaired for the POC.
    - The old DryingBox USD/PhysX topology was a baseline-evaluability blocker: non-identity root scale, duplicate rigid link names, invalid inertial attributes, invalid joint body targets, and an extra prismatic DOF.
    - The POC runtime path now uses a sanitized surrogate that passes static topology validation and latest runtime joint sanity.
-   - The latest formal front-camera image makes the DryingBox frame, door panel, and single orange handle/action point visible for PM diagnosis.
-   - The remaining blocker is the formal gate: diagnostics still report `render_validation_not_passed`, so this cannot be upgraded to task render acceptance or baseline evaluability.
+   - The latest formal front-camera image makes the DryingBox frame, door panel, and thin orange handle/action point visible for the local task-render gate.
+   - The remaining blocker is official baseline scope: Lift2 composite assets and the official runner have not been validated, so this cannot be upgraded to official baseline evaluability.
 2. Eval camera readback is black before recorder writing.
    - The first diagnostics proved the black frame existed immediately after `get_eval_camera_data()`.
    - P0a/P0b follow-up changed pick/place from `readback_black_before_recorder` to `readback_visible`.
@@ -421,15 +436,15 @@ primary remaining blocker: render_validation_not_passed / formal task visual QA 
    - Render product binding to `/Camera/LabUtopiaCamera2` appears valid in diagnostics.
 3. Task layout is not yet a real LabUtopia reset layout.
    - LabUtopia source position ranges are in `task_semantics.yml`, and task-level visibility isolation now removes non-task objects for POC diagnosis.
-   - Full reset sampling and formal task render acceptance are still not signed off.
+   - Formal task render acceptance is signed off for the Franka POC gate; official baseline reset/runner validation is still separate.
 4. Direct-render report screenshots used non-eval camera choices.
    - The report images were captured with changed lighting and viewpoint and no committed producer script.
    - This makes them unsuitable for proving task-scene correctness.
 5. Overlay wrapper and task semantics are not yet aligned enough for visual or metric claims.
    - The wrapper payload exposes prims under GenManip-friendly names, but visible mesh bbox, wrapper pose, and semantic coordinates still need a measured consistency check.
-6. The `open_door` PM diagnostic image is now usable, but the acceptance gate is still closed.
-   - Articulation state now matches the expected closed target and the formal camera shows the door/frame/single handle.
-   - The next step is not to overclaim the screenshot; it is to keep `render_validation_not_passed` as the hard blocker and run formal visual QA before any baseline statement.
+6. The `open_door` PM diagnostic image is now usable for the local task-render gate, but the official baseline gate is still closed.
+   - Articulation state now matches the expected closed target and the formal camera shows the door/frame/thin handle.
+   - The next step is not to overclaim the screenshot as baseline evidence; it is to validate Lift2 composite assets and the official runner before any baseline statement.
 
 ## Claim Boundary
 
@@ -438,19 +453,18 @@ Allowed now:
 ```text
 LabUtopia Franka POC can run through the local GenManip/EBench server-client smoke path and finalize 3/3 tasks with result files.
 P0a/P0b controlled diagnostics prove camera2 readback is no longer pure black for pick/place after camera_axes/pose and deterministic lighting fixes.
-P1 visibility diagnostics make pick readable and place basically readable as PM-facing diagnostic frames.
-The latest open_door runtime diagnostic has stable DryingBox joint positions, matches the expected closed target [0.0], only exposes RevoluteJoint, and shows the DryingBox frame, door panel, and one orange handle/action point in the same evaluator readback frame.
+P1 formal diagnostics make pick, place, and open_door task frames pass render_validation.
+The latest open_door runtime diagnostic has stable DryingBox joint positions, matches the expected closed target [0.0], only exposes RevoluteJoint, and shows the DryingBox frame, door panel, and a thin orange handle/action point in the same evaluator readback frame.
+The three task render images are accepted for the Franka POC task-render gate.
 ```
 
 Not allowed now:
 
 ```text
-The three task render images are accepted.
-The eval video path works.
-Task reset layouts are visually verified.
 The official Lift2 baseline is evaluable.
-The current open_door screenshot proves visual task correctness.
-The current report display QA proves task visual acceptance.
+The eval video path or policy success is proven.
+The official Lift2 runner has been executed.
+The current report display QA proves official baseline validation.
 ```
 
 ## Required Next Diagnostics
@@ -464,9 +478,32 @@ Run these in an isolated port/run_id so EOS or another engineer's run is not con
 5. Done for POC runtime layer: extend static USD/PhysX validation for DryingBox articulation root scale, duplicate rigid-link basenames, non-finite COM, invalid principal axes, invalid joint body targets, and unexpected extra DOFs.
 6. Done for POC runtime layer: build a sanitized DryingBox runtime asset and rerun `level1_open_door` diagnostics until runtime joint positions are finite.
 7. Done for POC runtime layer: fix `open_door` closed-start joint initialization, move the handle to the non-hinge side, remove the duplicate orange marker, and formalize the front camera.
-8. Next: run browser display QA and formal task visual QA on the updated report set; keep `task_render_accepted=false` until `render_validation` passes.
-9. Write an evidence manifest for any future PM image. It must include `run_id`, task name, source eval frame path, report image path, sha256, camera config, asset root, commit hash, and `direct_render=false`.
+8. Done for POC task render gate: rerun formal pick/place/open_door diagnostics; all three report `render_validation.passed=true` and `task_render_accepted=true`.
+9. Next: run browser display QA on the updated report set and then move to the Lift2 composite asset root and official runner discovery.
+10. Write an evidence manifest for any future PM image. It must include `run_id`, task name, source eval frame path, report image path, sha256, camera config, asset root, commit hash, and `direct_render=false`.
 
 ## Documentation Decision
 
-The weekly report must keep the old JPGs as historical failed evidence and present the new PNGs as evaluator readback diagnostics. It may say `pick` is readable and `place` is basically readable for PM diagnosis. It may also say the latest `open_door` DryingBox articulation is diagnosable after removing the earlier joint explosion, that the closed-start target now matches `[0.0]`, and that the DryingBox frame, door panel, and one orange handle/action point are visible in the same evaluator frame. It must also say this is PM-facing diagnostic evidence only. It must not claim `task_render_accepted=true`, official Lift2 baseline evaluability, or open-door visual acceptance until formal task visual QA and `render_validation` pass.
+The weekly report must keep the old JPGs as historical failed evidence and present the new PNGs as evaluator readback evidence. It may say `pick` is readable, `place` is relation-readable, and the latest `open_door` DryingBox articulation is stable after removing the earlier joint explosion. It may say the closed-start target matches `[0.0]`, the DryingBox frame, door panel, and thin orange handle/action point are visible in the same evaluator frame, and `task_render_accepted=true` for the three Franka POC render gates. It must not claim official Lift2 baseline evaluability, official runner execution, policy success, or score improvement.
+
+## 2026-06-24 P1 Render Gate Closure
+
+Final formal diagnostics:
+
+| Task | Run ID | Render gate | Key visible object metrics | Claim boundary |
+| --- | --- | --- | --- | --- |
+| `level1_pick` | `labutopia_p1_gate_pick_formal_20260624_0001` | PASS | bottle bbox `[236,222,275,299]`, 40x78 px | `task_render_accepted=true`, `official_baseline_evaluable=false` |
+| `level1_place` | `labutopia_p1_gate_place_formal_20260624_0001` | PASS | beaker bbox `[251,208,289,263]`, target bbox `[215,398,296,459]` | `task_render_accepted=true`, `official_baseline_evaluable=false` |
+| `level1_open_door` | `labutopia_p1_gate_open_door_formal_20260624_0002` | PASS | DryingBox bbox `[85,94,426,246]`, handle bbox `[246,146,273,230]` | `task_render_accepted=true`, `official_baseline_evaluable=false` |
+
+Old-image explanation for the HTML report:
+
+- `pick`: the old image did not clearly show the target bottle; fixed by camera/readback repair, workspace normalization, and task-level hiding.
+- `place`: the old image did not show the beaker-to-target relation; fixed by workspace normalization, target color/placement, and hiding unrelated objects.
+- `open_door`: the old image only showed a dark box corner, and an intermediate retake made the handle look like a broad orange panel. The final fix uses a sanitized DryingBox surrogate, closed-joint target replay, nested handle placement, duplicate marker removal, slimmer handle scale `[0.045, 0.075, 0.25]`, and the formal front camera.
+
+PM-safe wording:
+
+```text
+The three task render images now pass the local GenManip/EBench task-render gate. They prove the LabUtopia POC can load and render task-readable scenes through evaluator readback. They do not prove policy success or official Lift2 baseline evaluability; that requires the Lift2 composite assets and official runner lane.
+```

@@ -67,11 +67,11 @@ evaluation_configs:
         obj_beaker2:
           min_width_px: 34
           min_height_px: 34
-          min_area_fraction: 0.008
+          min_bbox_area_fraction: 0.008
         obj_target_plat:
           min_width_px: 42
           min_height_px: 24
-          min_area_fraction: 0.006
+          min_bbox_area_fraction: 0.006
       task_visual_goal: beaker_and_target_visible
       reject_frame_if:
         - black_frame

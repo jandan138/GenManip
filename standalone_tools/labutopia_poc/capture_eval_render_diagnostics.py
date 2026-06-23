@@ -182,8 +182,10 @@ def build_claim_boundary(
     runtime_physics_stable: bool,
     diagnostic_completed: bool = True,
     diagnostic_error: dict[str, Any] | None = None,
+    official_baseline_validated: bool = False,
 ) -> dict[str, Any]:
     blockers: list[str] = []
+    baseline_blockers: list[str] = []
     if not diagnostic_completed:
         blockers.append("runtime_diagnostic_not_completed")
     if diagnostic_error is not None:
@@ -196,11 +198,18 @@ def build_claim_boundary(
     if not runtime_physics_stable:
         blockers.append("runtime_physics_unstable")
     task_render_accepted = readback_visible and render_validation_passed
-    official_baseline_evaluable = task_render_accepted and runtime_physics_stable
+    if not official_baseline_validated:
+        baseline_blockers.append("official_baseline_not_validated")
+    official_baseline_evaluable = (
+        task_render_accepted
+        and runtime_physics_stable
+        and official_baseline_validated
+    )
     return {
         "task_render_accepted": task_render_accepted,
         "official_baseline_evaluable": official_baseline_evaluable,
         "blockers": blockers,
+        "baseline_blockers": baseline_blockers,
     }
 
 
@@ -274,6 +283,256 @@ def frame_stats_from_png(
         frame_path=frame_path,
         rgb=image_rgb,
     )
+
+
+def _resolve_frame_path(frame_path: str | Path) -> Path:
+    path = Path(frame_path)
+    if path.exists() or path.is_absolute():
+        return path
+    return REPO_ROOT / path
+
+
+def _load_rgb_png(frame_path: str | Path) -> Any:
+    import cv2
+
+    resolved = _resolve_frame_path(frame_path)
+    image_bgr = cv2.imread(str(resolved), cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise FileNotFoundError(resolved)
+    return cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+
+
+def _primary_readback_frame(
+    camera_frames: list[dict[str, object]],
+    primary_camera: str,
+) -> dict[str, object] | None:
+    matches = [
+        frame
+        for frame in camera_frames
+        if frame.get("camera_name") == primary_camera
+        and frame.get("stage") == "readback_after_get_eval_camera_data"
+    ]
+    if matches:
+        return matches[0]
+    for frame in camera_frames:
+        if frame.get("camera_name") == primary_camera:
+            return frame
+    return None
+
+
+def _rgb_channels(rgb: Any) -> tuple[Any, Any, Any]:
+    import numpy as np
+
+    arr = _normalize_rgb_array(rgb).astype(np.int16)
+    return arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+
+
+def _object_visibility_mask(rgb: Any, uid: str) -> Any:
+    import numpy as np
+
+    r, g, b = _rgb_channels(rgb)
+    chroma = np.maximum.reduce([r, g, b]) - np.minimum.reduce([r, g, b])
+    if uid == "obj_conical_bottle02":
+        return (
+            (r < 170)
+            & (g > 100)
+            & (b > 100)
+            & ((b - r) > 10)
+            & ((g - r) > 5)
+            & (chroma > 10)
+        )
+    if uid == "obj_beaker2":
+        return (
+            (r < 145)
+            & (g > 105)
+            & (b > 75)
+            & ((g - r) > 25)
+            & (chroma > 20)
+        )
+    if uid == "obj_target_plat":
+        return (
+            (r > 145)
+            & (g > 125)
+            & (b < 170)
+            & ((r - b) > 35)
+            & ((g - b) > 25)
+        )
+    if uid == "obj_DryingBox_01_handle":
+        return (
+            (r > 140)
+            & (g >= 40)
+            & (g < 175)
+            & (b < 115)
+            & ((r - b) > 70)
+            & ((r - g) > 35)
+        )
+    if uid == "obj_DryingBox_01":
+        dark_frame = (r < 95) & (g < 100) & (b < 110)
+        blue_gray_panel = (
+            (r > 70)
+            & (r < 185)
+            & (g > 75)
+            & (g < 195)
+            & (b > 80)
+            & (b < 210)
+            & ((b - r) >= 0)
+            & (chroma < 90)
+            & (chroma > 8)
+        )
+        handle = _object_visibility_mask(rgb, "obj_DryingBox_01_handle")
+        return dark_frame | blue_gray_panel | handle
+    return np.zeros(_normalize_rgb_array(rgb).shape[:2], dtype=bool)
+
+
+def _largest_component_metrics(mask: Any, *, image_width: int, image_height: int) -> dict[str, Any]:
+    import cv2
+    import numpy as np
+
+    mask_uint8 = np.asarray(mask, dtype=np.uint8)
+    component_count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(
+        mask_uint8,
+        8,
+    )
+    if component_count <= 1:
+        return {
+            "present": False,
+            "bbox": None,
+            "width_px": 0,
+            "height_px": 0,
+            "mask_area_px": 0,
+            "mask_area_fraction": 0.0,
+            "bbox_area_fraction": 0.0,
+            "severe_clipping": False,
+        }
+    largest_index = max(
+        range(1, component_count),
+        key=lambda index: int(stats[index, cv2.CC_STAT_AREA]),
+    )
+    x = int(stats[largest_index, cv2.CC_STAT_LEFT])
+    y = int(stats[largest_index, cv2.CC_STAT_TOP])
+    width = int(stats[largest_index, cv2.CC_STAT_WIDTH])
+    height = int(stats[largest_index, cv2.CC_STAT_HEIGHT])
+    area = int(stats[largest_index, cv2.CC_STAT_AREA])
+    frame_area = float(image_width * image_height)
+    clipped = (
+        x <= 1
+        or y <= 1
+        or (x + width) >= image_width - 1
+        or (y + height) >= image_height - 1
+    )
+    return {
+        "present": area > 0,
+        "bbox": [x, y, x + width - 1, y + height - 1],
+        "width_px": width,
+        "height_px": height,
+        "mask_area_px": area,
+        "mask_area_fraction": area / frame_area,
+        "bbox_area_fraction": (width * height) / frame_area,
+        "severe_clipping": clipped,
+    }
+
+
+def _passes_object_thresholds(
+    metrics: dict[str, Any],
+    thresholds: dict[str, Any],
+) -> list[str]:
+    failures: list[str] = []
+    if not metrics["present"]:
+        return ["required_object_missing"]
+    for key in ("min_width_px", "min_height_px"):
+        expected = thresholds.get(key)
+        if expected is not None:
+            metric_key = key.replace("min_", "")
+            if float(metrics[metric_key]) < float(expected):
+                failures.append(key)
+    min_bbox_area_fraction = thresholds.get("min_bbox_area_fraction")
+    if min_bbox_area_fraction is not None and float(metrics["bbox_area_fraction"]) < float(
+        min_bbox_area_fraction
+    ):
+        failures.append("min_bbox_area_fraction")
+    if metrics["severe_clipping"]:
+        failures.append("severe_clipping")
+    return failures
+
+
+def evaluate_render_validation(
+    eval_config: dict[str, Any],
+    camera_frames: list[dict[str, object]],
+) -> dict[str, Any]:
+    raw_validation = eval_config.get("labutopia_render_validation") or {}
+    validation = raw_validation if isinstance(raw_validation, dict) else {}
+    primary_camera = str(validation.get("primary_camera", "camera2"))
+    report: dict[str, Any] = {
+        "passed": False,
+        "schema_version": validation.get("schema_version"),
+        "primary_camera": primary_camera,
+        "frame_path": None,
+        "reject_rule_results": {},
+        "required_objects": {},
+        "failures": [],
+    }
+    if not isinstance(raw_validation, dict):
+        report["failures"].append("missing_render_validation_config")
+        return report
+    if validation.get("evidence_policy") != {"direct_render": False}:
+        report["failures"].append("direct_render_evidence_policy_not_disabled")
+    frame = _primary_readback_frame(camera_frames, primary_camera)
+    if frame is None:
+        report["failures"].append("primary_camera_readback_missing")
+        return report
+    report["frame_path"] = frame.get("frame_path")
+    if classify_frame_stats(frame) != "visible_frame":
+        report["reject_rule_results"]["black_frame"] = True
+        report["failures"].append("black_frame")
+        return report
+    report["reject_rule_results"]["black_frame"] = False
+    channel_min = frame.get("channel_min")
+    channel_max = frame.get("channel_max")
+    low_texture = False
+    if isinstance(channel_min, list) and isinstance(channel_max, list):
+        channel_range = max(
+            float(high) - float(low)
+            for low, high in zip(channel_min, channel_max)
+        )
+        low_texture = channel_range < 30.0
+    report["reject_rule_results"]["low_texture"] = low_texture
+    if low_texture:
+        report["failures"].append("low_texture")
+
+    try:
+        rgb = _load_rgb_png(str(frame["frame_path"]))
+    except Exception as exc:
+        report["failures"].append("primary_camera_frame_load_failed")
+        report["frame_load_error"] = repr(exc)
+        return report
+    height, width = rgb.shape[:2]
+    thresholds = validation.get("object_pixel_thresholds") or {}
+    for uid in validation.get("required_visible_objects") or []:
+        uid = str(uid)
+        object_thresholds = thresholds.get(uid, {})
+        metrics = _largest_component_metrics(
+            _object_visibility_mask(rgb, uid),
+            image_width=width,
+            image_height=height,
+        )
+        failed_thresholds = _passes_object_thresholds(metrics, object_thresholds)
+        object_report = {
+            **metrics,
+            "thresholds": object_thresholds,
+            "failed_thresholds": failed_thresholds,
+            "passed": not failed_thresholds,
+        }
+        report["required_objects"][uid] = object_report
+        if "required_object_missing" in failed_thresholds:
+            report["reject_rule_results"]["required_object_missing"] = True
+        if "severe_clipping" in failed_thresholds:
+            report["reject_rule_results"]["severe_clipping"] = True
+        for failure in failed_thresholds:
+            report["failures"].append(f"{uid}:{failure}")
+    report["reject_rule_results"].setdefault("required_object_missing", False)
+    report["reject_rule_results"].setdefault("severe_clipping", False)
+    report["passed"] = not report["failures"]
+    return report
 
 
 def _save_rgb_png(rgb: Any, frame_path: Path) -> None:
@@ -578,6 +837,10 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
         ),
+        "render_validation": {
+            "passed": False,
+            "failures": ["runtime_diagnostic_not_completed"],
+        },
         "boundary_classification": None,
         "diagnostic_error": None,
         "claim_boundary": build_claim_boundary(
@@ -666,9 +929,13 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
         )
+        diagnostics["render_validation"] = evaluate_render_validation(
+            eval_config,
+            diagnostics["camera_frames"],
+        )
         diagnostics["claim_boundary"] = build_claim_boundary(
             boundary_classification=diagnostics["boundary_classification"],
-            render_validation_passed=False,
+            render_validation_passed=bool(diagnostics["render_validation"]["passed"]),
             runtime_physics_stable=bool(
                 diagnostics["runtime_sanity"]["runtime_physics_stable"]
             ),
@@ -689,6 +956,10 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
         )
+        diagnostics["render_validation"] = {
+            "passed": False,
+            "failures": ["runtime_diagnostic_exception"],
+        }
         diagnostics["claim_boundary"] = build_claim_boundary(
             boundary_classification=diagnostics["boundary_classification"],
             render_validation_passed=False,

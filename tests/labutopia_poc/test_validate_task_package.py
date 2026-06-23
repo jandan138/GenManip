@@ -429,7 +429,7 @@ def test_franka_render_validation_declares_object_pixel_readability_thresholds()
             actual = thresholds[uid]
             assert actual["min_width_px"] >= minimums["min_width_px"]
             assert actual["min_height_px"] >= minimums["min_height_px"]
-            assert actual["min_area_fraction"] > 0.0
+            assert actual["min_bbox_area_fraction"] > 0.0
 
 
 def test_franka_tasks_hide_non_task_objects_for_evidence_readability():
@@ -646,7 +646,7 @@ def test_validate_camera_configs_rejects_open_door_lens_regression(
     _write_yaml(open_door_camera_path, open_door_cameras)
     monkeypatch.setattr(validate_task_package, "ROOT", tmp_path)
 
-    with pytest.raises(AssertionError, match="camera2 focal_length must be 5.0"):
+    with pytest.raises(AssertionError, match="camera2 focal_length must be 5.4"):
         validate_task_package._validate_camera_configs()
 
 

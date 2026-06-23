@@ -20,6 +20,8 @@ camera2:
   orientation: [0.87184, 0.4898, 0.0, 0.0]
   camera_axes: usd
   resolution: [512, 512]
+  focal_length: 5.6
+  horizontal_aperture: 10.0
   image_type: rgb
   task_view: level1_pick
   with_distance: false

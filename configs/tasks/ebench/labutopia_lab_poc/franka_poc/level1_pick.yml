@@ -67,7 +67,7 @@ evaluation_configs:
         obj_conical_bottle02:
           min_width_px: 36
           min_height_px: 48
-          min_area_fraction: 0.01
+          min_bbox_area_fraction: 0.01
       task_visual_goal: pick_target_visible
       reject_frame_if:
         - black_frame
