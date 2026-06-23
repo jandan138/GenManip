@@ -114,6 +114,42 @@ camera2 orientation in diagnostics: [-0.7071, ~0, ~0, 0.7071]
 
 The render product binding appears valid, so the most likely immediate camera-side problem is camera pose/axes or lighting/readback timing, not recorder file writing.
 
+## 2026-06-23 P0a/P0b Follow-Up
+
+P0a camera axes/pose and P0b deterministic lighting were applied after the black-frame diagnostics:
+
+```text
+camera_axes support: genmanip/utils/standalone/camera_pose_utils.py
+camera setup call site: genmanip/utils/usd_utils/camera_utils.py
+camera2 retarget: configs/cameras/labutopia_franka_poc.yml -> position [9.6, 0.0, 2.5], camera_axes: usd
+deterministic light: /World/labutopia_level1_poc/DeterministicDomeLight, DomeLight intensity 1000
+runtime overlay: /cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda
+```
+
+New controlled eval-path diagnostics:
+
+```text
+level1_pick:  saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/diagnostics.json
+level1_place: saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/diagnostics.json
+manifest:     docs/labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json
+```
+
+Observed boundary:
+
+```text
+level1_pick:  readback_visible, camera2 nonzero_pixels=65536, channel_max=[228,228,228]
+level1_place: readback_visible, camera2 nonzero_pixels=65536, channel_max=[228,228,228]
+```
+
+This closes the pure-black readback failure for the pick/place controlled P0 diagnostics. It does not close task visual acceptance. Both frames are still nearly flat gray:
+
+```text
+level1_pick:  unique RGB colors=36, RGB std ~= [1.31, 1.31, 1.30]
+level1_place: unique RGB colors=40, RGB std ~= [1.35, 1.35, 1.34]
+```
+
+Visual inspection shows a tiny gray mark on a mostly gray frame, not task-relevant objects. Therefore the next blocker remains asset/layout normalization, not recorder writing.
+
 Layout evidence:
 
 ```text
@@ -146,8 +182,9 @@ genmanip/utils/loader/scene.py
    - The open-door handle is imported as a direct child payload and appears to lose the parent drying-box transform/scale.
    - This is a baseline-evaluability blocker, not just a visual defect.
 2. Eval camera readback is black before recorder writing.
-   - The diagnostics prove the black frame exists immediately after `get_eval_camera_data()`.
-   - Candidate causes: camera axes/pose points at empty/dark view, missing deterministic lighting, or readback before valid render accumulation.
+   - The first diagnostics proved the black frame existed immediately after `get_eval_camera_data()`.
+   - P0a/P0b follow-up changed pick/place from `readback_black_before_recorder` to `readback_visible`.
+   - Remaining visual failure is near-flat, low-texture output caused by asset/layout scale and placement defects.
    - Render product binding to `/Camera/LabUtopiaCamera2` appears valid in diagnostics.
 3. Task layout is not yet a real LabUtopia reset layout.
    - LabUtopia source position ranges are in `task_semantics.yml`, but the runtime task YAMLs have empty `object_config` and null layout.
@@ -166,6 +203,7 @@ Allowed now:
 
 ```text
 LabUtopia Franka POC can run through the local GenManip/EBench server-client smoke path and finalize 3/3 tasks with result files.
+P0a/P0b controlled diagnostics prove camera2 readback is no longer pure black for pick/place after camera_axes/pose and deterministic lighting fixes.
 ```
 
 Not allowed now:
@@ -182,8 +220,8 @@ The current screenshots prove task correctness.
 
 Run these in an isolated port/run_id so EOS or another engineer's run is not confused with this work:
 
-1. Fix/validate camera axes handling in the free-camera loader path, then rerun diagnostics with only that variable changed.
-2. Add deterministic lighting to the runtime overlay, then rerun diagnostics with only lighting changed.
+1. Fix/validate camera axes handling in the free-camera loader path, then rerun diagnostics with only that variable changed. Done for P0a, with pick/place `readback_visible`.
+2. Add deterministic lighting to the runtime overlay, then rerun diagnostics with only lighting changed. Done for P0b, with static validation and pick/place `readback_visible`.
 3. Rebuild or supplement the overlay so nested LabUtopia parts preserve composed transforms, especially `DryingBox_01/handle`.
 4. Normalize selected task objects into the GenManip/Franka workspace and record explicit task reset layouts instead of relying on fallback live-scene metadata.
 5. Add static USD validation for object centers, bounds, scales, nested-part transform preservation, and at least one light.

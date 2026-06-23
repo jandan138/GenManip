@@ -41,6 +41,18 @@ EXPECTED_WRAPPER_PRIM_PATHS = {
     "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
     "table": "/World/labutopia_level1_poc/obj_table",
 }
+EXPECTED_DETERMINISTIC_LIGHTS = [
+    {
+        "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+        "type": "DomeLight",
+        "intensity": 1000,
+    }
+]
+EXPECTED_FRANKA_CAMERA_AXES = {
+    "camera1": "usd",
+    "camera2": "usd",
+}
+EXPECTED_FRANKA_CAMERA2_POSITION = [9.6, 0.0, 2.5]
 PROFILE_EXPECTATIONS = {
     "franka_poc": {
         "robot_type": "manip/franka/panda_hand",
@@ -183,6 +195,23 @@ def _validate_assets_manifest() -> None:
         manifest.get("wrapper_prim_paths") == EXPECTED_WRAPPER_PRIM_PATHS,
         f"{path}: wrapper_prim_paths must preserve GenManip key stripping",
     )
+    _assert(
+        manifest.get("deterministic_lights") == EXPECTED_DETERMINISTIC_LIGHTS,
+        f"{path}: deterministic_lights must declare the runtime wrapper light",
+    )
+    runtime_scene_text = runtime_scene.read_text(encoding="utf-8")
+    _assert(
+        'def DomeLight "DeterministicDomeLight"' in runtime_scene_text,
+        f"{runtime_scene}: missing DeterministicDomeLight",
+    )
+    _assert(
+        "float inputs:intensity = 1000" in runtime_scene_text,
+        f"{runtime_scene}: DeterministicDomeLight must have positive fixed intensity",
+    )
+    _assert(
+        "inputs:texture:file" not in runtime_scene_text,
+        f"{runtime_scene}: DeterministicDomeLight must not depend on HDR texture",
+    )
 
     generated_manifest = manifest.get("generated_manifest")
     _assert(
@@ -201,6 +230,7 @@ def _validate_assets_manifest() -> None:
         "runtime_object_keys": "runtime_object_keys",
         "wrapper_prim_paths": "wrapper_prim_paths",
         "source_to_runtime_object_key": "source_to_runtime_object_key",
+        "deterministic_lights": "deterministic_lights",
     }.items():
         _assert(
             manifest.get(common_key) == generated.get(generated_key),
@@ -236,6 +266,11 @@ def _validate_camera_configs() -> None:
         path = ROOT / expected["camera_config"]
         data = _load_yaml(path)
         _assert(isinstance(data, dict), f"{path}: expected camera mapping")
+        if profile == "franka_poc":
+            _assert(
+                set(EXPECTED_FRANKA_CAMERA_AXES).issubset(data),
+                f"{path}: franka_poc cameras must include {sorted(EXPECTED_FRANKA_CAMERA_AXES)}",
+            )
         for camera_name, camera in data.items():
             _assert(
                 isinstance(camera, dict),
@@ -245,6 +280,27 @@ def _validate_camera_configs() -> None:
             _assert(
                 not missing,
                 f"{path}:{camera_name}: {profile} camera missing cleanup flags {missing}",
+            )
+            if profile == "franka_poc":
+                expected_axes = EXPECTED_FRANKA_CAMERA_AXES.get(camera_name)
+                if expected_axes is not None:
+                    _assert(
+                        camera.get("camera_axes") == expected_axes,
+                        f"{path}:{camera_name}: camera_axes must remain {expected_axes!r}",
+                    )
+        if profile == "franka_poc":
+            camera2 = data.get("camera2", {})
+            position = camera2.get("position")
+            _assert(
+                isinstance(position, list) and len(position) == 3,
+                f"{path}:camera2 position must be a 3-vector",
+            )
+            _assert(
+                all(
+                    abs(float(actual) - expected) < 1e-6
+                    for actual, expected in zip(position, EXPECTED_FRANKA_CAMERA2_POSITION)
+                ),
+                f"{path}:camera2 position must remain {EXPECTED_FRANKA_CAMERA2_POSITION!r}",
             )
 
 

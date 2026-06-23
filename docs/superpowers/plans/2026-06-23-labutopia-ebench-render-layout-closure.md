@@ -58,13 +58,17 @@ Current status as of 2026-06-23:
 ```text
 Diagnostic helper and runtime capture script exist.
 tests/labutopia_poc/test_render_diagnostics_contract.py: 2 passed
-tests/labutopia_poc: 25 passed, 1 skipped
+LabUtopia POC regression tests: 34 passed, 1 skipped
 level1_pick: readback_black_before_recorder
 level1_place: readback_black_before_recorder
 level1_open_door: readback_black_before_recorder
+after P0a/P0b:
+level1_pick: readback_visible, low-texture frame, not task accepted
+level1_place: readback_visible, low-texture frame, not task accepted
+level1_open_door: not revalidated; remains blocked by asset/layout work
 ```
 
-Recorder writing is now ruled out as the primary black-frame source. P0 remains open because the source of the black readback still needs to be fixed and revalidated.
+Recorder writing is now ruled out as the primary black-frame source. P0a/P0b source fixes remove the pure-black readback failure for controlled pick/place diagnostics, but task render acceptance remains blocked by asset/layout defects.
 
 **Files:**
 - Create: `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py`
@@ -302,14 +306,32 @@ docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json
 
 Do the next source fixes in this order and keep one variable per run:
 
-1. Camera axes/pose:
+1. Camera axes/pose: done for controlled pick/place P0 diagnostics.
    - `configs/cameras/labutopia_franka_poc.yml`
-   - `genmanip/utils/loader/scene.py:create_camera_list`
-   - Add or reuse `camera_axes` handling so free cameras use the intended Isaac/USD convention.
-   - Acceptance: `camera2` readback is non-black in at least one controlled diagnostic run.
-2. Deterministic lighting:
-   - Add or payload at least one light into the runtime overlay, or add explicit task-scene lighting.
-   - Acceptance: static USD validation confirms a light exists; eval readback is not dependent on report-only direct-render lighting.
+   - `genmanip/utils/usd_utils/camera_utils.py`
+   - `genmanip/utils/standalone/camera_pose_utils.py`
+   - `camera_axes: usd` is honored for GenManip-style/free cameras.
+   - `camera2` retargeted to `[9.6, 0.0, 2.5]`.
+   - Evidence:
+
+```text
+saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/diagnostics.json
+saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/diagnostics.json
+```
+
+2. Deterministic lighting: done for the runtime overlay.
+   - `standalone_tools/labutopia_poc/build_asset_overlay.py`
+   - `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json`
+   - `standalone_tools/labutopia_poc/validate_task_package.py`
+   - Runtime wrapper authors `/World/labutopia_level1_poc/DeterministicDomeLight` with intensity `1000`.
+   - Acceptance: static validation confirms the light exists and pick/place eval readback is no longer pure black.
+   - Evidence:
+
+```text
+docs/labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json
+python standalone_tools/labutopia_poc/validate_task_package.py -> OK
+```
+
 3. Asset/layout normalization:
    - Rebuild the overlay or add explicit local task assets so required objects are in the robot workspace and nested parts preserve composed transforms.
    - Acceptance: object centers/scales/bounds pass static validation before Isaac runtime capture.

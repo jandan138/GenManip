@@ -15,6 +15,9 @@ from omni.isaac.sensor import Camera  # type: ignore
 
 from genmanip.utils.standalone.pc_utils import get_world_corners_from_bbox3d
 from genmanip.utils.standalone.transform_utils import pose_to_transform
+from genmanip.utils.standalone.camera_pose_utils import (
+    set_camera_local_pose_from_config,
+)
 
 
 def get_tcp_3d_trace(tcp_xform_list: list[XFormPrim]) -> list[np.ndarray]:
@@ -387,11 +390,7 @@ def setup_camera(
         camera.is_camera_matrix = np.array(
             [[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]]
         )
-        camera.set_local_pose(
-            translation=camera_cfg.get("position"),
-            orientation=camera_cfg.get("orientation"),
-            camera_axes=camera_cfg.get("camera_axes", "usd"),
-        )
+        set_camera_local_pose_from_config(camera, camera_cfg, default_camera_axes="usd")
     # GenManip Style
     else:
         camera.set_focal_length(camera_cfg.get("focal_length", 4.5))
@@ -404,6 +403,7 @@ def setup_camera(
         camera_params = camera_cfg.get("camera_params", None)
         if camera_params is not None:
             set_camera_rational_polynomial(camera, *camera_params)
+        set_camera_local_pose_from_config(camera, camera_cfg)
 
     # add custom annotators
     if not only_color_rep_for_camera:

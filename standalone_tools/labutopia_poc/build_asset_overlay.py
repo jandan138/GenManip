@@ -47,6 +47,13 @@ REQUIRED_GENMANIP_OBJECT_UIDS = [
     "obj_table",
 ]
 TABLE_UID = "table"
+DETERMINISTIC_LIGHTS = [
+    {
+        "prim_path": f"/World/{SCENE_UID}/DeterministicDomeLight",
+        "type": "DomeLight",
+        "intensity": 1000,
+    }
+]
 
 
 def _wrapper_name(runtime_object_key: str) -> str:
@@ -81,6 +88,13 @@ def _write_scene_wrapper(path: Path) -> None:
         }}"""
         )
 
+    deterministic_light_defs = """
+        def DomeLight "DeterministicDomeLight"
+        {
+            color3f inputs:color = (1, 1, 1)
+            float inputs:intensity = 1000
+        }"""
+
     scene_text = (
         """#usda 1.0
 (
@@ -93,6 +107,7 @@ def Xform "World"
         + f'    def Xform "{SCENE_UID}"\n'
         + "    {\n"
         + "\n".join(wrapper_defs)
+        + deterministic_light_defs
         + "\n    }\n}\n"
     )
     path.write_text(
@@ -170,10 +185,12 @@ def build_asset_overlay(
         "wrapper_prim_paths": _wrapper_prim_paths(),
         "table_uid": TABLE_UID,
         "required_genmanip_object_uids": REQUIRED_GENMANIP_OBJECT_UIDS,
+        "deterministic_lights": DETERMINISTIC_LIGHTS,
         "copied_files": _copied_files(overlay_root, copied_paths),
         "notes": [
             "scene.usda exposes a single scene uid under /World for GenManip discovery.",
             "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+            "A deterministic dome light is authored in the runtime wrapper scene.",
             "Runtime object keys strip one leading obj_ from wrapper prim names.",
         ],
     }

@@ -84,6 +84,25 @@ Evidence manifest:
 docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json
 ```
 
+P0a/P0b follow-up on 2026-06-23:
+
+```text
+camera axes/pose: camera2 now uses camera_axes: usd and position [9.6, 0.0, 2.5]
+deterministic lighting: runtime overlay scene authors /World/labutopia_level1_poc/DeterministicDomeLight
+level1_pick: readback_visible
+level1_place: readback_visible
+```
+
+Follow-up evidence:
+
+```text
+saved/diagnostics/labutopia_p0a_p0b_pick_20260623_155645/level1_pick/diagnostics.json
+saved/diagnostics/labutopia_p0a_p0b_place_20260623_155831/level1_place/diagnostics.json
+docs/labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json
+```
+
+This fixes the pure-black readback failure for controlled pick/place P0 diagnostics. It still does not provide accepted task render evidence: the regenerated frames are nearly flat gray and show only a tiny mark, so report images must not be replaced yet.
+
 The initial weekly report used static direct-render screenshots from the same EBench/GenManip-loaded LabUtopia stage and the same overlay asset root. Follow-up visual QA on 2026-06-23 found those screenshots are not acceptable as task-scene evidence. The direct render changed report lighting and camera viewpoint, and it did not prove task configuration, evaluator logic, result scores, or reset-time visual correctness.
 
 ## Report images
@@ -104,11 +123,10 @@ Follow-up visual QA:
 
 ## Open risks
 
-- Fix eval recorder `camera2` black frames at the source. Readback is now proven black before recorder writing.
+- Keep P0a/P0b evidence scoped correctly: camera2 readback is no longer pure black for pick/place, but frames are still not task-accepted.
 - Close the gap between visible mesh bbox, wrapper pose, and task semantic coordinates.
 - Make LabUtopia reset-time task layout explicit instead of relying on fallback live-scene metadata.
 - Fix LabUtopia asset import/layout red flags: selected objects are still in source-lab coordinates, and the open-door handle is imported as an invalid independent child transform.
-- Add deterministic lighting to the runtime overlay before accepting any render evidence.
 - Capture reset-time keyframes for all three tasks through the normal eval recording path.
 - Replace the current report images only after independent visual QA passes.
 - Keep official Lift2 baseline claims blocked until Lift2 composite assets and official runner discovery are complete.

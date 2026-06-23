@@ -49,6 +49,13 @@
         "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01_handle",
         "table": "/World/labutopia_level1_poc/obj_table"
     },
+    "deterministic_lights": [
+        {
+            "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+            "type": "DomeLight",
+            "intensity": 1000
+        }
+    ],
     "required_object_uids": [
         "obj_conical_bottle02",
         "obj_beaker2",
@@ -64,6 +71,7 @@
     "runtime_notes": [
         "scene.usda exposes a single scene uid under /World for GenManip discovery.",
         "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+        "A deterministic dome light is authored in the runtime wrapper scene.",
         "Runtime object keys strip one leading obj_ from wrapper prim names."
     ]
 }

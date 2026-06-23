@@ -44,6 +44,9 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
         'def Xform "obj_table" (\n'
         '            prepend payload = @scene.usd@</World/table>'
     ) in scene_usda
+    assert 'def DomeLight "DeterministicDomeLight"' in scene_usda
+    assert "float inputs:intensity = 1000" in scene_usda
+    assert "inputs:texture:file" not in scene_usda
 
     manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -94,9 +97,17 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
         "obj_table",
     ]
     assert manifest["table_uid"] == "table"
+    assert manifest["deterministic_lights"] == [
+        {
+            "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+            "type": "DomeLight",
+            "intensity": 1000,
+        }
+    ]
     assert manifest["notes"] == [
         "scene.usda exposes a single scene uid under /World for GenManip discovery.",
         "Immediate obj_* wrapper prims payload the selected LabUtopia source prims.",
+        "A deterministic dome light is authored in the runtime wrapper scene.",
         "Runtime object keys strip one leading obj_ from wrapper prim names.",
     ]
 

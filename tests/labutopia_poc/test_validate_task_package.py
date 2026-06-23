@@ -4,6 +4,7 @@ import sys
 import types
 
 import pytest
+import yaml
 
 from standalone_tools.labutopia_poc import validate_task_package
 
@@ -20,11 +21,37 @@ CAMERA_CLEANUP_FLAGS = {
     "with_semantic",
     "with_distance",
 }
+BASE_FRANKA_CAMERAS = {
+    "camera1": {
+        "position": [2.0, 0.0, 2.0],
+        "orientation": [0.61237, 0.35355, 0.35355, 0.61237],
+        "camera_axes": "usd",
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+    "camera2": {
+        "position": [9.6, 0.0, 2.5],
+        "orientation": [0.70711, 0.0, 0.0, -0.70711],
+        "camera_axes": "usd",
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+}
+BASE_LIFT2_CAMERAS = {
+    "camera1": {
+        "position": [0.0, 0.0, 0.0],
+        "orientation": [1.0, 0.0, 0.0, 0.0],
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    }
+}
 
 
 def _write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _write_yaml(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
 
 
 def _write_task_files(task_root):
@@ -46,6 +73,14 @@ def _write_valid_indexes(task_root):
                 for task in EXPECTED_TASKS
             ],
         )
+
+
+def _write_camera_config_fixture(tmp_root, franka_cameras):
+    _write_yaml(tmp_root / "configs/cameras/labutopia_franka_poc.yml", franka_cameras)
+    _write_yaml(
+        tmp_root / "configs/cameras/fixed_camera_lift2_simbox.yml",
+        BASE_LIFT2_CAMERAS,
+    )
 
 
 def test_indexed_task_yaml_paths_rejects_duplicate_profile_entries(tmp_path, monkeypatch):
@@ -145,3 +180,71 @@ def test_labutopia_camera_configs_define_cleanup_flags():
         for camera_name, camera in cameras.items():
             missing = CAMERA_CLEANUP_FLAGS - set(camera)
             assert not missing, f"{camera_path}:{camera_name} missing {missing}"
+
+
+def test_labutopia_franka_camera_config_declares_axes_and_task_view():
+    camera_path = validate_task_package.ROOT / "configs/cameras/labutopia_franka_poc.yml"
+    cameras = validate_task_package._load_yaml(camera_path)
+
+    for camera_name, expected_axes in (
+        validate_task_package.EXPECTED_FRANKA_CAMERA_AXES.items()
+    ):
+        assert cameras[camera_name]["camera_axes"] == expected_axes
+
+    assert (
+        cameras["camera2"]["position"]
+        == validate_task_package.EXPECTED_FRANKA_CAMERA2_POSITION
+    )
+
+
+def test_validate_camera_configs_rejects_franka_camera_axes_regression(
+    tmp_path, monkeypatch
+):
+    franka_cameras = {
+        camera_name: dict(camera)
+        for camera_name, camera in BASE_FRANKA_CAMERAS.items()
+    }
+    franka_cameras["camera2"]["camera_axes"] = "world"
+    _write_camera_config_fixture(tmp_path, franka_cameras)
+    monkeypatch.setattr(validate_task_package, "ROOT", tmp_path)
+
+    with pytest.raises(AssertionError, match="camera2: camera_axes must remain 'usd'"):
+        validate_task_package._validate_camera_configs()
+
+
+def test_validate_camera_configs_rejects_franka_camera2_position_regression(
+    tmp_path, monkeypatch
+):
+    franka_cameras = {
+        camera_name: dict(camera)
+        for camera_name, camera in BASE_FRANKA_CAMERAS.items()
+    }
+    franka_cameras["camera2"]["position"] = [0.1, 0.0, 2.5]
+    _write_camera_config_fixture(tmp_path, franka_cameras)
+    monkeypatch.setattr(validate_task_package, "ROOT", tmp_path)
+
+    with pytest.raises(AssertionError, match="camera2 position must remain"):
+        validate_task_package._validate_camera_configs()
+
+
+def test_assets_manifest_declares_deterministic_runtime_light():
+    manifest_path = (
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = validate_task_package._load_json(manifest_path)
+
+    assert manifest["deterministic_lights"] == [
+        {
+            "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+            "type": "DomeLight",
+            "intensity": 1000,
+        }
+    ]
+
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+    scene_text = runtime_scene.read_text(encoding="utf-8")
+    assert 'def DomeLight "DeterministicDomeLight"' in scene_text
+    assert "float inputs:intensity = 1000" in scene_text
