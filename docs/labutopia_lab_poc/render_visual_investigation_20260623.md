@@ -77,6 +77,55 @@ saved/eval_results/ebench/labutopia_franka_render_smoke_20260622_150819/ebench/l
 saved/eval_results/ebench/labutopia_franka_render_smoke_20260622_150819/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000/*/camera2/00000.png
 ```
 
+Runtime diagnostics added on 2026-06-23:
+
+| Task | Run ID | Boundary | Readback stats | Recorder stats |
+| --- | --- | --- | --- | --- |
+| `level1_pick` | `labutopia_render_diag_pick_20260623_070712` | `readback_black_before_recorder` | `channel_max=[0,0,0]`, `nonzero=0` | `channel_max=[0,0,0]`, `nonzero=0` |
+| `level1_place` | `labutopia_render_diag_level1_place_20260623_070855` | `readback_black_before_recorder` | `channel_max=[0,0,0]`, `nonzero=0` | `channel_max=[0,0,0]`, `nonzero=0` |
+| `level1_open_door` | `labutopia_render_diag_level1_open_door_20260623_070933` | `readback_black_before_recorder` | `channel_max=[0,0,0]`, `nonzero=0` | `channel_max=[0,0,0]`, `nonzero=0` |
+
+Diagnostic paths:
+
+```text
+saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/diagnostics.json
+docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json
+```
+
+Independent visual review of the three diagnostic readback images returned FAIL for all three because each image is a uniform black frame.
+
+Recorder boundary conclusion:
+
+```text
+EpisodeRecorder is not the primary black-frame source. The RGB array is already black immediately after get_eval_camera_data(), and the same raw frame is passed into EpisodeRecorder.record_obs().
+```
+
+Camera/render evidence:
+
+```text
+camera2 prim_path: /Camera/LabUtopiaCamera2
+camera2 render_product_path: /Render/RenderProduct_Replicator_01
+render product camera relationship target: /Camera/LabUtopiaCamera2
+camera2 position: [0.1, 0.0, 2.5]
+camera2 orientation in diagnostics: [-0.7071, ~0, ~0, 0.7071]
+```
+
+The render product binding appears valid, so the most likely immediate camera-side problem is camera pose/axes or lighting/readback timing, not recorder file writing.
+
+Layout evidence:
+
+```text
+obj_conical_bottle02 position ~= [10.236, 0.128, 0.285], scale ~= [1e-4, 1e-4, 1e-4]
+obj_beaker2 position ~= [9.748, 0.601, 0.075]
+obj_target_plat position ~= [8.590, 0.000, 0.300], scale z ~= 1e-4
+obj_DryingBox_01 position ~= [45.884, 1.912, 0.000001], scale ~= [0.001, 0.001, 0.001]
+obj_DryingBox_01_handle position ~= [-148.763, -294.393, 328.592]
+```
+
+This means the asset import/layout is also faulty. A camera-only fix may make a frame non-black, but it would not make the Franka task or official Lift2 baseline evaluable because task objects are not normalized into a valid robot workspace.
+
 Relevant configuration:
 
 ```text
@@ -92,18 +141,23 @@ genmanip/utils/loader/scene.py
 
 ## Ranked Root-Cause Hypotheses
 
-1. Eval recorder camera path is broken before writing.
-   - The saved PNGs are pure black, so the issue is upstream of report rendering and likely upstream of image file writing.
-   - Candidate causes: camera pose points at empty/dark view, render product not bound to the intended Isaac camera prim, missing lighting in the normal eval path, or camera readback before valid rendering.
-2. Task layout is not yet a real LabUtopia reset layout.
+1. Asset import/layout is not valid for GenManip/Franka task execution.
+   - The selected objects remain in source LabUtopia lab coordinates, far from the Franka/table workspace.
+   - The open-door handle is imported as a direct child payload and appears to lose the parent drying-box transform/scale.
+   - This is a baseline-evaluability blocker, not just a visual defect.
+2. Eval camera readback is black before recorder writing.
+   - The diagnostics prove the black frame exists immediately after `get_eval_camera_data()`.
+   - Candidate causes: camera axes/pose points at empty/dark view, missing deterministic lighting, or readback before valid render accumulation.
+   - Render product binding to `/Camera/LabUtopiaCamera2` appears valid in diagnostics.
+3. Task layout is not yet a real LabUtopia reset layout.
    - LabUtopia source position ranges are in `task_semantics.yml`, but the runtime task YAMLs have empty `object_config` and null layout.
    - The fallback metadata captures the live loaded scene rather than sampling or enforcing LabUtopia task-specific reset poses.
-3. Direct-render report screenshots used non-eval camera choices.
+4. Direct-render report screenshots used non-eval camera choices.
    - The report images were captured with changed lighting and viewpoint and no committed producer script.
    - This makes them unsuitable for proving task-scene correctness.
-4. Overlay wrapper and task semantics are not yet aligned enough for visual or metric claims.
+5. Overlay wrapper and task semantics are not yet aligned enough for visual or metric claims.
    - The wrapper payload exposes prims under GenManip-friendly names, but visible mesh bbox, wrapper pose, and semantic coordinates still need a measured consistency check.
-5. The `open_door` camera is using a shared POC view instead of the source task's task-specific view.
+6. The `open_door` camera is using a shared POC view instead of the source task's task-specific view.
    - Original LabUtopia `level1_open_door.yaml` uses different camera positions from the shared POC camera config.
 
 ## Claim Boundary
@@ -128,12 +182,13 @@ The current screenshots prove task correctness.
 
 Run these in an isolated port/run_id so EOS or another engineer's run is not confused with this work:
 
-1. Dump `camera1` and `camera2` world poses, render product paths, RGB min/max/mean/nonzero stats immediately after `get_eval_camera_data()`.
-2. Save one raw camera frame before `EpisodeRecorder.record_obs()` to isolate camera readback from recorder output.
-3. Change only `camera2` pose to a known direct-render viewpoint, then only lighting, to separate pose failure from lighting/readback failure.
-4. Dump `scene.object_list.keys()`, wrapper world poses, object extents/bbox centers, and target object projections into `camera2`.
-5. Add a reproducible render/capture script that writes all diagnostics and images under a unique `run_id`.
-6. Write an evidence manifest for any future PM image. It must include `run_id`, task name, source eval frame path, report image path, sha256, camera config, asset root, commit hash, and `direct_render=false`.
+1. Fix/validate camera axes handling in the free-camera loader path, then rerun diagnostics with only that variable changed.
+2. Add deterministic lighting to the runtime overlay, then rerun diagnostics with only lighting changed.
+3. Rebuild or supplement the overlay so nested LabUtopia parts preserve composed transforms, especially `DryingBox_01/handle`.
+4. Normalize selected task objects into the GenManip/Franka workspace and record explicit task reset layouts instead of relying on fallback live-scene metadata.
+5. Add static USD validation for object centers, bounds, scales, nested-part transform preservation, and at least one light.
+6. After layout and camera/lighting are fixed, regenerate all three eval-path reset frames and run independent visual QA.
+7. Write an evidence manifest for any future PM image. It must include `run_id`, task name, source eval frame path, report image path, sha256, camera config, asset root, commit hash, and `direct_render=false`.
 
 ## Documentation Decision
 

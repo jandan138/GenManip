@@ -53,11 +53,24 @@ official policy quality claim
 
 ## P0: Camera Black-Frame Root Cause
 
+Current status as of 2026-06-23:
+
+```text
+Diagnostic helper and runtime capture script exist.
+tests/labutopia_poc/test_render_diagnostics_contract.py: 2 passed
+tests/labutopia_poc: 25 passed, 1 skipped
+level1_pick: readback_black_before_recorder
+level1_place: readback_black_before_recorder
+level1_open_door: readback_black_before_recorder
+```
+
+Recorder writing is now ruled out as the primary black-frame source. P0 remains open because the source of the black readback still needs to be fixed and revalidated.
+
 **Files:**
 - Create: `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py`
 - Create: `tests/labutopia_poc/test_render_diagnostics_contract.py`
 
-- [ ] **Step 1: Write diagnostics contract test**
+- [x] **Step 1: Write diagnostics contract test**
 
 Create `tests/labutopia_poc/test_render_diagnostics_contract.py` with this contract:
 
@@ -98,7 +111,7 @@ def test_classify_visible_frame_as_pass():
     assert classify_frame_stats(stats) == "visible_frame"
 ```
 
-- [ ] **Step 2: Run the test and confirm RED**
+- [x] **Step 2: Run the test and confirm RED**
 
 Run:
 
@@ -112,7 +125,7 @@ Expected:
 ImportError or missing function failure
 ```
 
-- [ ] **Step 3: Implement the pure-Python diagnostics helpers**
+- [x] **Step 3: Implement the pure-Python diagnostics helpers**
 
 Create `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py` with:
 
@@ -170,7 +183,7 @@ def classify_frame_stats(stats: dict[str, object]) -> Literal["black_frame_fail"
     return "visible_frame"
 ```
 
-- [ ] **Step 4: Run the test and confirm GREEN**
+- [x] **Step 4: Run the test and confirm GREEN**
 
 Run:
 
@@ -184,7 +197,7 @@ Expected:
 2 passed
 ```
 
-- [ ] **Step 5: Add Isaac runtime capture mode**
+- [x] **Step 5: Add Isaac runtime capture mode**
 
 Extend `capture_eval_render_diagnostics.py` with an `argparse` CLI that accepts:
 
@@ -194,15 +207,15 @@ Extend `capture_eval_render_diagnostics.py` with an `argparse` CLI that accepts:
 --run-id labutopia_render_diag_YYYYMMDD_HHMMSS
 --port 18091
 --output-dir saved/diagnostics/labutopia_render_diag_YYYYMMDD_HHMMSS
---save-one-step
+--save-reset-frame
 ```
 
 The CLI must write:
 
 ```text
 diagnostics.json
-camera1/00000.png
-camera2/00000.png
+readback_after_get_eval_camera_data/camera2/00000.png
+recorder_png/camera2/00000.png
 ```
 
 `diagnostics.json` must include:
@@ -226,7 +239,7 @@ camera2/00000.png
 }
 ```
 
-- [ ] **Step 6: Run isolated camera diagnostics**
+- [x] **Step 6: Run isolated camera diagnostics**
 
 Use the conda Python:
 
@@ -238,19 +251,19 @@ Use the conda Python:
   --run-id labutopia_render_diag_$(date +%Y%m%d_%H%M%S) \
   --port 18091 \
   --output-dir saved/diagnostics/labutopia_render_diag_pick \
-  --save-one-step
+  --save-reset-frame
 ```
 
 Expected:
 
 ```text
 diagnostics.json written
-camera frame stats recorded for camera1 and camera2
-camera prim path, render product path, world pose, focal data, RGB stats, and nonzero count recorded immediately after get_eval_camera_data()
+camera2 frame stats recorded for the normal eval path
+camera prim path, render product path, world pose, RGB stats, and nonzero count recorded immediately after get_eval_camera_data()
 no process remains on port 18091 after completion
 ```
 
-- [ ] **Step 7: Repeat diagnostics for all tasks**
+- [x] **Step 7: Repeat diagnostics for all tasks**
 
 Run the same command for:
 
@@ -264,9 +277,45 @@ Expected:
 
 ```text
 Each task has camera frame stats and object pose diagnostics.
-If camera2 is black, diagnostics identify whether camera1 is also black.
-level1_open_door additionally records articulation names, drying-box pose, handle pose, and handle/object projection into camera2.
+If camera2 is black, diagnostics classify whether the boundary is before or after recorder writing.
+Normal eval removes camera1; camera1 capture, object extents, and object projections remain follow-up instrumentation.
 ```
+
+Observed:
+
+```text
+level1_pick: camera2 readback and recorder PNG are black, channel_max=[0,0,0], nonzero=0
+level1_place: camera2 readback and recorder PNG are black, channel_max=[0,0,0], nonzero=0
+level1_open_door: camera2 readback and recorder PNG are black, channel_max=[0,0,0], nonzero=0
+```
+
+Artifacts:
+
+```text
+saved/diagnostics/labutopia_render_diag_pick_20260623_070712/level1_pick/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_place_20260623_070855/level1_place/diagnostics.json
+saved/diagnostics/labutopia_render_diag_level1_open_door_20260623_070933/level1_open_door/diagnostics.json
+docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json
+```
+
+### P0 Follow-Up: Source Fix Order
+
+Do the next source fixes in this order and keep one variable per run:
+
+1. Camera axes/pose:
+   - `configs/cameras/labutopia_franka_poc.yml`
+   - `genmanip/utils/loader/scene.py:create_camera_list`
+   - Add or reuse `camera_axes` handling so free cameras use the intended Isaac/USD convention.
+   - Acceptance: `camera2` readback is non-black in at least one controlled diagnostic run.
+2. Deterministic lighting:
+   - Add or payload at least one light into the runtime overlay, or add explicit task-scene lighting.
+   - Acceptance: static USD validation confirms a light exists; eval readback is not dependent on report-only direct-render lighting.
+3. Asset/layout normalization:
+   - Rebuild the overlay or add explicit local task assets so required objects are in the robot workspace and nested parts preserve composed transforms.
+   - Acceptance: object centers/scales/bounds pass static validation before Isaac runtime capture.
+4. Eval-path regeneration:
+   - Rerun the three diagnostics and independent visual QA.
+   - Acceptance: all three task frames are non-black and show task-relevant objects.
 
 ## P1: Reset-Time Task Layout Closure
 
@@ -355,14 +404,15 @@ Add to `level1_open_door.yml`:
       task_visual_goal: door_and_handle_visible
 ```
 
-- [ ] **Step 4: Decide camera fix from P0 diagnostics**
+- [ ] **Step 4: Apply source fixes from P0 diagnostics**
 
-Use the P0 diagnostics to choose one outcome:
+Use the P0 diagnostics to handle these outcomes in order:
 
 ```text
-Outcome A: render product/readback broken -> fix camera creation/readback before changing poses.
-Outcome B: pose/lighting broken only -> update camera pose and lighting config.
-Outcome C: task-specific view needed -> create task-specific camera config for open_door.
+Outcome A: camera axes/pose likely wrong -> add camera_axes support and retest readback.
+Outcome B: no deterministic lights -> add runtime overlay/task lighting and retest readback.
+Outcome C: asset/layout invalid -> normalize required objects and nested parts before camera tuning.
+Outcome D: task-specific view needed -> create task-specific camera config for open_door.
 ```
 
 Do not change all variables at once.

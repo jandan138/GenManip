@@ -1,0 +1,518 @@
+#!/usr/bin/env python3
+"""Capture LabUtopia eval-path render diagnostics for one reset frame."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import os
+import sys
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Literal
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+FrameClassification = Literal["black_frame_fail", "visible_frame"]
+BoundaryClassification = Literal[
+    "no_readback_frame",
+    "readback_black_before_recorder",
+    "recorder_write_black",
+    "readback_visible",
+]
+
+
+@dataclass(frozen=True)
+class CameraFrameStats:
+    camera_name: str
+    frame_path: str
+    width: int
+    height: int
+    channel_min: list[float]
+    channel_max: list[float]
+    channel_mean: list[float]
+    nonzero_pixels: int
+
+
+def build_camera_frame_stats(
+    *,
+    camera_name: str,
+    frame_path: str,
+    width: int,
+    height: int,
+    channel_min: list[float],
+    channel_max: list[float],
+    channel_mean: list[float],
+    nonzero_pixels: int,
+) -> dict[str, object]:
+    return asdict(
+        CameraFrameStats(
+            camera_name=camera_name,
+            frame_path=frame_path,
+            width=width,
+            height=height,
+            channel_min=channel_min,
+            channel_max=channel_max,
+            channel_mean=channel_mean,
+            nonzero_pixels=nonzero_pixels,
+        )
+    )
+
+
+def classify_frame_stats(stats: dict[str, object]) -> FrameClassification:
+    channel_max = stats["channel_max"]
+    nonzero_pixels = int(stats["nonzero_pixels"])
+    if not isinstance(channel_max, list):
+        raise TypeError("channel_max must be a list")
+    max_value = max(float(value) for value in channel_max)
+    if max_value <= 0.0 or nonzero_pixels == 0:
+        return "black_frame_fail"
+    return "visible_frame"
+
+
+def classify_boundary(
+    readback_stats: list[dict[str, object]],
+    recorder_stats: list[dict[str, object]],
+) -> BoundaryClassification:
+    if not readback_stats:
+        return "no_readback_frame"
+    if any(classify_frame_stats(stats) == "black_frame_fail" for stats in readback_stats):
+        return "readback_black_before_recorder"
+    if recorder_stats and any(
+        classify_frame_stats(stats) == "black_frame_fail" for stats in recorder_stats
+    ):
+        return "recorder_write_black"
+    return "readback_visible"
+
+
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _normalize_rgb_array(rgb: Any) -> Any:
+    import numpy as np
+
+    arr = np.asarray(rgb)
+    if arr.ndim != 3 or arr.shape[2] < 3:
+        raise ValueError(f"Expected RGB/RGBA image with shape HxWx3/4, got {arr.shape}")
+    arr = arr[:, :, :3]
+    if arr.dtype == np.uint8:
+        return np.ascontiguousarray(arr)
+    if np.issubdtype(arr.dtype, np.floating):
+        finite = arr[np.isfinite(arr)]
+        max_value = float(finite.max()) if finite.size else 0.0
+        min_value = float(finite.min()) if finite.size else 0.0
+        if min_value >= 0.0 and max_value <= 1.0:
+            arr = arr * 255.0
+    return np.ascontiguousarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+def frame_stats_from_rgb(
+    *,
+    camera_name: str,
+    frame_path: str | Path,
+    rgb: Any,
+) -> dict[str, object]:
+    import numpy as np
+
+    arr = _normalize_rgb_array(rgb)
+    flat = arr.reshape(-1, 3)
+    stats = build_camera_frame_stats(
+        camera_name=camera_name,
+        frame_path=str(frame_path),
+        width=int(arr.shape[1]),
+        height=int(arr.shape[0]),
+        channel_min=[float(value) for value in flat.min(axis=0)],
+        channel_max=[float(value) for value in flat.max(axis=0)],
+        channel_mean=[float(value) for value in flat.mean(axis=0)],
+        nonzero_pixels=int(np.count_nonzero(np.any(arr != 0, axis=2))),
+    )
+    stats["classification"] = classify_frame_stats(stats)
+    return stats
+
+
+def frame_stats_from_png(
+    *,
+    camera_name: str,
+    frame_path: str | Path,
+) -> dict[str, object]:
+    import cv2
+
+    image_bgr = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise FileNotFoundError(frame_path)
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    return frame_stats_from_rgb(
+        camera_name=camera_name,
+        frame_path=frame_path,
+        rgb=image_rgb,
+    )
+
+
+def _save_rgb_png(rgb: Any, frame_path: Path) -> None:
+    from genmanip.utils.standalone.frame_utils import save_image
+
+    frame_path.parent.mkdir(parents=True, exist_ok=True)
+    save_image(_normalize_rgb_array(rgb), str(frame_path))
+
+
+def _select_eval_config(
+    evaluation_configs: list[dict[str, Any]],
+    task_name: str,
+) -> dict[str, Any]:
+    matches = [
+        cfg
+        for cfg in evaluation_configs
+        if cfg.get("task_name") == task_name
+        or str(cfg.get("task_name", "")).endswith(f"/{task_name}")
+    ]
+    if not matches:
+        available = [str(cfg.get("task_name", "<missing>")) for cfg in evaluation_configs]
+        raise ValueError(f"Task {task_name!r} not found. Available: {available}")
+    if len(matches) > 1:
+        raise ValueError(f"Task {task_name!r} is ambiguous: {matches}")
+    return copy.deepcopy(matches[0])
+
+
+def _load_selected_config(
+    *,
+    config_ref: str,
+    task_name: str,
+    current_dir: Path,
+) -> tuple[dict[str, Any], str]:
+    from genmanip.core.evaluator.utils import parse_configs_and_benchmark_id
+    from genmanip.utils.standalone.utils import parse_eval_config
+    from genmanip.utils.standalone.version_utils import process_archived_config
+
+    raw_configs, benchmark_id, _is_genmanip_package = parse_configs_and_benchmark_id(
+        config_ref,
+        str(current_dir),
+    )
+    parsed_configs: list[dict[str, Any]] = []
+    for raw_config in raw_configs:
+        for cfg in parse_eval_config(raw_config):
+            parsed_configs.append(process_archived_config(copy.deepcopy(cfg)))
+    return _select_eval_config(parsed_configs, task_name), benchmark_id
+
+
+def _apply_env_vars(eval_config: dict[str, Any], default_config: dict[str, Any]) -> dict[str, str]:
+    applied: dict[str, str] = {}
+    assets_dir = str(default_config.get("ASSETS_DIR", ""))
+    for key, value in (eval_config.get("env_vars") or {}).items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        resolved = value.replace("{ASSETS_DIR}", assets_dir)
+        os.environ[key] = resolved
+        applied[key] = resolved
+    return applied
+
+
+def _camera_render_product_path(camera: Any) -> str | None:
+    for attr_name in ("render_product_path", "_render_product_path"):
+        value = getattr(camera, attr_name, None)
+        if value:
+            return str(value)
+    render_product = getattr(camera, "_render_product", None)
+    value = getattr(render_product, "path", None)
+    return str(value) if value else None
+
+
+def _camera_metadata(camera: Any) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "prim_path": str(getattr(camera, "prim_path", "")),
+        "render_product_path": _camera_render_product_path(camera),
+    }
+    if hasattr(camera, "get_world_pose"):
+        try:
+            position, orientation = camera.get_world_pose()
+            metadata["world_position"] = _jsonable(position)
+            metadata["world_orientation"] = _jsonable(orientation)
+        except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+            metadata["world_pose_error"] = repr(exc)
+    return metadata
+
+
+def _render_product_binding(render_product_path: str | None) -> dict[str, Any]:
+    if not render_product_path:
+        return {}
+    try:
+        import omni.usd
+
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath(render_product_path)
+        if not prim or not prim.IsValid():
+            return {"render_product_path": render_product_path, "valid": False}
+        relation = prim.GetRelationship("camera")
+        targets = [str(target) for target in relation.GetTargets()] if relation else []
+        attr = prim.GetAttribute("camera")
+        attr_value = attr.Get() if attr and attr.IsValid() else None
+        return {
+            "render_product_path": render_product_path,
+            "valid": True,
+            "camera_relationship_targets": targets,
+            "camera_attribute": str(attr_value) if attr_value is not None else None,
+        }
+    except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+        return {"render_product_path": render_product_path, "error": repr(exc)}
+
+
+def _named_prim_metadata(named_prims: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    metadata: dict[str, dict[str, Any]] = {}
+    for name, prim in sorted(named_prims.items()):
+        item: dict[str, Any] = {
+            "prim_path": str(getattr(prim, "prim_path", "")),
+        }
+        if hasattr(prim, "get_world_pose"):
+            try:
+                position, orientation = prim.get_world_pose()
+                item["world_position"] = _jsonable(position)
+                item["world_orientation"] = _jsonable(orientation)
+            except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+                item["world_pose_error"] = repr(exc)
+        if hasattr(prim, "get_local_scale"):
+            try:
+                item["local_scale"] = _jsonable(prim.get_local_scale())
+            except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+                item["local_scale_error"] = repr(exc)
+        if hasattr(prim, "get_joint_positions"):
+            try:
+                item["joint_positions"] = _jsonable(prim.get_joint_positions())
+            except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+                item["joint_positions_error"] = repr(exc)
+        metadata[str(name)] = item
+    return metadata
+
+
+def _copy_recorder_frame_stats(
+    *,
+    traj_log_dir: str | None,
+    output_dir: Path,
+) -> list[dict[str, object]]:
+    if traj_log_dir is None:
+        return []
+    recorder_stats: list[dict[str, object]] = []
+    traj_path = Path(traj_log_dir)
+    if not traj_path.exists():
+        return recorder_stats
+    for frame_path in sorted(traj_path.glob("*/00000.png")):
+        camera_name = frame_path.parent.name
+        copied_path = output_dir / "recorder_png" / camera_name / frame_path.name
+        copied_path.parent.mkdir(parents=True, exist_ok=True)
+        copied_path.write_bytes(frame_path.read_bytes())
+        stats = frame_stats_from_png(camera_name=camera_name, frame_path=copied_path)
+        stats["stage"] = "recorder_png"
+        stats["source_frame_path"] = str(frame_path)
+        recorder_stats.append(stats)
+    return recorder_stats
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(_jsonable(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
+    current_dir = REPO_ROOT
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    from genmanip.core.evaluator.labutopia_assets import (
+        resolve_labutopia_poc_assets_override,
+    )
+    from genmanip.utils.standalone.file_utils import load_default_config
+
+    default_config = load_default_config(
+        str(current_dir),
+        "__None__.json",
+        "local" if args.local else "default",
+    )
+    assets_override = resolve_labutopia_poc_assets_override(current_dir, args.config)
+    if assets_override is not None:
+        default_config["ASSETS_DIR"] = assets_override.overlay_root
+
+    eval_config, benchmark_id = _load_selected_config(
+        config_ref=args.config,
+        task_name=args.task,
+        current_dir=current_dir,
+    )
+    applied_env_vars = _apply_env_vars(eval_config, default_config)
+
+    from isaacsim import SimulationApp  # type: ignore
+
+    simulation_app = SimulationApp({"headless": not args.local, "multi_gpu": False})
+
+    env = None
+    diagnostics: dict[str, Any] = {
+        "run_id": args.run_id,
+        "task": args.task,
+        "task_name": eval_config["task_name"],
+        "seed": args.seed,
+        "config": args.config,
+        "benchmark_id": benchmark_id,
+        "output_dir": str(output_dir),
+        "port": args.port,
+        "reset_frame_capture": True,
+        "assets_override": asdict(assets_override) if assets_override is not None else None,
+        "applied_env_vars": applied_env_vars,
+        "camera_frames": [],
+        "camera_poses": {},
+        "render_products": {},
+        "render_product_binding": {},
+        "object_world_poses": {},
+        "object_extents": {},
+        "projected_object_centers": {},
+        "articulation_state": {},
+        "claim_boundary": {
+            "task_render_accepted": False,
+            "official_baseline_evaluable": False,
+        },
+    }
+
+    try:
+        import genmanip.core.evaluator.env as env_module
+        from genmanip.core.evaluator.env import IsaacEvalEnvRay
+
+        original_get_eval_camera_data = env_module.get_eval_camera_data
+        readback_stats: list[dict[str, object]] = []
+
+        def capture_get_eval_camera_data(camera_list: dict[str, Any]) -> dict[str, Any]:
+            camera_data = original_get_eval_camera_data(camera_list)
+            for camera_name, camera in sorted(camera_list.items()):
+                diagnostics["camera_poses"][camera_name] = _camera_metadata(camera)
+                render_product_path = _camera_render_product_path(camera)
+                diagnostics["render_products"][camera_name] = {
+                    "render_product_path": render_product_path,
+                }
+                diagnostics["render_product_binding"][camera_name] = (
+                    _render_product_binding(render_product_path)
+                )
+            for camera_name, item in sorted(camera_data.items()):
+                rgb = item.get("rgb")
+                frame_path = output_dir / "readback_after_get_eval_camera_data" / camera_name / "00000.png"
+                _save_rgb_png(rgb, frame_path)
+                stats = frame_stats_from_rgb(
+                    camera_name=camera_name,
+                    frame_path=frame_path,
+                    rgb=rgb,
+                )
+                stats["stage"] = "readback_after_get_eval_camera_data"
+                stats["source"] = "genmanip.core.evaluator.env.get_eval_camera_data"
+                readback_stats.append(stats)
+            return camera_data
+
+        env_module.get_eval_camera_data = capture_get_eval_camera_data
+        try:
+            runtime_args = SimpleNamespace(
+                run_id=args.run_id,
+                num_steps=args.num_steps,
+                local=args.local,
+                without_render=False,
+                save_process=True,
+                episode_recorder_save_every=1,
+                random_randomization=False,
+                is_relative_action=False,
+            )
+            env = IsaacEvalEnvRay(
+                runtime_args,
+                simulation_app,
+                default_config,
+                str(current_dir),
+                benchmark_id=benchmark_id,
+            )
+            env.reset(args.seed, eval_config, default_config)
+            scene = env.scene
+            if scene is not None:
+                diagnostics["object_world_poses"] = _named_prim_metadata(
+                    getattr(scene, "object_list", {}) or {}
+                )
+                diagnostics["articulation_state"] = _named_prim_metadata(
+                    getattr(scene, "articulation_list", {}) or {}
+                )
+            recorder_stats = _copy_recorder_frame_stats(
+                traj_log_dir=env.traj_log_dir,
+                output_dir=output_dir,
+            )
+        finally:
+            env_module.get_eval_camera_data = original_get_eval_camera_data
+
+        diagnostics["camera_frames"] = readback_stats + recorder_stats
+        diagnostics["boundary_classification"] = classify_boundary(
+            readback_stats,
+            recorder_stats,
+        )
+        diagnostics["recorder_traj_log_dir"] = env.traj_log_dir if env is not None else None
+    finally:
+        _write_json(output_dir / "diagnostics.json", diagnostics)
+        if env is not None:
+            try:
+                env.close()
+            except Exception:
+                simulation_app.close()
+        else:
+            simulation_app.close()
+    return diagnostics
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Capture one LabUtopia eval-path reset render diagnostic."
+    )
+    parser.add_argument(
+        "--config",
+        default="ebench/labutopia_lab_poc/franka_poc",
+        help="Task config group or YAML under configs/tasks.",
+    )
+    parser.add_argument("--task", required=True, help="Task basename, e.g. level1_pick.")
+    parser.add_argument("--run-id", required=True, help="Unique eval run identifier.")
+    parser.add_argument("--seed", default="000", help="Episode seed. Default: 000.")
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory for diagnostics.json and copied PNG frames.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=18091,
+        help="Recorded isolation port label for parity with server runs.",
+    )
+    parser.add_argument(
+        "--num-steps",
+        type=int,
+        default=None,
+        help="Override scene num_steps. Default: use task config.",
+    )
+    parser.add_argument(
+        "--save-reset-frame",
+        "--save-one-step",
+        dest="save_reset_frame",
+        action="store_true",
+        help="Compatibility flag. Reset-frame capture is always enabled and writes 00000.png.",
+    )
+    parser.add_argument("--local", action="store_true", help="Run Isaac with GUI.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    diagnostics = run_runtime_diagnostics(parse_args(argv))
+    print(json.dumps(_jsonable(diagnostics), indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

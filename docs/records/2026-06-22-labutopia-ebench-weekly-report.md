@@ -110,6 +110,8 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 
 - `run_id=labutopia_franka_render_smoke_20260622_150819` 跑过保存帧 smoke，但 eval recorder 的 `camera2` 帧当前是黑屏。
 - 三个任务各 32 帧的 eval `camera2` 抽样统计均为纯黑：RGB min/max/mean 都是 0。
+- 2026-06-23 新增 runtime 诊断后，三个任务都定位为 `readback_black_before_recorder`：黑帧在 `get_eval_camera_data()` 后就已经存在，recorder 写盘不是根因。
+- 进一步检查发现资产/layout 也有硬问题：瓶子/烧杯/托盘仍在源 LabUtopia 坐标的 x≈8-10，干燥箱在 x≈45，把手甚至出现在百米量级坐标。这说明不能只调相机，必须同步修复导入布局。
 - 当前 task YAML 仍是 `object_config: {}`、`layout_config.type: null`，还没有把 LabUtopia 原始 position_range 真正落成 GenManip reset-time 布局。
 - 因此下一步必须先修复 eval camera/readback、任务布局和可复现截图脚本，再做 reset 后关键帧验收。
 
@@ -120,9 +122,9 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 资产根目录不对 | 系统一开始会去错误目录找 LabUtopia 场景 | 增加 LabUtopia manifest 识别逻辑，运行时切换到 overlay asset root | 已解决 |
 | 缺少 `meta_info.pkl` | 传统 GenManip 任务依赖采集包里的元信息，LabUtopia POC 没有这份文件 | 针对 LabUtopia POC，从实时场景里自动生成最小可用元信息 | 已解决 |
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
-| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已确认为 P0 阻塞；直渲截图不能替代 eval-path 证据 | 待修复 |
+| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已定位到 `readback_black_before_recorder`；recorder 写盘被排除，下一步修 camera axes/pose、lighting 和 readback 源头 | 待修复 |
 | 当前三张渲染图未通过视觉验收 | `pick` 目标不清，`place` 缺 beaker，`open_door` 缺门/把手/开门状态 | 降级为历史失败样例，新增调研记录和 P0-P2 修复计划 | 待重拍 |
-| 可见 mesh 与 wrapper pose 未完全对齐 | 部分对象 bbox、wrapper pose、任务语义坐标存在偏移 | 需要输出 object pose/bbox/投影诊断，再决定布局修复 | 待闭环 |
+| 资产导入/layout 坐标不闭环 | 任务物体仍在源 lab 坐标，open-door handle 导入后坐标异常放大 | 需要重建或补充 overlay，保留 nested part composed transform，并把任务物体归一到机器人工作空间 | 待闭环 |
 | 最终进度不 complete | 任务已跑完，但进度没有写入，导致客户端最后等待超时 | 任务结束时写最小 `result_info.json`，并修复进度统计 | 已解决 |
 | 后处理异常可能被误记为完成 | 如果后处理报错，不能用 0 分兜底伪装成成功 | 增加 fail-fast 逻辑和回归测试 | 已解决 |
 | 端口/结果混淆风险 | EOS 侧也有人在跑任务，担心互相影响 | 使用独立 worktree、独立 run_id、独立端口 18088，并复核 8087 状态 | 已解决 |
@@ -153,7 +155,10 @@ total_episodes=3
 
 ```text
 python -m pytest tests/labutopia_poc -q
-23 passed, 1 skipped
+25 passed, 1 skipped
+
+python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q
+2 passed
 
 python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
@@ -172,6 +177,8 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 
 - `run_id=labutopia_franka_render_smoke_20260622_150819`
 - eval recorder `camera2` frames: black, sampled RGB min/max/mean all 0
+- runtime diagnostics: `level1_pick/place/open_door` all `readback_black_before_recorder`
+- evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json](../labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -182,11 +189,12 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 
 建议顺序：
 
-1. 按 `2026-06-23-labutopia-ebench-render-layout-closure.md` 执行 P0：定位 eval recorder `camera2` 黑屏是 pose、lighting、render product 还是 readback 问题。
-2. 执行 P1：把 LabUtopia task position_range、必看对象和任务特定相机要求落成可验证的 reset-time 布局。
-3. 执行 P2：用正常 eval-path 重新抓三任务关键帧，并通过独立视觉 QA。
-4. 图像验收通过后再替换 HTML 里的三张图，并恢复 PM 可见性汇报。
-5. 再进入 Lift2 复合资产预检和官方 baseline 路线。
+1. P0a：修相机 axes/pose 支持，让 `camera2` 从 eval readback 直接产出非黑帧。
+2. P0b：补 deterministic lighting，避免只靠 direct-render 临时灯光。
+3. P1：重建或补充 LabUtopia overlay，把任务对象和 nested handle 保持正确 transform，并放到 Franka 工作空间。
+4. P2：用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并通过独立视觉 QA。
+5. P3：图像验收通过后再替换 HTML 里的三张图，并恢复 PM 可见性汇报。
+6. P4：再进入 Lift2 复合资产预检和官方 baseline 路线。
 
 ## 新增调研和计划文档
 

@@ -402,7 +402,7 @@
       </div>
       <aside class="hero-note">
         <b>给产品经理的一句话</b>
-        LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；但当前视觉证据未达汇报标准，下一步先修复 eval camera2 黑屏和 reset 后任务布局。
+        LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；但当前视觉证据未达汇报标准。最新诊断确认黑帧在 camera readback 阶段已经出现，且资产/layout 坐标还没有闭环。
       </aside>
     </div>
   </header>
@@ -428,13 +428,13 @@
         </div>
         <div class="metric">
           <div class="label">测试</div>
-          <div class="value status-ok">23 passed</div>
-          <div class="detail"><code>1 skipped</code>，validator 通过。</div>
+          <div class="value status-ok">25 passed</div>
+          <div class="detail"><code>1 skipped</code>，诊断合同 <code>2 passed</code>，validator 通过。</div>
         </div>
         <div class="metric">
           <div class="label">渲染证据</div>
           <div class="value status-blocked">未通过</div>
-          <div class="detail">三张直渲图视觉 QA 不合格；eval recorder 的 <code>camera2</code> 仍为黑屏。</div>
+          <div class="detail">三张直渲图视觉 QA 不合格；<code>camera2</code> 已定位为 readback 后、recorder 前黑屏。</div>
         </div>
         <div class="metric">
           <div class="label">官方 Lift2 baseline</div>
@@ -564,7 +564,7 @@
         </div>
         <div class="panel warn">
           <h3>还没闭环的部分</h3>
-          <p>Lift2 官方 baseline 不能只用 scene overlay，它还需要默认资产里的 <code>robot_usds/lift2</code> 和 <code>miscs/curobo</code>。这一步排在 P0-P2 渲染/布局闭环之后，再做“复合资产根目录”。</p>
+          <p>Lift2 官方 baseline 不能只用 scene overlay，它还需要默认资产里的 <code>robot_usds/lift2</code> 和 <code>miscs/curobo</code>。这一步排在 camera readback、资产/layout 和 P2 渲染证据闭环之后，再做“复合资产根目录”。</p>
         </div>
       </div>
     </section>
@@ -574,7 +574,7 @@
       <p>2026-06-23 复核结论：当前三张渲染图未通过视觉验收，不能作为任务渲染已闭环的证据。下面保留为历史失败样例，方便说明 P0 修复范围。</p>
       <div class="panel blocked">
         <h3>渲染证据状态</h3>
-        <p>自动 eval recorder 保存的 <code>camera2</code> 帧为纯黑；三张 direct-render 静态图不是正常 eval recorder 产物，也没有可复现生产脚本。视觉 QA 结果为 <code>level1_pick=WARN</code>、<code>level1_place=FAIL</code>、<code>level1_open_door=FAIL</code>。</p>
+        <p>自动 eval recorder 保存的 <code>camera2</code> 帧为纯黑；2026-06-23 runtime 诊断已确认三个任务都是 <code>readback_black_before_recorder</code>，recorder 写盘不是根因。三张 direct-render 静态图不是正常 eval recorder 产物，也没有可复现生产脚本。视觉 QA 结果为 <code>level1_pick=WARN</code>、<code>level1_place=FAIL</code>、<code>level1_open_door=FAIL</code>。</p>
       </div>
       <div class="render-grid">
         <figure class="render-card">
@@ -622,7 +622,12 @@
             <tr>
               <td>render smoke</td>
               <td><code>labutopia_franka_render_smoke_20260622_150819</code></td>
-              <td>同一任务包跑过保存帧 smoke；eval recorder 的 <code>camera2</code> 帧为纯黑，静态直渲图已被复核为视觉证据不合格。</td>
+              <td>同一任务包跑过保存帧 smoke；eval recorder 的 <code>camera2</code> 帧为纯黑，后续 runtime 诊断确认黑帧发生在 <code>get_eval_camera_data()</code> 后、recorder 写盘前。</td>
+            </tr>
+            <tr>
+              <td>render diagnostics</td>
+              <td class="status-blocked"><code>readback_black_before_recorder</code></td>
+              <td>三个任务均为 readback 后全黑：<code>channel_max=[0,0,0]</code>，<code>nonzero=0</code>；manifest 已记录。</td>
             </tr>
             <tr>
               <td>visual QA</td>
@@ -631,8 +636,13 @@
             </tr>
             <tr>
               <td>pytest</td>
-              <td class="status-ok"><code>23 passed, 1 skipped</code></td>
-              <td>覆盖资产 override、fallback metadata、结果落盘、后处理 fail-fast 等回归点。</td>
+              <td class="status-ok"><code>25 passed, 1 skipped</code></td>
+              <td>覆盖资产 override、fallback metadata、结果落盘、后处理 fail-fast 和 render diagnostic 合同等回归点。</td>
+            </tr>
+            <tr>
+              <td>diagnostic contract</td>
+              <td class="status-ok"><code>2 passed</code></td>
+              <td>纯 Python 帧统计和黑帧分类接口不依赖 Isaac，可快速回归。</td>
             </tr>
             <tr>
               <td>package validator</td>
@@ -683,7 +693,7 @@
             <tr>
               <td>eval recorder camera2 黑屏</td>
               <td>保存过程帧时 <code>camera2</code> 输出为黑屏。</td>
-              <td>确认三个任务各 32 帧抽样均为纯黑；直渲截图不能替代 eval-path 证据。</td>
+              <td>已定位为 <code>readback_black_before_recorder</code>；recorder 写盘被排除，下一步修 camera axes/pose、lighting 和 readback 源头。</td>
               <td class="status-blocked">P0 阻塞</td>
             </tr>
             <tr>
@@ -693,9 +703,9 @@
               <td class="status-blocked">待重拍</td>
             </tr>
             <tr>
-              <td>可见 mesh 与 wrapper pose 未完全对齐</td>
-              <td>部分对象 bbox、wrapper pose、任务语义坐标存在偏移，影响截图和后续可评性判断。</td>
-              <td>报告中降级为“历史失败样例”，不宣称任务布局或资产可见性验收完成。</td>
+              <td>资产导入/layout 坐标不闭环</td>
+              <td>任务物体仍在源 lab 坐标，open-door handle 导入后坐标异常放大。</td>
+              <td>需要重建或补充 overlay，保留 nested part composed transform，并把任务物体归一到机器人工作空间。</td>
               <td class="status-warn">待闭环</td>
             </tr>
             <tr>
@@ -725,6 +735,7 @@
             <li>三个 level-1 任务能完成 reset/step/finalize，并生成 per-task 和 final result。</li>
             <li>Franka POC 的 LabUtopia scene overlay 加载路径已经验证。</li>
             <li>当前三张渲染图已经完成复核，并明确判定为不合格历史样例。</li>
+            <li>黑帧边界已经定位到 camera readback 之后、recorder 写盘之前。</li>
           </ul>
         </div>
         <div class="panel blocked">
@@ -732,7 +743,8 @@
           <ul>
             <li>不能说任务已经求解成功，当前默认动作得分是 <code>0.0</code>。</li>
             <li>不能说官方 Lift2 baseline 已经可评，Lift2 复合资产和官方 runner 还没闭环。</li>
-            <li>不能说画面/视频/任务布局已经验收；当前三张图视觉 QA 未通过，eval <code>camera2</code> 仍是黑屏。</li>
+            <li>不能说画面/视频/任务布局已经验收；当前三张图视觉 QA 未通过，eval <code>camera2</code> 的 readback 仍是黑屏。</li>
+            <li>不能说资产导入布局已闭环；当前对象坐标和 open-door handle transform 仍需修复。</li>
           </ul>
         </div>
       </div>
@@ -743,13 +755,13 @@
       <div class="timeline">
         <div class="milestone">
           <span class="tag">P0</span>
-          <h3>Camera 黑屏诊断</h3>
-          <p>定位 eval recorder <code>camera2</code> 黑屏是 pose、lighting、render product 绑定还是 readback 问题，并输出 object pose/bbox/projection 诊断。</p>
+          <h3>Camera readback 源头修复</h3>
+          <p>已定位为 <code>readback_black_before_recorder</code>；下一步逐项修 camera axes/pose、deterministic lighting 和 readback 源头，直到 eval readback 非黑。</p>
         </div>
         <div class="milestone">
           <span class="tag">P1</span>
-          <h3>Reset 布局显式化</h3>
-          <p>把 task position_range、必看对象和任务特定相机要求落成可验证的 reset-time 布局，先让三任务关键对象进入画面。</p>
+          <h3>资产/layout 正规化</h3>
+          <p>重建或补充 LabUtopia overlay，保留 nested part transform，把任务对象归一到 Franka 工作空间，并用静态 USD 校验 object center/bounds/scale/light。</p>
         </div>
         <div class="milestone">
           <span class="tag">P2</span>
@@ -759,7 +771,7 @@
         <div class="milestone">
           <span class="tag">P3</span>
           <h3>Lift2 资产预检</h3>
-          <p>渲染/布局证据通过后，再构建复合资产根目录：LabUtopia scene overlay + 默认 <code>robot_usds/lift2</code> + 默认 <code>miscs/curobo</code>。</p>
+          <p>camera readback、资产/layout 和三图视觉 QA 通过后，再构建复合资产根目录：LabUtopia scene overlay + 默认 <code>robot_usds/lift2</code> + 默认 <code>miscs/curobo</code>。</p>
         </div>
         <div class="milestone">
           <span class="tag">P4</span>
@@ -803,13 +815,18 @@
             </tr>
             <tr>
               <td>Franka render smoke 记录</td>
-              <td>三任务失败渲染样例、camera2 黑屏和当前风险边界。</td>
+              <td>三任务失败渲染样例、camera2 黑屏和 readback 边界。</td>
               <td><a href="../../../labutopia_lab_poc/franka_render_smoke.md">打开</a></td>
             </tr>
             <tr>
               <td>Render visual investigation</td>
-              <td>6/23 多角度复核：当前三张图未通过视觉验收，camera2 为纯黑。</td>
+              <td>6/23 多角度复核：当前三张图未通过视觉验收，camera2 为 readback 后、recorder 前黑屏。</td>
               <td><a href="../../../labutopia_lab_poc/render_visual_investigation_20260623.md">打开</a></td>
+            </tr>
+            <tr>
+              <td>Render diagnostics manifest</td>
+              <td>三任务 runtime 诊断、帧 hash、claim boundary 和 layout red flags。</td>
+              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json">打开</a></td>
             </tr>
             <tr>
               <td>Render/layout closure plan</td>
