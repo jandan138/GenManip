@@ -69,6 +69,8 @@
       background: transparent;
       color: inherit;
       font-size: inherit;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .topbar {
       position: sticky;
@@ -423,7 +425,7 @@
     tr:last-child td { border-bottom: 0; }
     .render-compare {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 14px;
       margin-top: 14px;
     }
@@ -489,6 +491,12 @@
     }
     .gate-panel {
       min-height: 220px;
+      overflow-wrap: anywhere;
+    }
+    .gate-panel p,
+    .gate-panel b {
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .status-strip {
       display: grid;
@@ -599,7 +607,7 @@
 
     <section id="native-plan">
       <h2>硬约束：最终必须调通 LabUtopia 原生复杂 <code>DryingBox</code></h2>
-      <p>这次后续目标不是继续把 cube-based surrogate 打磨得更像，而是让 LabUtopia native complex <code>DryingBox_01</code> 本体进入 EBench：保留原生 mesh、材质、层级身份和内部 <code>/handle</code>，只在必要时用 <code>additive physics override</code> 补齐 Isaac runtime 需要的稳定物理属性。</p>
+      <p>这次不是继续把 cube-based surrogate 打磨得更像，而是让 LabUtopia native complex <code>DryingBox_01</code> 本体进入 EBench：保留原生 mesh、材质、层级身份和内部 <code>/handle</code>，只在必要时用 <code>additive physics override</code> 补齐 Isaac runtime 需要的稳定物理属性。2026-06-24 P2 已完成 Franka POC gate：native visual/hierarchy/handle 保留，EBench readback 可见，<code>native_complex_dryingbox_ready=true</code>。</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -644,16 +652,44 @@
       <div class="status-strip">
         <div class="metric">
           <div class="label">Current Evidence</div>
-          <div class="value"><code>task_render_accepted=true</code><br>P1 surrogate baseline</div>
+          <div class="value"><code>native_complex_dryingbox_ready=true</code><br>P2 native readback</div>
         </div>
         <div class="metric">
-          <div class="label">Next Target</div>
-          <div class="value"><code>native_complex=true</code><br>native asset gate</div>
+          <div class="label">Native Gate</div>
+          <div class="value"><code>task_render_accepted=true</code><br>Franka POC passed</div>
         </div>
         <div class="metric">
           <div class="label">Still False</div>
           <div class="value"><code>official_baseline_evaluable=false</code><br>Lift2 gate pending</div>
         </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Native evidence</th>
+              <th>Path</th>
+              <th>SHA256</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>asset audit</code></td>
+              <td><code>saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json</code></td>
+              <td><code>e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d</code></td>
+            </tr>
+            <tr>
+              <td><code>native-only smoke</code></td>
+              <td><code>saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json</code></td>
+              <td><code>fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4</code></td>
+            </tr>
+            <tr>
+              <td><code>EBench readback</code></td>
+              <td><code>saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json</code></td>
+              <td><code>f28451fe121e43ac48c2e4b25ce28dfe395ee09e570318017c45cdfb2257225e</code></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -732,7 +768,7 @@
 
     <section id="native-gates">
       <h2>七步走：原生复杂 <code>DryingBox</code> 应该怎么调通</h2>
-      <p>下面是后续实施路线。每一步都要留下 evidence，再进入下一步；不能直接把视觉 PASS 当作物理 PASS，也不能把本地 POC PASS 当作官方 Lift2 baseline PASS。</p>
+      <p>下面是实施路线和当前进度。前五步已经有 evidence：<code>asset audit</code>、native-only Isaac smoke、EBench wrapper、<code>additive physics override</code> 和 <code>open_door</code> eval readback 都已通过；第六步是把证据写进教程和周报；第七步才进入 Lift2 baseline gate。不能把本地 POC PASS 当作官方 Lift2 baseline PASS。</p>
       <div class="gate-stepper">
         <div class="gate-list" role="group" aria-label="Native DryingBox gate controls">
           <button type="button" class="gate-btn" data-gate="audit" aria-pressed="true">1. Asset audit</button>
@@ -848,7 +884,7 @@ official_baseline_evaluable: false</code></pre>
         <div class="panel">
           <h3>可读性结果</h3>
           <p>P1 图不是为了还原 LabUtopia 原生 viewer，而是为了证明 evaluator 能看到任务：门板、框架、细橙色把手在同一张图里；<code>render_validation</code> 能检测到 <code>obj_DryingBox_01</code> 和 <code>obj_DryingBox_01_handle</code> 的 bbox 尺寸达标。</p>
-          <p>当前边界是：<code>task_render_accepted=true</code>，但 <code>native_complex_dryingbox_ready=false</code>、<code>official_baseline_evaluable=false</code>。下一步必须用 native complex asset 重新跑 asset audit、Isaac smoke 和 EBench readback gate。</p>
+          <p>P2 已用 native complex <code>DryingBox_01</code> 重新跑过 asset audit、Isaac smoke 和 EBench readback gate。当前边界是：<code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>，但 <code>official_baseline_evaluable=false</code>。</p>
         </div>
       </div>
     </section>
@@ -867,13 +903,13 @@ official_baseline_evaluable: false</code></pre>
           <tbody>
             <tr>
               <td><code>Task render</code></td>
-              <td>Franka POC 三任务 eval readback 非黑，当前 P1 surrogate baseline 中 <code>render_validation.passed=true</code>、<code>task_render_accepted=true</code>。</td>
+              <td>Franka POC 三任务 eval readback 非黑，P1 surrogate baseline 中 <code>render_validation.passed=true</code>、<code>task_render_accepted=true</code>；P2 native DryingBox readback 同样通过任务证据门禁。</td>
               <td>不能说策略已经求解成功；当前 smoke 默认动作分数仍是 <code>0.0</code>。</td>
             </tr>
             <tr>
               <td><code>Native asset</code></td>
-              <td>下一步目标已经明确：保留 LabUtopia native complex <code>DryingBox</code> 的 mesh、材质、层级和 nested handle，只做必要的 <code>additive physics override</code>。</td>
-              <td>不能说原生复杂 DryingBox 已经调通；当前 P1 证据来自 <code>sanitized_surrogate</code> 对照组。</td>
+              <td>可以说 LabUtopia native complex <code>DryingBox_01</code> 已通过 Franka POC native gate：mesh、材质、层级和 nested handle 保留，只做必要的 <code>additive physics override</code>。</td>
+              <td>不能说 P2 readback 就是 LabUtopia viewer 原生视角，也不能把它说成官方 Lift2 baseline 成绩。</td>
             </tr>
             <tr>
               <td><code>Official Lift2 baseline</code></td>
@@ -895,6 +931,10 @@ official_baseline_evaluable: false</code></pre>
         <figure>
           <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png" alt="Current open door evaluator readback">
           <figcaption><b>P1 eval readback</b>：正面可见 DryingBox frame、door panel 和 thin orange handle；正式诊断里 <code>render_validation.passed=true</code>。这张图是 surrogate baseline 证据，不是 native complex DryingBox 调通证据。</figcaption>
+        </figure>
+        <figure>
+          <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-readback-p2.png" alt="Native complex DryingBox evaluator readback">
+          <figcaption><b>P2 native readback</b>：回到 LabUtopia native complex <code>DryingBox_01</code>，原生箱体和 nested handle 在 EBench evaluator camera 中可见；正式诊断里 <code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>。</figcaption>
         </figure>
       </div>
     </section>
@@ -936,7 +976,7 @@ official_baseline_evaluable: false</code></pre>
           <span>用于补充 <code>layering</code>、<code>composition</code> 和协作式资产组织的非官方解读。</span>
         </div>
       </div>
-      <p class="footnote" style="margin-top: 12px;">项目证据来自 <code>saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json</code>、<code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> 和周报 evidence manifest。</p>
+      <p class="footnote" style="margin-top: 12px;">项目证据来自 <code>saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json</code>、<code>saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json</code>、<code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> 和周报 evidence manifest。</p>
     </section>
   </main>
 
@@ -946,7 +986,7 @@ official_baseline_evaluable: false</code></pre>
         tag: "Baseline",
         tagClass: "ok",
         title: "P1 对照基线：稳定、可读、可验证",
-        body: "当前正式诊断里，surrogate DryingBox 只暴露 RevoluteJoint，joint_positions=[0.0]，runtime_physics_stable=true。门板、框架和细橙色把手都在同一张 camera2 readback 图里。它证明 EBench 读图链路可走，但不证明 native complex DryingBox 已经调通。",
+        body: "P1 正式诊断里，surrogate DryingBox 只暴露 RevoluteJoint，joint_positions=[0.0]，runtime_physics_stable=true。门板、框架和细橙色把手都在同一张 camera2 readback 图里。它证明 EBench 读图链路可走，并为 P2 native gate 提供稳定对照。",
         root: "Root scale: <code>[1,1,1]</code>",
         joint: "Joint state: <code>0.0 rad</code>",
         handle: "Nested handle: <code>/World/.../obj_obj_DryingBox_01/handle</code>",
@@ -976,13 +1016,13 @@ official_baseline_evaluable: false</code></pre>
         angle: 80
       },
       native: {
-        tag: "Target",
-        tagClass: "warn",
-        title: "P2 原生目标：native visual + additive physics override",
-        body: "后续必须回到 LabUtopia native complex DryingBox：视觉、层级、handle 都保留原生资产，只用 additive physics override 修 root scale、mass/inertia、body0/body1、joint frame 和 reset target。它需要重新通过 native gate。",
+        tag: "Passed",
+        tagClass: "ok",
+        title: "P2 原生证据：native visual + additive physics override",
+        body: "P2 已回到 LabUtopia native complex DryingBox_01：视觉、层级、handle 都保留原生资产，只用 additive physics override 修 root scale、fixed base、mass/inertia、joint target 和非任务 DOF。正式诊断为 native_complex_dryingbox_ready=true。",
         root: "Native payload: <code>/World/DryingBox_01</code>",
-        joint: "Must verify: <code>DOF names + joint position</code>",
-        handle: "Keep nested native handle: <code>/handle</code> or verified equivalent",
+        joint: "Verified: <code>runtime_physics_stable=true</code>",
+        handle: "Nested native handle: <code>/handle</code> verified in readback",
         stateClass: "state-fixed",
         angle: 18
       }
@@ -991,44 +1031,44 @@ official_baseline_evaluable: false</code></pre>
     const gateData = {
       audit: {
         tag: "Gate 1",
-        tagClass: "warn",
+        tagClass: "ok",
         title: "Asset audit：先看清原生资产到底长什么样",
-        body: "只读打开 LabUtopia 原始 /World/DryingBox_01，导出 prim tree、ArticulationRootAPI、RigidBodyAPI、Joint、body0/body1、root scale、mass/inertia、centerOfMass、principalAxes、handle path 和 material binding。",
-        pass: "通过标准：拿到 JSON 报告和 USD hash，能明确 native 风险点，而不是靠猜。"
+        body: "已只读打开 LabUtopia 原始 /World/DryingBox_01，导出 prim tree、ArticulationRootAPI、RigidBodyAPI、Joint、body0/body1、root scale、mass/inertia、centerOfMass、principalAxes、handle path 和 material binding。",
+        pass: "已通过：saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json，SHA256 e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d。"
       },
       smoke: {
         tag: "Gate 2",
-        tagClass: "warn",
+        tagClass: "ok",
         title: "Native-only Isaac smoke：先不进 EBench",
-        body: "最小 stage 只加载 native DryingBox，step 60-120 帧，读取 DOF names、joint positions、root pose、handle pose，并尝试设置关闭态和开门角。",
-        pass: "通过标准：无 PhysX transform warning，无 1.573e13 这类爆值，门关节可控，handle 跟门走。"
+        body: "已用最小 stage 只加载 native DryingBox，step 后读取 DOF names、joint positions、root pose、handle pose，并验证关闭态和开门角控制。",
+        pass: "已通过：saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json，SHA256 fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4。"
       },
       wrapper: {
         tag: "Gate 3",
-        tagClass: "warn",
+        tagClass: "ok",
         title: "EBench wrapper：保留 native payload，不再手写 cube 门",
-        body: "把 native DryingBox reference/payload 到 /World/labutopia_level1_poc/obj_obj_DryingBox_01，保持 object uid、handle part path、task YAML 和 metric 能找到同一个任务对象。",
-        pass: "通过标准：native mesh/material/hierarchy 可见，object map 能识别 obj_DryingBox_01 和 handle，且不出现 top-level duplicate handle。"
+        body: "已把 native DryingBox reference/payload 到 /World/labutopia_level1_poc/obj_obj_DryingBox_01，保持 object uid、handle part path、task YAML 和 metric 能找到同一个任务对象。",
+        pass: "已通过：native mesh/material/hierarchy 可见，object map 能识别 obj_DryingBox_01 和 handle，且不出现 top-level duplicate handle。"
       },
       physics: {
         tag: "Gate 4",
-        tagClass: "warn",
+        tagClass: "ok",
         title: "Additive physics override：只修 runtime 必需的物理属性",
-        body: "在 native visual 上叠加修正：root scale/unit、finite mass/inertia、合法 centerOfMass/principalAxes、有效 body0/body1、fixed base、door RevoluteJoint reset target，并决定是否隔离 button PrismaticJoint。",
-        pass: "通过标准：视觉仍是 native，物理状态有限稳定，metric joint name 与实际 DOF 一致。"
+        body: "已在 native visual 上叠加修正：root scale/unit、finite mass/inertia、合法 centerOfMass/principalAxes、有效 body0/body1、fixed base、door RevoluteJoint reset target，并隔离非任务 DOF。",
+        pass: "已通过：视觉仍是 native，物理状态有限稳定，metric joint name 与实际 DOF 一致。"
       },
       readback: {
         tag: "Gate 5",
-        tagClass: "warn",
+        tagClass: "ok",
         title: "open_door eval readback：回到 EBench 评测相机",
-        body: "运行 level1_open_door 的 evaluator camera readback，记录 native audit hash、joint state、bbox、handle visibility、render validation 和 diagnostics claim boundary。",
-        pass: "通过标准：runtime_physics_stable=true，native_complex_dryingbox_ready=true，task_render_accepted=true。"
+        body: "已运行 level1_open_door 的 evaluator camera readback，记录 native audit hash、joint state、bbox、handle visibility、render validation 和 diagnostics claim boundary。",
+        pass: "已通过：runtime_physics_stable=true，native_complex_dryingbox_ready=true，task_render_accepted=true；diagnostics SHA256 f28451fe121e43ac48c2e4b25ce28dfe395ee09e570318017c45cdfb2257225e。"
       },
       tutorial: {
         tag: "Gate 6",
         tagClass: "warn",
         title: "Tutorial evidence update：把怎么调通写清楚",
-        body: "把 asset audit、smoke、wrapper、physics override、eval readback 的证据写进教程。旧图、surrogate 对照图、native 最终图并排展示。",
+        body: "正在把 asset audit、smoke、wrapper、physics override、eval readback 的证据写进教程。旧图、surrogate 对照图、native 最终图并排展示。",
         pass: "通过标准：PM 能看懂为什么 native 一开始坏、我们改了哪些 physics override、哪些 claim 仍然不能说。"
       },
       lift2: {
