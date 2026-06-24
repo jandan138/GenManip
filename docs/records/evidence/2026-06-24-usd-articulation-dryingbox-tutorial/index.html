@@ -695,26 +695,29 @@
 
     <section id="native-materials">
       <h2>为什么 LabUtopia 原生没问题，进 EBench 后会出问题</h2>
-      <p>产品上看两边都是 <code>USD</code>，也都在 Isaac 里渲染，但加载方式不同。LabUtopia 原生场景是在自己的 <code>/World</code> 层级里完整展开；EBench POC 则把这个资产放进任务 wrapper，例如 <code>/World/labutopia_level1_poc/obj_obj_DryingBox_01</code>，再通过 <code>payload</code> 把原始内容挂进去。这个 wrapper 能保护任务命名和对象映射，但也会触发 <code>USD payload</code> 的作用域规则。</p>
+      <p>最容易误解的一点是：两边看起来都叫 <code>USD</code>，也都在 Isaac 里渲染，为什么 LabUtopia 原生 viewer 正常，进 EBench 后旧图却像倒了？答案不是“原生复杂资产坏了”，而是加载方式变了。LabUtopia 原生场景是在自己的 <code>/World</code> 里完整展开；EBench POC 为了让 evaluator 能按任务识别对象，会把 <code>DryingBox_01</code> 放进任务 <code>wrapper</code>，例如 <code>/World/labutopia_level1_poc/obj_obj_DryingBox_01</code>，再用 <code>payload</code> 把原始资产挂进来。</p>
+      <div class="callout">
+        通俗地说：LabUtopia 原生模式像“箱子还在原包装里”，标签、颜色、零件都在原来的位置；EBench wrapper 像“把箱子搬进一个新房间并重新贴任务编号”。几何形状搬过来了，但旧的颜色标签还指向老房间，Isaac 找不到或不接受这个越界引用，就会退回灰白 fallback material。
+      </div>
       <div class="grid-3">
         <div class="panel ok">
           <span class="tag ok">原生 LabUtopia</span>
-          <h3>材质和 mesh 在同一原始舞台</h3>
-          <p>原始 <code>DryingBox_01</code> 的 mesh 可以直接找到 <code>/World/Looks</code> 或内部 <code>Looks</code> 下的 material，所以蓝色门、白色侧面和控制面板能正常显示。</p>
+          <h3>原包装里一切都对得上</h3>
+          <p>原始 <code>DryingBox_01</code> 的 mesh、material 和路径都在同一个 <code>/World</code> 舞台里。门板要找蓝色 material、箱体要找白色 material，都能沿着原来的 <code>material:binding</code> 找到，所以蓝门、白侧面、控制面板显示正常。</p>
         </div>
         <div class="panel warn">
           <span class="tag warn">EBench wrapper</span>
-          <h3><code>payload</code> 会限制关系目标</h3>
-          <p>当原生资产被挂到 wrapper 下面时，旧的 <code>material:binding</code> 仍然指向原场景里的 material path。USD 会把“指到 payload 外部”的关系视为越界并忽略，结果就是材质 fallback，看起来灰、白、斜，容易误读成箱子倒了。</p>
+          <h3>搬进新房间后标签没跟上</h3>
+          <p>进入 EBench 后，mesh 被挂到 <code>wrapper</code> 下，但旧的 <code>material:binding</code> 还在指原场景里的 material path。这个关系跨出了当前 <code>payload</code> / <code>wrapper</code> 的可见范围，Isaac 会忽略它，于是蓝门和白箱体材质丢失，只剩灰白 fallback，看起来就像箱子姿态不对。</p>
         </div>
         <div class="panel ok">
           <span class="tag ok">修复后</span>
-          <h3>把 <code>Looks</code> 搬到 wrapper 内</h3>
-          <p>我们在 <code>obj_obj_DryingBox_01</code> 下面创建本地 <code>Looks</code> scope，payload 原始 material，再把门板、把手、控制面板等 mesh 的 <code>material:binding</code> 重新指到 wrapper-local material。这样 mesh、material 和 task UID 同时可用。</p>
+          <h3>把颜色标签也搬进新房间</h3>
+          <p>我们在 <code>obj_obj_DryingBox_01</code> 下面创建 wrapper-local <code>Looks</code>，把原始 material 挂进来，再把 door、body、handle、panel 等 mesh/subset 的 <code>material:binding</code> 重新指到 wrapper-local material。这样 EBench 既能识别任务对象，Isaac 也能正确恢复原生材质。</p>
         </div>
       </div>
       <div class="callout">
-        所以这次“像倒了”的旧图，不是 native DryingBox 的物理姿态真的倒置，而是证据相机 + 材质作用域没有闭环。修复后同一个 native complex <code>DryingBox_01</code> 能以 upright 状态显示蓝门、白侧面、把手、观察窗和控制面板。
+        最终结论：旧图“像倒了”不是 native DryingBox 的 physics pose 真的倒置，而是两个证据问题叠加。第一，旧 evidence camera 更偏机器验证，不是给 PM 一眼识别的展示视角；第二，native <code>material:binding</code> 没在 EBench wrapper 内闭环，导致颜色丢失。修复后，同一个 native complex <code>DryingBox_01</code> 能以 upright 状态显示蓝门、白侧面、把手、观察窗和控制面板。
       </div>
       <div class="table-wrap">
         <table>

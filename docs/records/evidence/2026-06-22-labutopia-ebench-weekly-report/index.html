@@ -608,7 +608,9 @@
 
       <div class="panel warn">
         <h3>关于“最后一张箱子像倒了”的解释</h3>
-        <p>这个判断是对的：旧 P2 native 图不适合当 PM 验收图。它不是 USD 物理真的倒置，而是两个问题叠加造成视觉误读：第一，旧证据相机角度和构图没有对齐 LabUtopia 原生可读视角；第二，native DryingBox 的 <code>material:binding</code> 在 EBench wrapper 的 <code>payload</code> 作用域里指向了外部 <code>/World/Looks</code>，Isaac 会忽略这些越界材质关系，导致蓝色门和白色箱体材质丢失，看起来像一块灰白倾斜物。现在的 retake 修了 wrapper-local <code>Looks</code> 和 material rebinding，再用证据相机重拍，所以可以清楚看到 upright 的蓝门、白侧面、把手、观察窗和控制面板。</p>
+        <p><strong>一句话版：</strong>旧图不是箱子真的倒了，而是“拍摄角度不好”加上“箱子的颜色标签搬家时没跟上”。这两个问题叠在一起，让原本应该是蓝门、白侧面的 <code>DryingBox_01</code> 看起来像一块灰白斜着的物体。</p>
+        <p><strong>为什么会这样：</strong>LabUtopia 原生场景里，箱体和材质放在同一个 <code>USD</code> 世界，mesh 能直接找到 <code>/World/Looks</code> 里的蓝色门、白色箱体等 material。进入 EBench 后，我们把原生箱子装进任务用的 <code>wrapper</code>，相当于把家具搬进新房间；但旧的 <code>material:binding</code> 还指向老房间里的材质路径。Isaac 看到这种“指到 wrapper 外面”的材质关系，会选择忽略，于是颜色丢失，只剩 fallback 灰白效果。</p>
+        <p><strong>怎么解决：</strong>我们在 <code>DryingBox_01</code> 的 wrapper 里面补了本地 <code>Looks</code>，再把门、箱体、把手、控制面板等 mesh 的 <code>material:binding</code> 重新指向 wrapper-local material；同时换了更适合人工验收的 retake camera。现在新图能清楚看到 upright 箱体、蓝色门、白色侧面、把手、观察窗和控制面板。</p>
       </div>
 
       <h3>旧图：历史失败样例</h3>
