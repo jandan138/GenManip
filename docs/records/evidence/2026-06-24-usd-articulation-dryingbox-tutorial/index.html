@@ -466,6 +466,40 @@
       background: var(--blue-soft);
       color: #17304f;
     }
+    .gate-stepper {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .gate-list {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+    .gate-btn {
+      width: 100%;
+      min-height: 44px;
+      text-align: left;
+    }
+    .gate-btn[aria-pressed="true"] {
+      border-color: var(--green);
+      background: var(--green);
+      color: #ffffff;
+    }
+    .gate-panel {
+      min-height: 220px;
+    }
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .status-strip .metric .value {
+      font-size: 15px;
+      line-height: 1.35;
+    }
     .footnote {
       color: var(--muted);
       font-size: 13px;
@@ -480,7 +514,9 @@
       .grid-3,
       .render-compare,
       .source-list,
-      .metric-row {
+      .metric-row,
+      .gate-stepper,
+      .status-strip {
         grid-template-columns: 1fr;
       }
       .hero-stage,
@@ -504,6 +540,7 @@
     <a class="brand" href="../2026-06-22-labutopia-ebench-weekly-report/index.html">LabUtopia <span>EBench</span></a>
     <nav class="nav" aria-label="Page navigation">
       <a href="#why">为什么单独讲门</a>
+      <a href="#native-plan">Native 路线</a>
       <a href="#primer">USD Articulation</a>
       <a href="#incident">我们踩到的问题</a>
       <a href="#fix">解决方案</a>
@@ -553,9 +590,69 @@
           <p>门是 <code>articulated object</code>，不是普通 mesh。<code>ArticulationRootAPI</code>、<code>RigidBodyAPI</code>、<code>Joint</code>、<code>body0/body1</code>、<code>scale</code> 和 <code>handle</code> 层级都要同时正确。</p>
         </div>
         <div class="panel ok">
-          <span class="tag ok">After</span>
-          <h3>用 runtime surrogate 收敛风险</h3>
-          <p>我们改成稳定的 DryingBox <code>runtime surrogate</code>：固定底座、只保留一个 <code>RevoluteJoint</code>、把门回放到 <code>[0.0]</code>、把手保留在内部 <code>/handle</code> 路径。</p>
+          <span class="tag ok">P1 Baseline</span>
+          <h3>用 sanitized surrogate 先锁定链路</h3>
+          <p>P1 先用稳定的 DryingBox <code>sanitized_surrogate</code> 做对照基线：固定底座、只保留一个 <code>RevoluteJoint</code>、把门回放到 <code>[0.0]</code>、把手保留在内部 <code>/handle</code> 路径。这证明 EBench 读图和关节读数链路能跑，但还不等于原生复杂资产已经调通。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="native-plan">
+      <h2>硬约束：最终必须调通 LabUtopia 原生复杂 <code>DryingBox</code></h2>
+      <p>这次后续目标不是继续把 cube-based surrogate 打磨得更像，而是让 LabUtopia native complex <code>DryingBox_01</code> 本体进入 EBench：保留原生 mesh、材质、层级身份和内部 <code>/handle</code>，只在必要时用 <code>additive physics override</code> 补齐 Isaac runtime 需要的稳定物理属性。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>层级</th>
+              <th>必须保留</th>
+              <th>允许覆盖</th>
+              <th>不允许</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Native visual</code></td>
+              <td>原生 DryingBox 的门板、框架、把手、真实 mesh 和 material identity。</td>
+              <td>少量 <code>displayColor</code> 或 material binding 只用于 eval readback 可读性。</td>
+              <td>不把干燥箱替换成 <code>Cube</code> 拼出来的假箱体作为最终资产。</td>
+            </tr>
+            <tr>
+              <td><code>Native hierarchy</code></td>
+              <td><code>/World/DryingBox_01</code> 的内部树和 nested <code>/handle</code> 语义。</td>
+              <td>在 EBench wrapper 下增加诊断 metadata、object map 和 bbox contract。</td>
+              <td>不把 <code>handle</code> 拆成 top-level duplicate object。</td>
+            </tr>
+            <tr>
+              <td><code>Additive physics override</code></td>
+              <td>原生资产仍然是任务对象和视觉对象。</td>
+              <td>补 <code>mass/inertia</code>、修 <code>body0/body1</code>、固定 base、校正 reset target、隔离非任务 DOF。</td>
+              <td>不把物理稳定性问题通过换简化几何体绕过去。</td>
+            </tr>
+            <tr>
+              <td><code>Eval camera</code></td>
+              <td>使用 evaluator readback 作为证据路径。</td>
+              <td>任务相机、任务级隐藏和对比度增强可调整。</td>
+              <td>不把展示图、viewer 截图或漂亮图说成 baseline 成绩。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        PM 版一句话：不是“换个假箱子”，而是“把原箱子搬进 EBench，再给它补上评测需要的稳定合页、复位规则和状态读回”。
+      </div>
+      <div class="status-strip">
+        <div class="metric">
+          <div class="label">Current Evidence</div>
+          <div class="value"><code>task_render_accepted=true</code><br>P1 surrogate baseline</div>
+        </div>
+        <div class="metric">
+          <div class="label">Next Target</div>
+          <div class="value"><code>native_complex=true</code><br>native asset gate</div>
+        </div>
+        <div class="metric">
+          <div class="label">Still False</div>
+          <div class="value"><code>official_baseline_evaluable=false</code><br>Lift2 gate pending</div>
         </div>
       </div>
     </section>
@@ -601,10 +698,10 @@
       <h2>互动：切换失败模式，看门为什么会坏</h2>
       <p>下面这个小动画不是 Isaac 渲染结果，而是用于教学的结构示意。切换按钮可以看到我们这次实际排查过的几类风险。</p>
       <div class="toolbar" role="group" aria-label="Failure mode controls">
-        <button type="button" class="mode-btn" data-mode="fixed" aria-pressed="true">最终修复态</button>
+        <button type="button" class="mode-btn" data-mode="fixed" aria-pressed="true">P1 对照基线</button>
         <button type="button" class="mode-btn" data-mode="detached" aria-pressed="false">把手飞走</button>
         <button type="button" class="mode-btn" data-mode="exploded" aria-pressed="false">关节爆值</button>
-        <button type="button" class="mode-btn" data-mode="native" aria-pressed="false">原生复杂资产</button>
+        <button type="button" class="mode-btn" data-mode="native" aria-pressed="false">P2 原生目标</button>
       </div>
       <div class="grid-2">
         <div class="interactive-stage state-fixed" id="doorStage">
@@ -621,14 +718,36 @@
           <div class="annotation handle-note" id="handleLabel">Nested handle: <code>/World/.../obj_obj_DryingBox_01/handle</code></div>
         </div>
         <div class="panel" id="modeExplanation">
-          <span class="tag ok">Fixed</span>
-          <h3>最终修复态：稳定、可读、可验证</h3>
-          <p>当前正式诊断里，DryingBox 只暴露 <code>RevoluteJoint</code>，<code>joint_positions=[0.0]</code>，<code>runtime_physics_stable=true</code>。门板、框架和细橙色把手都在同一张 <code>camera2</code> readback 图里。</p>
+          <span class="tag ok">Baseline</span>
+          <h3>P1 对照基线：稳定、可读、可验证</h3>
+          <p>当前正式诊断里，surrogate DryingBox 只暴露 <code>RevoluteJoint</code>，<code>joint_positions=[0.0]</code>，<code>runtime_physics_stable=true</code>。门板、框架和细橙色把手都在同一张 <code>camera2</code> readback 图里。这是 native 接入的对照组，不是 native 完成证明。</p>
           <div class="range-row">
             <span>门角度演示</span>
             <input id="doorRange" type="range" min="0" max="80" value="28" aria-label="Door angle demo">
             <code id="angleValue">28 deg</code>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="native-gates">
+      <h2>七步走：原生复杂 <code>DryingBox</code> 应该怎么调通</h2>
+      <p>下面是后续实施路线。每一步都要留下 evidence，再进入下一步；不能直接把视觉 PASS 当作物理 PASS，也不能把本地 POC PASS 当作官方 Lift2 baseline PASS。</p>
+      <div class="gate-stepper">
+        <div class="gate-list" role="group" aria-label="Native DryingBox gate controls">
+          <button type="button" class="gate-btn" data-gate="audit" aria-pressed="true">1. Asset audit</button>
+          <button type="button" class="gate-btn" data-gate="smoke" aria-pressed="false">2. Native-only Isaac smoke</button>
+          <button type="button" class="gate-btn" data-gate="wrapper" aria-pressed="false">3. EBench wrapper</button>
+          <button type="button" class="gate-btn" data-gate="physics" aria-pressed="false">4. Additive physics override</button>
+          <button type="button" class="gate-btn" data-gate="readback" aria-pressed="false">5. open_door eval readback</button>
+          <button type="button" class="gate-btn" data-gate="tutorial" aria-pressed="false">6. Tutorial evidence update</button>
+          <button type="button" class="gate-btn" data-gate="lift2" aria-pressed="false">7. Lift2 baseline gate</button>
+        </div>
+        <div class="panel gate-panel" id="gateExplanation">
+          <span class="tag warn">Gate 1</span>
+          <h3>Asset audit：先看清原生资产到底长什么样</h3>
+          <p>只读打开 LabUtopia 原始 <code>/World/DryingBox_01</code>，导出 prim tree、<code>ArticulationRootAPI</code>、所有 <code>RigidBodyAPI</code>、所有 <code>Joint</code>、<code>body0/body1</code>、root <code>scale</code>、<code>mass/inertia</code>、<code>centerOfMass</code>、<code>principalAxes</code>、handle path 和 material binding。</p>
+          <p><b>通过标准：</b>拿到 JSON 报告和 USD hash，能明确 native 风险点，而不是靠猜。</p>
         </div>
       </div>
     </section>
@@ -676,7 +795,7 @@
     </section>
 
     <section id="fix">
-      <h2>我们怎么解决：从原始资产到稳定 <code>runtime surrogate</code></h2>
+      <h2>P1 已做什么：从爆值风险到稳定 <code>sanitized_surrogate</code> 对照组</h2>
       <div class="grid-2">
         <div>
           <div class="hierarchy" aria-label="DryingBox hierarchy">
@@ -705,7 +824,7 @@
         <div class="panel">
           <h3>关键策略</h3>
           <ul>
-            <li>不用不稳定的原始复杂 articulation 直接进评测，而是生成 DryingBox <code>runtime surrogate</code>。</li>
+            <li>P1 先不让不稳定的原始复杂 articulation 直接进入正式评测，而是生成 DryingBox <code>sanitized_surrogate</code> 做可控对照组。</li>
             <li>用 <code>BaseFixedJoint</code> 把箱体固定住，避免整个干燥箱在物理里漂移。</li>
             <li>只保留一个明确的 <code>RevoluteJoint</code>，让门的状态可以用一个角度解释。</li>
             <li>在 reset 后回放 <code>target_positions=[0.0]</code>，保证任务从关闭态开始。</li>
@@ -728,13 +847,45 @@ official_baseline_evaluable: false</code></pre>
         </div>
         <div class="panel">
           <h3>可读性结果</h3>
-          <p>最终图不是为了还原 LabUtopia 原生 viewer，而是为了证明 evaluator 能看到任务：门板、框架、细橙色把手在同一张图里；<code>render_validation</code> 能检测到 <code>obj_DryingBox_01</code> 和 <code>obj_DryingBox_01_handle</code> 的 bbox 尺寸达标。</p>
-          <p>当前边界是：<code>task_render_accepted=true</code>，但 <code>official_baseline_evaluable=false</code>，因为官方 Lift2 baseline 的复合资产和 runner 还没验证。</p>
+          <p>P1 图不是为了还原 LabUtopia 原生 viewer，而是为了证明 evaluator 能看到任务：门板、框架、细橙色把手在同一张图里；<code>render_validation</code> 能检测到 <code>obj_DryingBox_01</code> 和 <code>obj_DryingBox_01_handle</code> 的 bbox 尺寸达标。</p>
+          <p>当前边界是：<code>task_render_accepted=true</code>，但 <code>native_complex_dryingbox_ready=false</code>、<code>official_baseline_evaluable=false</code>。下一步必须用 native complex asset 重新跑 asset audit、Isaac smoke 和 EBench readback gate。</p>
         </div>
       </div>
     </section>
 
     <section id="evidence">
+      <h2>Claim Boundary：三件事不能混在一起</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Claim</th>
+              <th>现在可以说</th>
+              <th>现在不能说</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Task render</code></td>
+              <td>Franka POC 三任务 eval readback 非黑，当前 P1 surrogate baseline 中 <code>render_validation.passed=true</code>、<code>task_render_accepted=true</code>。</td>
+              <td>不能说策略已经求解成功；当前 smoke 默认动作分数仍是 <code>0.0</code>。</td>
+            </tr>
+            <tr>
+              <td><code>Native asset</code></td>
+              <td>下一步目标已经明确：保留 LabUtopia native complex <code>DryingBox</code> 的 mesh、材质、层级和 nested handle，只做必要的 <code>additive physics override</code>。</td>
+              <td>不能说原生复杂 DryingBox 已经调通；当前 P1 证据来自 <code>sanitized_surrogate</code> 对照组。</td>
+            </tr>
+            <tr>
+              <td><code>Official Lift2 baseline</code></td>
+              <td>后续需要验证 Lift2 复合资产根目录和官方 runner gate。</td>
+              <td>不能说官方 Lift2 baseline 已经可评、已执行或已有官方成绩。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
       <h2>旧图和最终图怎么读</h2>
       <div class="render-compare">
         <figure>
@@ -743,7 +894,7 @@ official_baseline_evaluable: false</code></pre>
         </figure>
         <figure>
           <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png" alt="Current open door evaluator readback">
-          <figcaption><b>最终 eval readback</b>：正面可见 DryingBox frame、door panel 和 thin orange handle；正式诊断里 <code>render_validation.passed=true</code>。</figcaption>
+          <figcaption><b>P1 eval readback</b>：正面可见 DryingBox frame、door panel 和 thin orange handle；正式诊断里 <code>render_validation.passed=true</code>。这张图是 surrogate baseline 证据，不是 native complex DryingBox 调通证据。</figcaption>
         </figure>
       </div>
     </section>
@@ -792,10 +943,10 @@ official_baseline_evaluable: false</code></pre>
   <script>
     const modeData = {
       fixed: {
-        tag: "Fixed",
+        tag: "Baseline",
         tagClass: "ok",
-        title: "最终修复态：稳定、可读、可验证",
-        body: "当前正式诊断里，DryingBox 只暴露 RevoluteJoint，joint_positions=[0.0]，runtime_physics_stable=true。门板、框架和细橙色把手都在同一张 camera2 readback 图里。",
+        title: "P1 对照基线：稳定、可读、可验证",
+        body: "当前正式诊断里，surrogate DryingBox 只暴露 RevoluteJoint，joint_positions=[0.0]，runtime_physics_stable=true。门板、框架和细橙色把手都在同一张 camera2 readback 图里。它证明 EBench 读图链路可走，但不证明 native complex DryingBox 已经调通。",
         root: "Root scale: <code>[1,1,1]</code>",
         joint: "Joint state: <code>0.0 rad</code>",
         handle: "Nested handle: <code>/World/.../obj_obj_DryingBox_01/handle</code>",
@@ -825,15 +976,67 @@ official_baseline_evaluable: false</code></pre>
         angle: 80
       },
       native: {
-        tag: "Tradeoff",
+        tag: "Target",
         tagClass: "warn",
-        title: "原生复杂资产：像原场景，但不一定可评",
-        body: "LabUtopia 原生视角和材质更接近真实资产，但 P1 目标是 eval-path evidence。我们先用 task camera、displayColor 和 runtime surrogate 把任务读图链路打稳。",
-        root: "Native payload: <code>complex topology</code>",
-        joint: "Runtime readiness: <code>must be checked</code>",
-        handle: "Need readable <code>door + handle</code> in camera2",
+        title: "P2 原生目标：native visual + additive physics override",
+        body: "后续必须回到 LabUtopia native complex DryingBox：视觉、层级、handle 都保留原生资产，只用 additive physics override 修 root scale、mass/inertia、body0/body1、joint frame 和 reset target。它需要重新通过 native gate。",
+        root: "Native payload: <code>/World/DryingBox_01</code>",
+        joint: "Must verify: <code>DOF names + joint position</code>",
+        handle: "Keep nested native handle: <code>/handle</code> or verified equivalent",
         stateClass: "state-fixed",
         angle: 18
+      }
+    };
+
+    const gateData = {
+      audit: {
+        tag: "Gate 1",
+        tagClass: "warn",
+        title: "Asset audit：先看清原生资产到底长什么样",
+        body: "只读打开 LabUtopia 原始 /World/DryingBox_01，导出 prim tree、ArticulationRootAPI、RigidBodyAPI、Joint、body0/body1、root scale、mass/inertia、centerOfMass、principalAxes、handle path 和 material binding。",
+        pass: "通过标准：拿到 JSON 报告和 USD hash，能明确 native 风险点，而不是靠猜。"
+      },
+      smoke: {
+        tag: "Gate 2",
+        tagClass: "warn",
+        title: "Native-only Isaac smoke：先不进 EBench",
+        body: "最小 stage 只加载 native DryingBox，step 60-120 帧，读取 DOF names、joint positions、root pose、handle pose，并尝试设置关闭态和开门角。",
+        pass: "通过标准：无 PhysX transform warning，无 1.573e13 这类爆值，门关节可控，handle 跟门走。"
+      },
+      wrapper: {
+        tag: "Gate 3",
+        tagClass: "warn",
+        title: "EBench wrapper：保留 native payload，不再手写 cube 门",
+        body: "把 native DryingBox reference/payload 到 /World/labutopia_level1_poc/obj_obj_DryingBox_01，保持 object uid、handle part path、task YAML 和 metric 能找到同一个任务对象。",
+        pass: "通过标准：native mesh/material/hierarchy 可见，object map 能识别 obj_DryingBox_01 和 handle，且不出现 top-level duplicate handle。"
+      },
+      physics: {
+        tag: "Gate 4",
+        tagClass: "warn",
+        title: "Additive physics override：只修 runtime 必需的物理属性",
+        body: "在 native visual 上叠加修正：root scale/unit、finite mass/inertia、合法 centerOfMass/principalAxes、有效 body0/body1、fixed base、door RevoluteJoint reset target，并决定是否隔离 button PrismaticJoint。",
+        pass: "通过标准：视觉仍是 native，物理状态有限稳定，metric joint name 与实际 DOF 一致。"
+      },
+      readback: {
+        tag: "Gate 5",
+        tagClass: "warn",
+        title: "open_door eval readback：回到 EBench 评测相机",
+        body: "运行 level1_open_door 的 evaluator camera readback，记录 native audit hash、joint state、bbox、handle visibility、render validation 和 diagnostics claim boundary。",
+        pass: "通过标准：runtime_physics_stable=true，native_complex_dryingbox_ready=true，task_render_accepted=true。"
+      },
+      tutorial: {
+        tag: "Gate 6",
+        tagClass: "warn",
+        title: "Tutorial evidence update：把怎么调通写清楚",
+        body: "把 asset audit、smoke、wrapper、physics override、eval readback 的证据写进教程。旧图、surrogate 对照图、native 最终图并排展示。",
+        pass: "通过标准：PM 能看懂为什么 native 一开始坏、我们改了哪些 physics override、哪些 claim 仍然不能说。"
+      },
+      lift2: {
+        tag: "Gate 7",
+        tagClass: "warn",
+        title: "Lift2 baseline gate：最后再碰官方 baseline",
+        body: "先做 composite asset root preflight，再跑 lift2_candidate dry smoke，最后定位官方 EBench/OpenPI/Lift2 runner。通过前保持 official_baseline_evaluable=false。",
+        pass: "通过标准：Lift2 资产根目录、cuRobo、runner path/hash 和 3/3 dry smoke 都有证据。"
       }
     };
 
@@ -846,6 +1049,8 @@ official_baseline_evaluable: false</code></pre>
     const range = document.getElementById("doorRange");
     const angleValue = document.getElementById("angleValue");
     const buttons = Array.from(document.querySelectorAll(".mode-btn"));
+    const gatePanel = document.getElementById("gateExplanation");
+    const gateButtons = Array.from(document.querySelectorAll(".gate-btn"));
 
     function setAngle(value) {
       const angle = Number(value);
@@ -892,6 +1097,24 @@ official_baseline_evaluable: false</code></pre>
     });
     range.addEventListener("input", (event) => setAngle(event.target.value));
     setMode("fixed");
+
+    function setGate(gate) {
+      const data = gateData[gate];
+      gateButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.gate === gate));
+      });
+      gatePanel.innerHTML = `
+        <span class="tag ${data.tagClass}">${data.tag}</span>
+        <h3>${data.title}</h3>
+        <p>${data.body}</p>
+        <p><b>${data.pass}</b></p>
+      `;
+    }
+
+    gateButtons.forEach((button) => {
+      button.addEventListener("click", () => setGate(button.dataset.gate));
+    });
+    setGate("audit");
   </script>
 </body>
 </html>
