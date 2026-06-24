@@ -193,11 +193,19 @@
         }
     ],
     "drying_box_runtime_asset": {
+        "button_joint_name": "PrismaticJoint",
+        "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+        "door_joint_name": "RevoluteJoint",
+        "door_reset_target": [
+            0.0
+        ],
+        "fixed_base_policy": "world_fixed_joint_body0_removed",
         "handle_policy": "nested_native_handle",
         "source_payload_used": true,
         "source_prim_path": "/World/DryingBox_01",
         "strategy": "native_complex_with_additive_physics_override",
         "surrogate_kept_for_debug_baseline": true,
+        "unit_policy": "override_root_scale_to_identity",
         "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
     },
     "required_genmanip_object_uids": [

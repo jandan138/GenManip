@@ -244,6 +244,7 @@ git commit -m "feat: add native DryingBox overlay strategy"
 - Modify: `standalone_tools/labutopia_poc/build_asset_overlay.py`
 - Modify: `standalone_tools/labutopia_poc/validate_task_package.py`
 - Modify: `tests/labutopia_poc/test_validate_task_package.py`
+- Modify: `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json`
 - Modify: `configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml`
 
 - [ ] **Step 1: Write failing validator tests**
@@ -284,7 +285,7 @@ Expected: both commands exit `0`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add standalone_tools/labutopia_poc/build_asset_overlay.py standalone_tools/labutopia_poc/validate_task_package.py tests/labutopia_poc/test_validate_task_package.py configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml
+git add standalone_tools/labutopia_poc/build_asset_overlay.py standalone_tools/labutopia_poc/validate_task_package.py tests/labutopia_poc/test_validate_task_package.py configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml
 git commit -m "feat: validate native DryingBox physics overrides"
 ```
 

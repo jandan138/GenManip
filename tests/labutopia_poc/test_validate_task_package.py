@@ -66,6 +66,105 @@ def _write_yaml(path, data):
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
 
 
+def _write_minimal_native_drying_box_scene(
+    path,
+    *,
+    include_button_joint=True,
+    door_diagonal_inertia=(0.01, 0.01, 0.01),
+):
+    root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    button_joint = (
+        f"""
+                    def PhysicsPrismaticJoint "PrismaticJoint"
+                    {{
+                        rel physics:body0 = <{root_path}/body/body/mesh>
+                        rel physics:body1 = <{root_path}/button>
+                    }}"""
+        if include_button_joint
+        else ""
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""#usda 1.0
+def Xform "World"
+{{
+    def Xform "labutopia_level1_poc"
+    {{
+        def Xform "obj_obj_DryingBox_01" (
+            prepend apiSchemas = ["PhysicsArticulationRootAPI"]
+        )
+        {{
+            double3 xformOp:scale = (1, 1, 1)
+            def Xform "body"
+            {{
+                def Xform "body"
+                {{
+                    def Mesh "mesh" (
+                        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                    )
+                    {{
+                        float physics:mass = 2
+                        point3f physics:diagonalInertia = (0.05, 0.05, 0.05)
+                        point3f physics:centerOfMass = (0, 0, 0)
+                        quatf physics:principalAxes = (1, 0, 0, 0)
+                    }}
+                }}
+                def Xform "Group"
+                {{
+                    def Xform "door"
+                    {{
+                        def Mesh "mesh" (
+                            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                        )
+                        {{
+                            float physics:mass = 0.5
+                            point3f physics:diagonalInertia = {tuple(door_diagonal_inertia)}
+                            point3f physics:centerOfMass = (0, 0, 0)
+                            quatf physics:principalAxes = (1, 0, 0, 0)
+                        }}
+                    }}
+                }}
+            }}
+            def Xform "handle"
+            {{
+                def Mesh "mesh" (
+                    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                )
+                {{
+                    float physics:mass = 0.1
+                    point3f physics:diagonalInertia = (0.002, 0.002, 0.002)
+                    point3f physics:centerOfMass = (0, 0, 0)
+                    quatf physics:principalAxes = (1, 0, 0, 0)
+                }}
+            }}
+            def Mesh "button" (
+                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+            )
+            {{
+                float physics:mass = 0.05
+                point3f physics:diagonalInertia = (0.001, 0.001, 0.001)
+                point3f physics:centerOfMass = (0, 0, 0)
+                quatf physics:principalAxes = (1, 0, 0, 0)
+{button_joint}
+            }}
+            def PhysicsFixedJoint "FixedJoint_01"
+            {{
+                rel physics:body1 = <{root_path}/body/body/mesh>
+            }}
+            def PhysicsRevoluteJoint "RevoluteJoint"
+            {{
+                rel physics:body0 = <{root_path}/body/body/mesh>
+                rel physics:body1 = <{root_path}/body/Group/door/mesh>
+                float state:angular:physics:position = 0
+            }}
+        }}
+    }}
+}}
+""",
+        encoding="utf-8",
+    )
+
+
 def _write_task_files(task_root):
     for profile in ("franka_poc", "lift2_candidate"):
         profile_root = task_root / "ebench/labutopia_lab_poc" / profile
@@ -190,7 +289,7 @@ def test_assets_manifest_rejects_missing_overlay_runtime_scene(tmp_path, monkeyp
         validate_task_package._validate_assets_manifest()
 
 
-def test_assets_manifest_rejects_missing_drying_box_visual_affordance_geometry(
+def test_assets_manifest_rejects_missing_native_drying_box_payload(
     tmp_path,
     monkeypatch,
 ):
@@ -207,11 +306,10 @@ def Xform "World"
 {
     def Xform "labutopia_level1_poc"
     {
-        def Cube "handle_visual_marker" (
-            prepend apiSchemas = ["MaterialBindingAPI"]
+        def Xform "obj_obj_DryingBox_01" (
+            prepend payload = @scene.usd@</World/not_the_native_drying_box>
         )
         {
-            color3f[] primvars:displayColor = [(1, 0.18, 0.04)]
         }
         def DomeLight "DeterministicDomeLight"
         {
@@ -242,13 +340,8 @@ def Xform "World"
     _write_json(validate_task_package.Path(manifest["generated_manifest"]), generated)
     _write_json(common_root / "assets_manifest.json", manifest)
     monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
-    monkeypatch.setattr(
-        validate_task_package,
-        "EXPECTED_DRYING_BOX_RUNTIME_ASSET",
-        manifest["drying_box_runtime_asset"],
-    )
 
-    with pytest.raises(AssertionError, match="drying-box door visual affordance"):
+    with pytest.raises(AssertionError, match="native DryingBox_01 payload"):
         validate_task_package._validate_assets_manifest()
 
 
@@ -285,30 +378,18 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
         "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
     }
     assert manifest["drying_box_runtime_asset"] == {
-        "strategy": "sanitized_surrogate",
+        "strategy": "native_complex_with_additive_physics_override",
+        "source_payload_used": True,
+        "source_prim_path": "/World/DryingBox_01",
         "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-        "base_joint_name": "BaseFixedJoint",
-        "joint_name": "RevoluteJoint",
-        "removed_source_joint_types": ["PhysicsPrismaticJoint"],
-        "source_payload_used": False,
-        "visual_affordances": [
-            {
-                "name": "high_contrast_door_panel",
-                "display_color": [0.28, 0.34, 0.42],
-            },
-            {
-                "name": "door_outline_seams",
-                "display_color": [0.04, 0.05, 0.06],
-            },
-            {
-                "name": "handle_mount_backplate",
-                "display_color": [0.05, 0.07, 0.09],
-            },
-            {
-                "name": "high_contrast_handle",
-                "display_color": [1.0, 0.18, 0.04],
-            },
-        ],
+        "handle_policy": "nested_native_handle",
+        "surrogate_kept_for_debug_baseline": True,
+        "unit_policy": "override_root_scale_to_identity",
+        "fixed_base_policy": "world_fixed_joint_body0_removed",
+        "door_joint_name": "RevoluteJoint",
+        "door_reset_target": [0.0],
+        "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+        "button_joint_name": "PrismaticJoint",
     }
 
     runtime_scene = (
@@ -317,11 +398,12 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     )
     scene_text = runtime_scene.read_text(encoding="utf-8")
     assert 'def Xform "obj_obj_DryingBox_01_handle" (' not in scene_text
-    assert "double3 xformOp:translate = (0.18, -0.22, 0.05)" in scene_text
-    assert 'def Cube "handle_visual_marker"' not in scene_text
-    assert "double3 xformOp:translate = (0.18, -0.165, 0.05)" not in scene_text
-    assert "double3 xformOp:translate = (-0.18, -0.22, 0.05)" not in scene_text
-    assert "double3 xformOp:translate = (-0.18, -0.165, 0.05)" not in scene_text
+    assert "prepend payload = @scene.usd@</World/DryingBox_01>" in scene_text
+    assert "double3 xformOp:scale = (1, 1, 1)" in scene_text
+    assert "delete rel physics:body0" in scene_text
+    assert 'def Cube "body_link"' not in scene_text
+    assert 'def Cube "door_link"' not in scene_text
+    assert 'def Cube "handle"' not in scene_text
 
 
 def test_franka_tasks_define_render_validation_contract():
@@ -487,6 +569,24 @@ def test_open_door_uses_nested_handle_articulation_part_contract():
     assert metric["joint_name"] == "RevoluteJoint"
 
 
+def test_open_door_records_native_button_joint_metric_policy():
+    path = (
+        validate_task_package.PACKAGE_ROOT
+        / "franka_poc"
+        / "level1_open_door.yml"
+    )
+    cfg = validate_task_package._load_yaml(path)["evaluation_configs"][0]
+
+    policy = cfg["labutopia_native_drying_box"]
+    assert policy == {
+        "strategy": "native_complex_with_additive_physics_override",
+        "door_joint_name": "RevoluteJoint",
+        "handle_part_path": "/handle",
+        "button_joint_name": "PrismaticJoint",
+        "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+    }
+
+
 def test_open_door_initializes_drying_box_closed_for_eval_start():
     for profile in ("franka_poc", "lift2_candidate"):
         path = validate_task_package.PACKAGE_ROOT / profile / "level1_open_door.yml"
@@ -511,9 +611,45 @@ def test_drying_box_articulation_physics_is_sanitized_for_runtime():
     )
 
     assert report["root_path"] == manifest["wrapper_prim_paths"]["obj_DryingBox_01"]
+    assert report["root_has_articulation_api"] is True
     assert report["zero_mass_links"] == []
+    assert report["missing_mass_links"] == []
     assert report["zero_inertia_links"] == []
+    assert report["missing_inertia_links"] == []
     assert report["sanitized_for_physx"] is True
+
+
+def test_drying_box_topology_requires_native_button_prismatic_joint(tmp_path):
+    runtime_scene = tmp_path / "scene.usda"
+    _write_minimal_native_drying_box_scene(
+        runtime_scene,
+        include_button_joint=False,
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert report["ignored_prismatic_joint_paths"] == []
+    assert report["runtime_topology_ready"] is False
+
+
+def test_drying_box_physics_rejects_nonpositive_inertia_component(tmp_path):
+    runtime_scene = tmp_path / "scene.usda"
+    _write_minimal_native_drying_box_scene(
+        runtime_scene,
+        door_diagonal_inertia=(0.01, 0.0, 0.01),
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh"
+        in report["zero_inertia_links"]
+    )
+    assert report["sanitized_for_physx"] is False
 
 
 def test_drying_box_articulation_topology_is_ready_for_runtime():
@@ -531,13 +667,21 @@ def test_drying_box_articulation_topology_is_ready_for_runtime():
     )
 
     assert report["root_scale"] in ([], [1.0, 1.0, 1.0])
+    assert report["native_handle_path_exists"] is True
     assert report["non_identity_root_scale"] is False
     assert report["duplicate_rigid_link_names"] == {}
     assert report["invalid_center_of_mass_links"] == []
     assert report["invalid_principal_axes_links"] == []
     assert report["invalid_joint_body_targets"] == []
     assert report["world_fixed_base_joint_paths"] == [
-        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/BaseFixedJoint"
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/FixedJoint_01"
+    ]
+    assert report["door_revolute_joint_paths"] == [
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint"
+    ]
+    assert report["door_reset_positions"] == {"RevoluteJoint": 0.0}
+    assert report["ignored_prismatic_joint_paths"] == [
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button/PrismaticJoint"
     ]
     assert report["unexpected_joint_types"] == []
     assert report["runtime_topology_ready"] is True

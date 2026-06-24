@@ -49,6 +49,12 @@ evaluation_configs:
           is_articulated: true
           part:
             handle: /handle
+    labutopia_native_drying_box:
+      strategy: native_complex_with_additive_physics_override
+      door_joint_name: RevoluteJoint
+      handle_part_path: /handle
+      button_joint_name: PrismaticJoint
+      button_prismatic_joint_policy: ignored_by_open_door_metric
     preprocess_config:
       - type: set_object_active
         config:

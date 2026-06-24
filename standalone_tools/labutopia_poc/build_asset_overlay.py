@@ -172,6 +172,10 @@ DRYING_BOX_PHYSICS_OVERRIDES = {
         "mass": 0.1,
         "diagonal_inertia": [0.002, 0.002, 0.002],
     },
+    "button": {
+        "mass": 0.05,
+        "diagonal_inertia": [0.001, 0.001, 0.001],
+    },
 }
 DRYING_BOX_STRATEGY_SURROGATE = "sanitized_surrogate"
 DRYING_BOX_STRATEGY_NATIVE_COMPLEX = "native_complex"
@@ -195,6 +199,12 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "wrapper_prim_path": f"/World/{SCENE_UID}/obj_obj_DryingBox_01",
     "handle_policy": "nested_native_handle",
     "surrogate_kept_for_debug_baseline": True,
+    "unit_policy": "override_root_scale_to_identity",
+    "fixed_base_policy": "world_fixed_joint_body0_removed",
+    "door_joint_name": "RevoluteJoint",
+    "door_reset_target": [0.0],
+    "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+    "button_joint_name": "PrismaticJoint",
 }
 
 
@@ -453,13 +463,37 @@ def _render_override_tree(
     return f"{header}\n{indent}{{\n" + "\n".join(body_lines) + f"\n{indent}}}"
 
 
-def _wrapper_body(source_path: str, runtime_key: str) -> str:
+def _native_drying_box_root_overrides(root_path: str) -> str:
+    return (
+        f"            double3 xformOp:scale = (1, 1, 1)\n"
+        f'            uniform token[] xformOpOrder = ["xformOp:translate", '
+        f'"xformOp:rotateXYZ", "xformOp:scale"]\n'
+        f'            over "FixedJoint_01"\n'
+        f"            {{\n"
+        f"                delete rel physics:body0 = <{root_path}/Group_02/group/mesh>\n"
+        f"            }}\n"
+        f'            over "RevoluteJoint"\n'
+        f"            {{\n"
+        f"                float state:angular:physics:position = 0\n"
+        f"            }}"
+    )
+
+
+def _wrapper_body(
+    source_path: str,
+    runtime_key: str,
+    *,
+    native_drying_box: bool = False,
+) -> str:
     body_lines = []
     translation = RUNTIME_TRANSLATION_OVERRIDES.get(runtime_key)
     if translation is not None:
         body_lines.append(
             f"            double3 xformOp:translate = {_usd_vec3(translation)}"
         )
+    if native_drying_box:
+        root_path = f"/World/{SCENE_UID}/{_wrapper_name(runtime_key)}"
+        body_lines.append(_native_drying_box_root_overrides(root_path))
     override_tree: dict[str, dict[str, object]] = {}
     contract = RENDER_OBJECT_CONTRACTS.get(runtime_key)
     if contract is not None:
@@ -631,7 +665,11 @@ def _drying_box_surrogate_def(runtime_key: str) -> str:
 
 
 def _drying_box_native_def(source_path: str, runtime_key: str) -> str:
-    wrapper_body = _wrapper_body(source_path, runtime_key)
+    wrapper_body = _wrapper_body(
+        source_path,
+        runtime_key,
+        native_drying_box=True,
+    )
     return f"""        def Xform "{_wrapper_name(runtime_key)}" (
             prepend payload = @scene.usd@<{source_path}>
         )

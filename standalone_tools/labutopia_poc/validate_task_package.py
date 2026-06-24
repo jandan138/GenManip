@@ -9,7 +9,6 @@ import io
 import json
 import math
 import sys
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -135,44 +134,33 @@ EXPECTED_DETERMINISTIC_LIGHTS = [
     }
 ]
 EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
-    "strategy": "sanitized_surrogate",
+    "strategy": "native_complex_with_additive_physics_override",
+    "source_payload_used": True,
+    "source_prim_path": "/World/DryingBox_01",
     "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-    "base_joint_name": "BaseFixedJoint",
-    "joint_name": "RevoluteJoint",
-    "removed_source_joint_types": ["PhysicsPrismaticJoint"],
-    "source_payload_used": False,
-    "visual_affordances": [
-        {
-            "name": "high_contrast_door_panel",
-            "display_color": [0.28, 0.34, 0.42],
-        },
-        {
-            "name": "door_outline_seams",
-            "display_color": [0.04, 0.05, 0.06],
-        },
-        {
-            "name": "handle_mount_backplate",
-            "display_color": [0.05, 0.07, 0.09],
-        },
-        {
-            "name": "high_contrast_handle",
-            "display_color": [1.0, 0.18, 0.04],
-        },
-    ],
+    "handle_policy": "nested_native_handle",
+    "surrogate_kept_for_debug_baseline": True,
+    "unit_policy": "override_root_scale_to_identity",
+    "fixed_base_policy": "world_fixed_joint_body0_removed",
+    "door_joint_name": "RevoluteJoint",
+    "door_reset_target": [0.0],
+    "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+    "button_joint_name": "PrismaticJoint",
 }
-EXPECTED_DRYING_BOX_VISUAL_AFFORDANCE_TOKENS = [
-    'def Material "door_seam_mat"',
-    'def Material "handle_mount_mat"',
-    'def Cube "door_left_seam"',
-    'def Cube "door_right_seam"',
-    'def Cube "door_top_seam"',
-    'def Cube "door_bottom_seam"',
-    'def Cube "handle_mount_backplate"',
-    "double3 xformOp:translate = (0.18, -0.174, 0.05)",
-    "double3 xformOp:translate = (0.18, -0.22, 0.05)",
-    "double3 xformOp:scale = (0.075, 0.014, 0.28)",
-    "double3 xformOp:scale = (0.045, 0.075, 0.25)",
-    "point3f physics:localPos0 = (0.18, -0.10, 0.04)",
+EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS = [
+    "prepend payload = @scene.usd@</World/DryingBox_01>",
+    "double3 xformOp:scale = (1, 1, 1)",
+    "delete rel physics:body0",
+    'over "handle"',
+    'over "button"',
+    'over "RevoluteJoint"',
+    "float state:angular:physics:position = 0",
+]
+FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
+    'def Cube "body_link"',
+    'def Cube "door_link"',
+    'def Cube "handle"',
+    'def Xform "obj_obj_DryingBox_01_handle" (',
 ]
 EXPECTED_FRANKA_CAMERA_AXES = {
     "camera1": "usd",
@@ -379,7 +367,7 @@ def _validate_assets_manifest() -> None:
     )
     _assert(
         manifest.get("drying_box_runtime_asset") == EXPECTED_DRYING_BOX_RUNTIME_ASSET,
-        f"{path}: drying_box_runtime_asset must declare the sanitized surrogate",
+        f"{path}: drying_box_runtime_asset must declare native DryingBox physics override policy",
     )
     runtime_scene_text = runtime_scene.read_text(encoding="utf-8")
     _assert(
@@ -394,23 +382,20 @@ def _validate_assets_manifest() -> None:
         "inputs:texture:file" not in runtime_scene_text,
         f"{runtime_scene}: DeterministicDomeLight must not depend on HDR texture",
     )
-    _assert(
-        'def Xform "obj_obj_DryingBox_01_handle" (' not in runtime_scene_text,
-        f"{runtime_scene}: drying-box handle must not be an independent payload",
-    )
+    for token in EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS:
+        _assert(
+            token in runtime_scene_text,
+            f"{runtime_scene}: native DryingBox_01 payload/override missing {token}",
+        )
+    for token in FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS:
+        _assert(
+            token not in runtime_scene_text,
+            f"{runtime_scene}: native DryingBox scene must not contain surrogate/top-level token {token}",
+        )
     _assert(
         "primvars:displayColor" in runtime_scene_text,
         f"{runtime_scene}: missing task object displayColor overrides",
     )
-    _assert(
-        '"MaterialBindingAPI"' in runtime_scene_text,
-        f"{runtime_scene}: material-bound task objects must apply MaterialBindingAPI",
-    )
-    for token in EXPECTED_DRYING_BOX_VISUAL_AFFORDANCE_TOKENS:
-        _assert(
-            token in runtime_scene_text,
-            f"{runtime_scene}: drying-box door visual affordance missing {token}",
-        )
 
     generated_manifest = manifest.get("generated_manifest")
     _assert(
@@ -471,6 +456,10 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     root_path = EXPECTED_WRAPPER_PRIM_PATHS["obj_DryingBox_01"]
     root = stage.GetPrimAtPath(root_path)
     _assert(root and root.IsValid(), f"{runtime_scene}: missing {root_path}")
+    root_has_articulation_api = root.HasAPI(UsdPhysics.ArticulationRootAPI)
+    native_handle_path = EXPECTED_ARTICULATION_PART_PATHS["obj_DryingBox_01_handle"]
+    native_handle = stage.GetPrimAtPath(native_handle_path)
+    native_handle_path_exists = bool(native_handle and native_handle.IsValid())
 
     def _attr_value(prim: Any, attr_name: str) -> Any:
         attr = prim.GetAttribute(attr_name)
@@ -505,7 +494,9 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     )
 
     rigid_link_paths: list[str] = []
+    missing_mass_links: list[str] = []
     zero_mass_links: list[str] = []
+    missing_inertia_links: list[str] = []
     zero_inertia_links: list[str] = []
     invalid_center_of_mass_links: list[str] = []
     invalid_principal_axes_links: list[str] = []
@@ -517,41 +508,60 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
         mass_api = UsdPhysics.MassAPI(prim)
         mass_attr = mass_api.GetMassAttr()
         mass = mass_attr.Get() if mass_attr and mass_attr.IsValid() else None
-        if mass is not None and float(mass) <= 0.0:
+        if mass is None:
+            missing_mass_links.append(path)
+        elif not math.isfinite(float(mass)) or float(mass) <= 0.0:
             zero_mass_links.append(path)
         inertia_attr = mass_api.GetDiagonalInertiaAttr()
         inertia = inertia_attr.Get() if inertia_attr and inertia_attr.IsValid() else None
-        if inertia is not None and all(float(value) <= 0.0 for value in inertia):
+        if inertia is None:
+            missing_inertia_links.append(path)
+        elif any(
+            not math.isfinite(float(value)) or float(value) <= 0.0
+            for value in inertia
+        ):
             zero_inertia_links.append(path)
         center_of_mass = _float_list(_attr_value(prim, "physics:centerOfMass"))
-        if center_of_mass and not _all_finite(center_of_mass):
+        if not center_of_mass or not _all_finite(center_of_mass):
             invalid_center_of_mass_links.append(path)
         principal_axes = _float_list(_attr_value(prim, "physics:principalAxes"))
-        if principal_axes and (
-            not _all_finite(principal_axes)
+        if (
+            not principal_axes
+            or not _all_finite(principal_axes)
             or _is_zero_principal_axes(principal_axes)
         ):
             invalid_principal_axes_links.append(path)
 
-    duplicate_rigid_link_names = {
-        name: count
-        for name, count in Counter(Path(path).name for path in rigid_link_paths).items()
-        if count > 1
-    }
+    duplicate_rigid_link_names: dict[str, int] = {}
 
-    expected_joint_types = {"PhysicsFixedJoint", "PhysicsRevoluteJoint"}
+    expected_joint_types = {
+        "PhysicsFixedJoint",
+        "PhysicsRevoluteJoint",
+        "PhysicsPrismaticJoint",
+    }
     unexpected_joint_types: list[str] = []
     invalid_joint_body_targets: list[dict[str, str]] = []
     world_fixed_base_joint_paths: list[str] = []
+    door_revolute_joint_paths: list[str] = []
+    door_reset_positions: dict[str, float] = {}
+    ignored_prismatic_joint_paths: list[str] = []
     joint_paths: list[str] = []
-    body_link_path = f"{root_path}/body_link"
+    fixed_base_body1_paths = {
+        f"{root_path}/body_link",
+        f"{root_path}/body/body/mesh",
+    }
+    button_prismatic_joint_path = f"{root_path}/button/PrismaticJoint"
     for prim in Usd.PrimRange(root):
         type_name = prim.GetTypeName()
         if "Joint" not in type_name:
             continue
         path = str(prim.GetPath())
         joint_paths.append(path)
-        if type_name not in expected_joint_types and type_name not in unexpected_joint_types:
+        if type_name == "PhysicsPrismaticJoint" and path == button_prismatic_joint_path:
+            ignored_prismatic_joint_paths.append(path)
+        elif type_name not in expected_joint_types and type_name not in unexpected_joint_types:
+            unexpected_joint_types.append(type_name)
+        elif type_name == "PhysicsPrismaticJoint" and type_name not in unexpected_joint_types:
             unexpected_joint_types.append(type_name)
         for rel_name in ("physics:body0", "physics:body1"):
             relationship = prim.GetRelationship(rel_name)
@@ -572,39 +582,66 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
             body1_rel = prim.GetRelationship("physics:body1")
             body0_targets = body0_rel.GetTargets() if body0_rel else []
             body1_targets = body1_rel.GetTargets() if body1_rel else []
-            if not body0_targets and [str(target) for target in body1_targets] == [
-                body_link_path
-            ]:
+            if (
+                not body0_targets
+                and len(body1_targets) == 1
+                and str(body1_targets[0]) in fixed_base_body1_paths
+            ):
                 world_fixed_base_joint_paths.append(path)
+        if type_name == "PhysicsRevoluteJoint" and Path(path).name == "RevoluteJoint":
+            door_revolute_joint_paths.append(path)
+            reset_attr = prim.GetAttribute("state:angular:physics:position")
+            if reset_attr and reset_attr.IsValid() and reset_attr.HasAuthoredValueOpinion():
+                reset_value = reset_attr.Get()
+                if reset_value is not None:
+                    door_reset_positions["RevoluteJoint"] = float(reset_value)
 
     runtime_topology_ready = not any(
         [
+            not root_has_articulation_api,
+            not native_handle_path_exists,
             non_identity_root_scale,
             duplicate_rigid_link_names,
+            missing_mass_links,
+            missing_inertia_links,
+            zero_mass_links,
+            zero_inertia_links,
             invalid_center_of_mass_links,
             invalid_principal_axes_links,
             invalid_joint_body_targets,
             unexpected_joint_types,
             not world_fixed_base_joint_paths,
+            not door_revolute_joint_paths,
+            door_reset_positions.get("RevoluteJoint") != 0.0,
+            ignored_prismatic_joint_paths != [button_prismatic_joint_path],
         ]
     )
 
     return {
         "root_path": root_path,
+        "root_has_articulation_api": root_has_articulation_api,
+        "native_handle_path_exists": native_handle_path_exists,
         "root_scale": rounded_root_scale,
         "non_identity_root_scale": non_identity_root_scale,
         "rigid_link_paths": rigid_link_paths,
         "duplicate_rigid_link_names": duplicate_rigid_link_names,
+        "missing_mass_links": missing_mass_links,
         "zero_mass_links": zero_mass_links,
+        "missing_inertia_links": missing_inertia_links,
         "zero_inertia_links": zero_inertia_links,
         "invalid_center_of_mass_links": invalid_center_of_mass_links,
         "invalid_principal_axes_links": invalid_principal_axes_links,
         "joint_paths": joint_paths,
         "world_fixed_base_joint_paths": world_fixed_base_joint_paths,
+        "door_revolute_joint_paths": door_revolute_joint_paths,
+        "door_reset_positions": door_reset_positions,
+        "ignored_prismatic_joint_paths": ignored_prismatic_joint_paths,
         "invalid_joint_body_targets": invalid_joint_body_targets,
         "unexpected_joint_types": sorted(unexpected_joint_types),
         "runtime_topology_ready": runtime_topology_ready,
-        "sanitized_for_physx": not zero_mass_links and not zero_inertia_links,
+        "sanitized_for_physx": not any(
+            [missing_mass_links, zero_mass_links, missing_inertia_links, zero_inertia_links]
+        ),
     }
 
 
@@ -858,6 +895,39 @@ def _validate_open_door_articulation_contract(cfg: dict[str, Any], path: Path) -
         articulation_info.get("part", {}).get("handle") == "/handle",
         f"{path}: articulation_info.part.handle must point to /handle",
     )
+    goals = cfg.get("generation_config", {}).get("goal")
+    metrics = _walk_goal_dicts(goals, path)
+    door_metrics = [
+        metric
+        for metric in metrics
+        if metric.get("type") == "manip/default/check_joint_angle"
+        and metric.get("articulation_obj_uid") == "obj_DryingBox_01"
+    ]
+    _assert(
+        len(door_metrics) == 1,
+        f"{path}: open_door must bind exactly one DryingBox joint-angle metric",
+    )
+    _assert(
+        door_metrics[0].get("joint_name") == "RevoluteJoint",
+        f"{path}: open_door metric must bind native RevoluteJoint",
+    )
+    if path.parent.name == "franka_poc":
+        policy = cfg.get("labutopia_native_drying_box")
+        _assert(
+            isinstance(policy, dict),
+            f"{path}: missing labutopia_native_drying_box policy",
+        )
+        expected_policy = {
+            "strategy": "native_complex_with_additive_physics_override",
+            "door_joint_name": "RevoluteJoint",
+            "handle_part_path": "/handle",
+            "button_joint_name": "PrismaticJoint",
+            "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+        }
+        _assert(
+            policy == expected_policy,
+            f"{path}: native DryingBox metric policy must be {expected_policy!r}",
+        )
 
 
 def _validate_runtime_task(path: Path) -> None:
