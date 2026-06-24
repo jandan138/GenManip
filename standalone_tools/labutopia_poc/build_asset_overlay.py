@@ -16,6 +16,7 @@ DEFAULT_OVERLAY_ROOT = Path(
 )
 SOURCE_SCENE_RELATIVE = Path("assets/chemistry_lab/lab_001/lab_001.usd")
 SOURCE_DIR_RELATIVE = SOURCE_SCENE_RELATIVE.parent
+SOURCE_WORLD_LOOKS_PATH = "/World/Looks"
 OVERLAY_SCENE_RELATIVE = Path("scene_usds/labutopia/level1_poc/lab_001")
 USD_NAME = "scene_usds/labutopia/level1_poc/lab_001/scene"
 MANIFEST_RELATIVE = Path("manifests/labutopia_level1_poc.json")
@@ -177,6 +178,40 @@ DRYING_BOX_PHYSICS_OVERRIDES = {
         "diagonal_inertia": [0.001, 0.001, 0.001],
     },
 }
+DRYING_BOX_NATIVE_MATERIAL_BINDINGS = {
+    "body/Group/door/mesh": "mdl_0007",
+    "body/body": "mdl_0009",
+    "handle/mesh": "mdl_0007",
+    "Group/_14_1": "mdl_0007",
+    "Group/_255_1": "mdl_0007",
+    "Group/_908_1": "mdl_0007",
+    "Group_01/mesh": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_01": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_02": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_03": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_04": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_05": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_06": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_07": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_08": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_09": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_10": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_11": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_12": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_13": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_14": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_15": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_16": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_17": "Aluminum_Anodized_Charcoal",
+    "Group_01/mesh_18": "Aluminum_Anodized_Charcoal",
+    "Group_02/group": "Aluminum_Anodized_Charcoal",
+    "Group_02/group_01": "Aluminum_Anodized_Charcoal",
+    "Group_02/group_04": "Aluminum_Anodized_Charcoal",
+    "Group_02/group_05": "Aluminum_Anodized_Charcoal",
+    "panel/mesh": "mdl_0007",
+    "panel/mesh_01": "mdl_0008",
+    "panel/mesh_02": "Aluminum_Anodized_Charcoal",
+}
 DRYING_BOX_STRATEGY_SURROGATE = "sanitized_surrogate"
 DRYING_BOX_STRATEGY_NATIVE_COMPLEX = "native_complex"
 DRYING_BOX_STRATEGY_CHOICES = (
@@ -201,6 +236,8 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "surrogate_kept_for_debug_baseline": True,
     "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
+    "material_policy": "preserve_native_materials",
+    "material_scope_policy": "payload_source_world_looks_under_drying_box_wrapper_with_rebound_bindings",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -384,6 +421,7 @@ def _new_override_node() -> dict[str, object]:
     return {
         "children": {},
         "display_color": None,
+        "material_binding": None,
         "mass": None,
         "diagonal_inertia": None,
     }
@@ -422,6 +460,14 @@ def _add_mass_override(
     node["diagonal_inertia"] = diagonal_inertia
 
 
+def _add_material_binding_override(
+    tree: dict[str, dict[str, object]],
+    path: str,
+    material_path: str,
+) -> None:
+    _override_node_for_path(tree, path)["material_binding"] = material_path
+
+
 def _render_override_tree(
     name: str,
     node: dict[str, object],
@@ -431,18 +477,27 @@ def _render_override_tree(
     indent = " " * indent_level
     attr_indent = " " * (indent_level + 4)
     mass = node.get("mass")
-    if mass is None:
+    material_binding = node.get("material_binding")
+    api_schemas = []
+    if mass is not None:
+        api_schemas.append("PhysicsMassAPI")
+    if material_binding is not None:
+        api_schemas.append("MaterialBindingAPI")
+    if not api_schemas:
         header = f'{indent}over "{name}"'
     else:
+        schema_list = ", ".join(f'"{schema}"' for schema in api_schemas)
         header = (
             f'{indent}over "{name}" (\n'
-            f'{indent}    prepend apiSchemas = ["PhysicsMassAPI"]\n'
+            f"{indent}    prepend apiSchemas = [{schema_list}]\n"
             f"{indent})"
         )
     body_lines: list[str] = []
     display_color = node.get("display_color")
     if display_color is not None:
         body_lines.append(_display_color_attr(display_color, attr_indent))  # type: ignore[arg-type]
+    if material_binding is not None:
+        body_lines.append(f"{attr_indent}rel material:binding = <{material_binding}>")
     if mass is not None:
         body_lines.append(
             _mass_api_attr_block(
@@ -479,6 +534,14 @@ def _native_drying_box_root_overrides(root_path: str) -> str:
     )
 
 
+def _native_drying_box_material_scope_def() -> str:
+    return f"""            def Scope "Looks" (
+                prepend payload = @scene.usd@<{SOURCE_WORLD_LOOKS_PATH}>
+            )
+            {{
+            }}"""
+
+
 def _wrapper_body(
     source_path: str,
     runtime_key: str,
@@ -494,20 +557,34 @@ def _wrapper_body(
     if native_drying_box:
         root_path = f"/World/{SCENE_UID}/{_wrapper_name(runtime_key)}"
         body_lines.append(_native_drying_box_root_overrides(root_path))
+        body_lines.append(_native_drying_box_material_scope_def())
     override_tree: dict[str, dict[str, object]] = {}
     contract = RENDER_OBJECT_CONTRACTS.get(runtime_key)
-    if contract is not None:
+    preserve_native_materials = native_drying_box and runtime_key == "obj_DryingBox_01"
+    if contract is not None and not preserve_native_materials:
         display_color = contract["display_color"]
         for override_path in contract["display_override_paths"]:
             _add_display_override(override_tree, override_path, display_color)
     if runtime_key == "obj_DryingBox_01":
-        handle_contract = RENDER_OBJECT_CONTRACTS["obj_DryingBox_01_handle"]
-        for override_path in handle_contract["display_override_paths"]:
-            _add_display_override(
-                override_tree,
+        if preserve_native_materials:
+            root_path = f"/World/{SCENE_UID}/{_wrapper_name(runtime_key)}"
+            for (
                 override_path,
-                handle_contract["display_color"],
-            )
+                material_name,
+            ) in DRYING_BOX_NATIVE_MATERIAL_BINDINGS.items():
+                _add_material_binding_override(
+                    override_tree,
+                    override_path,
+                    f"{root_path}/Looks/{material_name}",
+                )
+        handle_contract = RENDER_OBJECT_CONTRACTS["obj_DryingBox_01_handle"]
+        if not preserve_native_materials:
+            for override_path in handle_contract["display_override_paths"]:
+                _add_display_override(
+                    override_tree,
+                    override_path,
+                    handle_contract["display_color"],
+                )
         for override_path, physics in DRYING_BOX_PHYSICS_OVERRIDES.items():
             _add_mass_override(
                 override_tree,
@@ -676,8 +753,6 @@ def _drying_box_native_def(source_path: str, runtime_key: str) -> str:
         {{
 {wrapper_body}
         }}"""
-
-
 def _drying_box_runtime_asset(drying_box_strategy: str) -> dict[str, object]:
     drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
@@ -693,6 +768,7 @@ def _manifest_notes(drying_box_strategy: str) -> list[str]:
             "Immediate obj_* wrapper prims payload top-level LabUtopia source prims including native DryingBox_01.",
             "DryingBox_01 uses the native LabUtopia complex asset with additive overlay opinions.",
             "The drying-box handle is exposed as a nested native articulation part, not an independent payload.",
+            "The source /World/Looks material scope is payloaded under the DryingBox wrapper and native material bindings are rebound locally.",
             "The sanitized DryingBox surrogate remains available via --drying-box-strategy sanitized_surrogate for regression comparison.",
             "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
             "A deterministic dome light is authored in the runtime wrapper scene.",

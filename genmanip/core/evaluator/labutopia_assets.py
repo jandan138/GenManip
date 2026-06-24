@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 
 LABUTOPIA_POC_CONFIG_PREFIX = "ebench/labutopia_lab_poc"
+LABUTOPIA_POC_ASSETS_OVERLAY_ENV = "LABUTOPIA_POC_ASSETS_OVERLAY_ROOT"
 LABUTOPIA_POC_MANIFEST = (
     "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json"
 )
@@ -54,7 +56,10 @@ def resolve_labutopia_poc_assets_override(
     if not isinstance(manifest, dict):
         raise ValueError(f"{manifest_path}: expected JSON object")
 
-    overlay_root = Path(_manifest_string(manifest, "overlay_root", manifest_path))
+    overlay_root_value = os.environ.get(LABUTOPIA_POC_ASSETS_OVERLAY_ENV)
+    if not overlay_root_value:
+        overlay_root_value = _manifest_string(manifest, "overlay_root", manifest_path)
+    overlay_root = Path(overlay_root_value)
     if not overlay_root.is_absolute():
         overlay_root = repo_root / overlay_root
     overlay_root = overlay_root.expanduser()

@@ -50,6 +50,31 @@ def test_assets_override_resolves_overlay_runtime_scene(tmp_path):
     assert override.runtime_scene == str(runtime_scene)
 
 
+def test_assets_override_allows_env_overlay_root_for_isolated_runs(
+    tmp_path,
+    monkeypatch,
+):
+    runtime_usd_name = "scene_usds/labutopia/level1_poc/lab_001/scene"
+    manifest_overlay_root = tmp_path / "shared_overlay/assets"
+    env_overlay_root = tmp_path / "isolated_retake_overlay/assets"
+    runtime_scene = env_overlay_root / f"{runtime_usd_name}.usda"
+    runtime_scene.parent.mkdir(parents=True)
+    runtime_scene.write_text("#usda 1.0\n", encoding="utf-8")
+    _write_manifest(tmp_path, manifest_overlay_root, runtime_usd_name)
+    monkeypatch.setenv(
+        "LABUTOPIA_POC_ASSETS_OVERLAY_ROOT",
+        str(env_overlay_root),
+    )
+
+    override = resolve_labutopia_poc_assets_override(
+        tmp_path, "ebench/labutopia_lab_poc/franka_poc/franka_poc.json"
+    )
+
+    assert override is not None
+    assert override.overlay_root == str(env_overlay_root)
+    assert override.runtime_scene == str(runtime_scene)
+
+
 def test_assets_override_rejects_missing_runtime_scene(tmp_path):
     runtime_usd_name = "scene_usds/labutopia/level1_poc/lab_001/scene"
     overlay_root = tmp_path / "overlay/assets"

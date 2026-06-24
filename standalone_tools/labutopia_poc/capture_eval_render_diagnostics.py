@@ -511,8 +511,16 @@ def _object_visibility_mask(rgb: Any, uid: str) -> Any:
             & (chroma < 90)
             & (chroma > 8)
         )
+        native_blue_front = (
+            (r < 135)
+            & (g > 45)
+            & (g < 180)
+            & (b > 95)
+            & ((b - r) > 35)
+            & ((b - g) > 8)
+        )
         handle = _object_visibility_mask(rgb, "obj_DryingBox_01_handle")
-        return dark_frame | blue_gray_panel | handle
+        return dark_frame | blue_gray_panel | native_blue_front | handle
     return np.zeros(_normalize_rgb_array(rgb).shape[:2], dtype=bool)
 
 
@@ -681,9 +689,11 @@ def _projected_rgb_evidence(
     *,
     uid: str,
     thresholds: dict[str, Any],
+    mask_uid: str | None = None,
 ) -> dict[str, Any]:
     import numpy as np
 
+    mask_uid = mask_uid or uid
     arr = _normalize_rgb_array(rgb)
     image_height, image_width = arr.shape[:2]
     pixel = projection.get("pixel")
@@ -718,12 +728,13 @@ def _projected_rgb_evidence(
     luminance_range = float(luminance.max() - luminance.min())
     luminance_std = float(luminance.std())
     chroma_max = float(chroma.max())
-    local_object_mask = _object_visibility_mask(arr, uid)[y0:y1, x0:x1]
+    local_object_mask = _object_visibility_mask(arr, mask_uid)[y0:y1, x0:x1]
     mask_area_px = int(local_object_mask.sum())
     required_mask_area_px = max(4, int(local_object_mask.size * 0.002))
     present = mask_area_px >= required_mask_area_px
     return {
         "present": present,
+        "mask_uid": mask_uid,
         "patch_bbox": [x0, y0, x1 - 1, y1 - 1],
         "patch_radius_px": radius,
         "luminance_range": round(luminance_range, 3),
@@ -767,6 +778,11 @@ def _native_scene_readback_metrics(
         projection,
         uid=uid,
         thresholds=thresholds,
+        mask_uid=(
+            NATIVE_DRYING_BOX_UID
+            if uid == NATIVE_DRYING_BOX_HANDLE_UID
+            else uid
+        ),
     )
     if not pixel_evidence.get("present"):
         return _missing_native_readback_metrics(

@@ -1,0 +1,32 @@
+camera1:
+  name: camera_1
+  exists: false
+  prim_path: /LabUtopiaOpenDoorNativeRetakeCamera1
+  position: [2.0, 0.0, 2.0]
+  orientation: [0.61237, 0.35355, 0.35355, 0.61237]
+  camera_axes: usd
+  resolution: [256, 256]
+  image_type: rgb
+  task_view: level1_open_door_native_retake
+  with_distance: false
+  with_semantic: false
+  with_bbox2d: false
+  with_bbox3d: false
+  with_motion_vector: false
+camera2:
+  name: camera_2
+  exists: false
+  prim_path: /LabUtopiaOpenDoorNativeRetakeCamera2
+  position: [0.06, 0.56, 1.2]
+  orientation: [-0.33975225, -0.28602009, 0.57702305, 0.68542346]
+  camera_axes: usd
+  resolution: [512, 512]
+  focal_length: 6.0
+  horizontal_aperture: 10.0
+  image_type: rgb
+  task_view: level1_open_door_native_retake
+  with_distance: false
+  with_semantic: false
+  with_bbox2d: false
+  with_bbox3d: false
+  with_motion_vector: false

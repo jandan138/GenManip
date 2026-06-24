@@ -305,6 +305,71 @@ def test_build_asset_overlay_native_strategy_references_native_drying_box(
     assert drying_box_runtime_asset["surrogate_kept_for_debug_baseline"] is True
 
 
+def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
+    tmp_path,
+):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+    )
+
+    scene_usda = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene.usda"
+    ).read_text(encoding="utf-8")
+
+    drying_box_block = scene_usda.split('def Xform "obj_obj_DryingBox_01" (', 1)[1]
+    drying_box_block = drying_box_block.split('def Xform "obj_table" (', 1)[0]
+    assert (
+        'def Scope "Looks" (\n'
+        "                prepend payload = @scene.usd@</World/Looks>"
+    ) in drying_box_block
+    assert scene_usda.index('def Xform "labutopia_level1_poc"') < scene_usda.index(
+        'def Scope "Looks" ('
+    )
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007>"
+    ) in drying_box_block
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008>"
+    ) in drying_box_block
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009>"
+    ) in drying_box_block
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal>"
+    ) in drying_box_block
+    assert "primvars:displayColor" not in drying_box_block
+    assert "float physics:mass = 2" in drying_box_block
+    assert "float physics:mass = 0.5" in drying_box_block
+    assert "float physics:mass = 0.1" in drying_box_block
+    assert "float state:angular:physics:position = 0" in drying_box_block
+
+    manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    drying_box_runtime_asset = manifest["drying_box_runtime_asset"]
+    assert drying_box_runtime_asset["material_policy"] == "preserve_native_materials"
+    assert (
+        drying_box_runtime_asset["material_scope_policy"]
+        == "payload_source_world_looks_under_drying_box_wrapper_with_rebound_bindings"
+    )
+
+
 def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):
     monkeypatch.setattr(
         sys,

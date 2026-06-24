@@ -7,7 +7,7 @@ HTML 版产品汇报页：
 
 本周已经把 LabUtopia 的 Franka POC 跑通到端到端 smoke 阶段：任务可以提交、场景可以加载、三个 level-1 任务可以 reset/step、结果可以落盘、最终状态可以正常 complete。
 
-这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 到 2026-06-24 最新复核补充：三任务现在都能通过 EBench/evaluator 正常读回非黑渲染图，资产静态坐标也已经从“明显导错”修到合理工作区；最新正式诊断中 `pick`、`place`、`open_door` 均为 `render_validation.passed=true`、`task_render_accepted=true`。P2 又把 `open_door` 从 P1 `sanitized_surrogate` 对照组推进到 LabUtopia native complex `DryingBox_01`：原生 visual/hierarchy/nested handle 保留，EBench readback 可见，`native_complex_dryingbox_ready=true`。当前可以说 Franka POC 的任务渲染门禁和 native DryingBox gate 已过；官方 Lift2 baseline 的复合资产和官方 runner 还没验证。
+这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 到 2026-06-24 最新复核补充：三任务现在都能通过 EBench/evaluator 正常读回非黑渲染图，资产静态坐标也已经从“明显导错”修到合理工作区；最新正式诊断中 `pick`、`place`、`open_door` 均为 `render_validation.passed=true`、`task_render_accepted=true`。P2 又把 `open_door` 从 P1 `sanitized_surrogate` 对照组推进到 LabUtopia native complex `DryingBox_01`：原生 visual/hierarchy/nested handle 保留，wrapper-local `Looks` 和 native `material:binding` 已重连，retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，`native_complex_dryingbox_ready=true`。当前可以说 Franka POC 的任务渲染门禁和 native DryingBox gate 已过；官方 Lift2 baseline 的复合资产和官方 runner 还没验证。
 
 ## 本周完成了什么
 
@@ -65,7 +65,7 @@ DryingBox_01 -> obj_DryingBox_01
 table -> table
 ```
 
-这部分已经通过实际 smoke、静态 USD readback 和三任务 evaluator camera readback 验证。这里的“资产加载”表示 scene overlay、对象名映射和当前相机读回链路能进入 runtime；`pick/place` 当前任务图已经可读并通过渲染门禁，`open_door` 的底层物理读数已稳定且回到关闭位，P2 native 图也能看出 LabUtopia 原生 `DryingBox_01` 和 nested handle，三任务最新正式诊断均为 `render_validation.passed=true`，native open_door 诊断为 `native_complex_dryingbox_ready=true`。
+这部分已经通过实际 smoke、静态 USD readback 和三任务 evaluator camera readback 验证。这里的“资产加载”表示 scene overlay、对象名映射和当前相机读回链路能进入 runtime；`pick/place` 当前任务图已经可读并通过渲染门禁，`open_door` 的底层物理读数已稳定且回到关闭位，P2 retake 图能看出 LabUtopia 原生 `DryingBox_01` 是 upright，蓝色门、白色侧面和 nested handle 可见，三任务最新正式诊断均为 `render_validation.passed=true`，native open_door 诊断为 `native_complex_dryingbox_ready=true`。
 
 ### 3. 结果记录链路已修复
 
@@ -96,7 +96,7 @@ EOS/其他工程师任务: 8087
 
 ## 有没有渲染图验证？
 
-2026-06-23 到 2026-06-24 最新复核结论：现在已经有从 EBench/evaluator 路径读回的非黑图，说明“能不能通过评测链路拍到东西”这个问题已经推进闭环。旧 JPG 保留为历史失败样例，P1 PNG 是更可信的 eval-path 证据：`pick` 目标瓶清楚，`place` 烧杯和黄色托盘关系可读，`open_door` 已从物理爆值、黑箱角和大橙色块推进到关闭位正确、门板/框架/细橙色把手可识别。P2 PNG 进一步证明 `open_door` 已回到 LabUtopia native complex `DryingBox_01`，原生箱体和 nested handle 能在 EBench readback 中看到。三任务最新正式诊断均为 `render_validation.passed=true`、`task_render_accepted=true`，native open_door 诊断为 `native_complex_dryingbox_ready=true`。
+2026-06-23 到 2026-06-24 最新复核结论：现在已经有从 EBench/evaluator 路径读回的非黑图，说明“能不能通过评测链路拍到东西”这个问题已经推进闭环。旧 JPG 保留为历史失败样例，P1 PNG 是更可信的 eval-path 证据：`pick` 目标瓶清楚，`place` 烧杯和黄色托盘关系可读，`open_door` 已从物理爆值、黑箱角和大橙色块推进到关闭位正确、门板/框架/细橙色把手可识别。P2 retake PNG 进一步证明 `open_door` 已回到 LabUtopia native complex `DryingBox_01`，不是箱子倒置，而是旧 P2 图的材质/证据视角未闭环；新图中原生箱体 upright，蓝色门、白色侧面、把手、观察窗和控制面板可见。三任务最新正式诊断均为 `render_validation.passed=true`、`task_render_accepted=true`，native open_door 诊断为 `native_complex_dryingbox_ready=true`。
 
 ```text
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-pick.jpg
@@ -106,9 +106,10 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-place-eval-readback-p1.png
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-readback-p2.png
+docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-retake-p2.png
 ```
 
-旧的三张 JPG 保留为历史失败样例。P1 的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们说明链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手/把手像一大片橙色面板”推进到“关闭位正确、门板/框架/细把手可识别”。P2 的 native PNG 说明 open_door 已经不再只停留在 surrogate 对照组，而是回到 LabUtopia 原生复杂 `DryingBox_01`。这说明任务渲染门禁和 Franka POC native gate 已经通过，但不等于官方 Lift2 baseline 已经可评。
+旧的三张 JPG 保留为历史失败样例。P1 的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们说明链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手/把手像一大片橙色面板”推进到“关闭位正确、门板/框架/细把手可识别”。旧 P2 native PNG 说明 open_door 已经不再只停留在 surrogate 对照组，但材质 binding 和证据视角还没有闭环，容易误读成箱子倒了；P2 retake PNG 修复 wrapper-local `Looks` 和 native `material:binding` 后，能清楚看到 upright 的蓝门、白侧面、handle、window 和 control panel。这说明任务渲染门禁和 Franka POC native gate 已经通过，但不等于官方 Lift2 baseline 已经可评。
 
 `open_door` 的 USD 铰接物体问题已经单独整理成解释性教学页：`docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html`。这篇页面面向产品经理解释 `USD articulation`、`ArticulationRootAPI`、`RevoluteJoint`、P1 `sanitized_surrogate` 对照组、P2 native complex `DryingBox_01` 已通过的前五步 gate、门把手层级和 claim boundary。
 
@@ -118,7 +119,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | --- | --- | --- | --- |
 | `level1_pick` | 抓取目标不明显，只看图无法判断“要抓哪个瓶子” | 修正 eval camera readback、相机朝向、光照，把瓶子归一到 Franka 工作区，并在 pick 任务里隐藏烧杯、托盘、干燥箱等非目标物体 | 当前新图已经能让 PM 看懂“抓这个蓝色瓶子”，并已通过任务渲染门禁 |
 | `level1_place` | 看不出源物体和目标托盘的关系，不像一个放置任务 | 修正托盘、烧杯、瓶子坐标和颜色标记，并在 place 任务里隐藏瓶子和干燥箱，只保留烧杯与目标托盘 | 当前新图能看懂“把烧杯放到黄色托盘附近”，并已通过任务渲染门禁 |
-| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 P1 `sanitized_surrogate` 对照组，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机；P2 回到 LabUtopia native complex `DryingBox_01`，只用 `additive physics override` 修 runtime 物理；背景解释见 `docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html` | P1 证明门任务可读；P2 证明原生 DryingBox_01 和 nested handle 能通过 EBench readback。下一步接 Lift2 baseline gate |
+| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题；旧 P2 native 图还因为材质和证据相机未闭环，看起来像箱子倒了 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 P1 `sanitized_surrogate` 对照组，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机；P2 回到 LabUtopia native complex `DryingBox_01`，只用 `additive physics override` 修 runtime 物理；随后修 wrapper-local `Looks` 和 native `material:binding`，用 retake camera 重拍；背景解释见 `docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html` | P1 证明门任务可读；P2 retake 证明原生 DryingBox_01 upright，蓝门、白侧面和 nested handle 能通过 EBench readback。下一步接 Lift2 baseline gate |
 
 需要特别说明：
 
@@ -128,7 +129,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 - 已推进：任务级隐藏后，`level1_pick` 当前图只保留目标瓶，`level1_place` 当前图只保留烧杯和目标托盘，PM 可以看懂任务目标和关系。
 - 已推进：`level1_open_door` 旧版本运行期关节读数曾出现 `1.573e13` 量级；P1 `sanitized_surrogate` 对照组最新诊断只暴露 `RevoluteJoint`，关节读数为 `0.0`，仿真能完成 readback，问题已经从“爆掉不可看/只看到黑箱角/把手像大橙色面板”收敛到“门板、框架和细橙色把手可识别”。
 - 已复核：独立视觉审阅认为当前 old-vs-current 对照可用于 PM 汇报；旧图确实支持“目标不清、放置关系缺失、看不到门把手”的问题描述，当前三张新图均可作为任务渲染通过证据。
-- 已推进：LabUtopia native complex `DryingBox_01` 已通过 Franka POC native gate；证据包括 `asset audit`、native-only Isaac smoke、EBench wrapper、`additive physics override` 和 `open_door` eval readback。
+- 已推进：LabUtopia native complex `DryingBox_01` 已通过 Franka POC native gate；证据包括 `asset audit`、native-only Isaac smoke、EBench wrapper、`additive physics override`、wrapper-local `Looks`/`material:binding` 修复和 `open_door` native retake。
 - 仍 blocked：官方 Lift2 baseline 不能宣称可评，因为 Lift2 复合资产根目录和官方 runner 还没验证；当前 diagnostics claim boundary 是 `native_complex_dryingbox_ready=true`、`task_render_accepted=true`、`official_baseline_evaluable=false`。
 - 因此下一步不是继续修三张截图，也不是继续打磨 surrogate，而是把 Lift2 baseline 所需的复合资产和官方 runner gate 接上。
 
@@ -141,7 +142,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
 | eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已修 camera axes/pose、deterministic lighting 和工作区相机；三任务当前 eval readback 均非黑 | 黑屏解除 |
 | 当前任务图验收边界 | `pick` 已清楚，`place` 关系可读；`open_door` 已能读回且关闭位正确，门板/框架/细把手可识别 | 三任务最新正式诊断均为 `render_validation.passed=true`；P2 又补上 native complex `DryingBox_01` 的 EBench readback 证据；继续接 Lift2 baseline 所需的复合资产/官方 runner gate | 任务渲染/native gate 通过 |
-| `open_door` 运行期物理不稳定 | 旧版本 runtime articulation joint position 爆到 `1.573e13`，并伴随 PhysX transform warning | P1 已用 DryingBox `sanitized_surrogate`、固定底座、对齐后的门铰链和关节目标回放修复；P2 已把稳定性迁移到 LabUtopia native complex `DryingBox_01`，并通过 `native_dryingbox_open_door_eval_explicit_20260624_093156` 读回验证 | native gate 已通过 |
+| `open_door` 运行期物理不稳定 | 旧版本 runtime articulation joint position 爆到 `1.573e13`，并伴随 PhysX transform warning | P1 已用 DryingBox `sanitized_surrogate`、固定底座、对齐后的门铰链和关节目标回放修复；P2 已把稳定性迁移到 LabUtopia native complex `DryingBox_01`，并通过 `native_dryingbox_visual_retake_final_20260624_0002` 读回验证 | native gate 已通过 |
 | 资产导入/layout 静态坐标 | 之前任务物体在源 lab 坐标，handle 变成异常放大的独立物体 | P1 已把对象归一到 Franka 工作区，并把 handle 保留为 DryingBox 内部子路径 | 静态层已推进 |
 | 最终进度不 complete | 任务已跑完，但进度没有写入，导致客户端最后等待超时 | 任务结束时写最小 `result_info.json`，并修复进度统计 | 已解决 |
 | 后处理异常可能被误记为完成 | 如果后处理报错，不能用 0 分兜底伪装成成功 | 增加 fail-fast 逻辑和回归测试 | 已解决 |
@@ -174,16 +175,16 @@ total_episodes=3
 
 ```text
 python -m pytest tests/labutopia_poc -q
-64 passed, 1 skipped
+92 passed, 1 skipped
 
 python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q
-13 passed
+23 passed
 
 python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
 
 report display QA
-Playwright/Chromium desktop/tablet/mobile full-page audits passed; weekly report has 9 loaded images, tutorial has 3 loaded images, the DOM contains the old/P1/P2 open_door evidence section, native gate pass wording, tutorial link, and official-baseline-not-yet-validated boundary text. Evidence: `/tmp/labutopia_task6_browser_review_20260624/audit.json`, plus `weekly_desktop.png`, `weekly_tablet.png`, `weekly_mobile.png`, `tutorial_desktop.png`, `tutorial_tablet.png`, `tutorial_mobile.png`. This checks report display only, not official baseline evaluability.
+Playwright/Chromium desktop/tablet/mobile full-page audits passed; weekly report has 10 loaded images, tutorial has 4 loaded images, the DOM contains the old/P1/old-P2/P2-retake open_door evidence section, native gate pass wording, tutorial link, and official-baseline-not-yet-validated boundary text. Evidence: `/tmp/labutopia_native_retake_browser_review_20260624_final2/audit.json`, plus `weekly-desktop.png`, `weekly-tablet.png`, `weekly-mobile.png`, `tutorial-desktop.png`, `tutorial-tablet.png`, `tutorial-mobile.png`. This checks report display only, not official baseline evaluability.
 ```
 
 结果文件：
@@ -202,12 +203,12 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - runtime diagnostics: `level1_pick/place/open_door` all `readback_black_before_recorder`
 - evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json](../labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json)
 - P1 follow-up: `level1_pick/place/open_door` now `readback_visible`; latest task-level hiding makes pick readable and place relation readable, while open_door has closed joint target `[0.0]`, visible door/frame/thin orange handle, and `render_validation.passed=true`
-- independent image-only review: old-vs-current comparison is PASS for PM-facing evidence; the final thin-handle open_door retake is PASS, but none of this should be described as official baseline execution
+- independent image-only review: old-vs-current comparison is PASS for PM-facing evidence; P2 native retake is PASS with high confidence: DryingBox is upright, blue front door, white side body, handle, observation window and control panel are visible; none of this should be described as official baseline execution
 - P0a/P0b evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json)
 - P1 evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json)
 - P2 native DryingBox audit: `saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json`, SHA256 `e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d`
 - P2 native-only Isaac smoke: `saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json`, SHA256 `fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4`
-- P2 native EBench readback diagnostics: `saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json`, SHA256 `f28451fe121e43ac48c2e4b25ce28dfe395ee09e570318017c45cdfb2257225e`; boundary is `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
+- P2 native EBench retake diagnostics: `saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json`, SHA256 `d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6`; boundary is `render_validation.passed=true`, `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -223,7 +224,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 3. P1b：已用 DryingBox `sanitized_surrogate` 对照组和关节目标回放修复 `open_door` runtime articulation/PhysX 爆值与关闭位问题。
 4. P1c：已完成任务级相机/构图复验，三任务 `render_validation.passed=true`。
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
-6. P2：已完成 LabUtopia native complex `DryingBox_01` gate：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、open_door eval readback。
+6. P2：已完成 LabUtopia native complex `DryingBox_01` gate：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、wrapper-local `Looks`/`material:binding` 修复、open_door native retake。
 7. P3：下一步进入 Lift2 复合资产根目录和官方 runner 发现；这是官方 baseline 可评前的下一道硬门槛。
 
 ## 新增调研和计划文档

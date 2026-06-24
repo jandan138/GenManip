@@ -447,6 +447,150 @@ def test_render_validation_accepts_native_scene_readback_when_color_mask_fails(t
     )
 
 
+def test_render_validation_accepts_native_handle_with_parent_material_mask(tmp_path):
+    frame_path = tmp_path / "native_open_door_blue_handle.png"
+    _write_test_png(
+        frame_path,
+        [
+            (150, 120, 360, 310, [82, 130, 190]),
+            (245, 165, 275, 255, [70, 118, 180]),
+            (280, 199, 310, 270, [55, 96, 150]),
+            (290, 178, 340, 245, [42, 52, 62]),
+        ],
+    )
+    stats = frame_stats_from_png(camera_name="camera2", frame_path=frame_path)
+    stats["stage"] = "readback_after_get_eval_camera_data"
+    config = _render_validation_config(
+        "level1_open_door",
+        ["obj_DryingBox_01", "obj_DryingBox_01_handle"],
+        {
+            "obj_DryingBox_01": {
+                "min_width_px": 160,
+                "min_height_px": 150,
+                "min_bbox_area_fraction": 0.12,
+            },
+            "obj_DryingBox_01_handle": {
+                "min_width_px": 18,
+                "min_height_px": 64,
+                "min_bbox_area_fraction": 0.004,
+            },
+        },
+    )
+    config["labutopia_native_drying_box"] = {
+        "strategy": "native_complex_with_additive_physics_override",
+        "door_joint_name": "RevoluteJoint",
+        "handle_part_path": "/handle",
+    }
+    scene_evidence = {
+        "scene_collections": {
+            "articulation_uids": ["obj_DryingBox_01"],
+            "object_uids": [],
+        },
+        "articulation_state": {
+            "obj_DryingBox_01": {
+                "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+                "world_position": [0.75, 0.1, 0.78],
+                "world_orientation": [1.0, 0.0, 0.0, 0.0],
+                "joint_positions": [0.0],
+                "dof_names": ["RevoluteJoint"],
+            }
+        },
+        "native_handle_parts": {
+            "obj_DryingBox_01_handle": {
+                "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+                "world_pose_finite": True,
+            }
+        },
+        "projected_task_parts": {
+            "camera2": {
+                "obj_DryingBox_01": {"pixel": [260.0, 210.0]},
+                "obj_DryingBox_01_handle": {"pixel": [284.0, 230.0]},
+            }
+        },
+    }
+
+    report = evaluate_render_validation(config, [stats], scene_evidence=scene_evidence)
+
+    assert report["passed"] is True
+    handle_report = report["required_objects"]["obj_DryingBox_01_handle"]
+    assert handle_report["color_mask_failed_thresholds"] == ["required_object_missing"]
+    assert handle_report["evidence_method"] == "native_handle_part_readback"
+    assert (
+        handle_report["projected_rgb_evidence"]["mask_uid"]
+        == "obj_DryingBox_01"
+    )
+
+
+def test_render_validation_accepts_native_handle_projected_on_blue_door_material(tmp_path):
+    frame_path = tmp_path / "native_open_door_blue_door_projection.png"
+    _write_test_png(
+        frame_path,
+        [
+            (150, 120, 240, 310, [112, 135, 162]),
+            (240, 120, 365, 310, [55, 96, 150]),
+            (250, 165, 280, 255, [52, 88, 138]),
+            (290, 178, 340, 245, [42, 52, 62]),
+        ],
+    )
+    stats = frame_stats_from_png(camera_name="camera2", frame_path=frame_path)
+    stats["stage"] = "readback_after_get_eval_camera_data"
+    config = _render_validation_config(
+        "level1_open_door",
+        ["obj_DryingBox_01", "obj_DryingBox_01_handle"],
+        {
+            "obj_DryingBox_01": {
+                "min_width_px": 160,
+                "min_height_px": 150,
+                "min_bbox_area_fraction": 0.12,
+            },
+            "obj_DryingBox_01_handle": {
+                "min_width_px": 18,
+                "min_height_px": 64,
+                "min_bbox_area_fraction": 0.004,
+            },
+        },
+    )
+    config["labutopia_native_drying_box"] = {
+        "strategy": "native_complex_with_additive_physics_override",
+        "door_joint_name": "RevoluteJoint",
+        "handle_part_path": "/handle",
+    }
+    scene_evidence = {
+        "scene_collections": {
+            "articulation_uids": ["obj_DryingBox_01"],
+            "object_uids": [],
+        },
+        "articulation_state": {
+            "obj_DryingBox_01": {
+                "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+                "world_position": [0.75, 0.1, 0.78],
+                "world_orientation": [1.0, 0.0, 0.0, 0.0],
+                "joint_positions": [0.0],
+                "dof_names": ["RevoluteJoint"],
+            }
+        },
+        "native_handle_parts": {
+            "obj_DryingBox_01_handle": {
+                "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+                "world_pose_finite": True,
+            }
+        },
+        "projected_task_parts": {
+            "camera2": {
+                "obj_DryingBox_01": {"pixel": [200.0, 210.0]},
+                "obj_DryingBox_01_handle": {"pixel": [260.0, 258.0]},
+            }
+        },
+    }
+
+    report = evaluate_render_validation(config, [stats], scene_evidence=scene_evidence)
+
+    assert report["passed"] is True
+    handle_report = report["required_objects"]["obj_DryingBox_01_handle"]
+    assert handle_report["evidence_method"] == "native_handle_part_readback"
+    assert handle_report["projected_rgb_evidence"]["object_mask_area_px"] > 0
+
+
 def test_render_validation_rejects_native_readback_without_camera_projection(tmp_path):
     frame_path = tmp_path / "native_open_door_table_only.png"
     _write_test_png(frame_path, [(0, 270, 512, 512, [132, 132, 132])])
