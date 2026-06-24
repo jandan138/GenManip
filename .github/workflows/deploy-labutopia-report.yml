@@ -1,7 +1,9 @@
 name: Deploy LabUtopia Report
 
 # GenManip LabUtopia reports are zero-build static HTML under docs/.
-# This mirrors the EOS learning-site deployment style: upload docs/ as the Pages artifact.
+# The fork currently serves GitHub Pages from the legacy gh-pages branch, so this
+# workflow mirrors docs/ into gh-pages instead of using the GitHub Actions Pages
+# environment.
 
 on:
   workflow_dispatch:
@@ -14,34 +16,41 @@ on:
       - ".github/workflows/deploy-labutopia-report.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: labutopia-report-pages
+  group: labutopia-report-gh-pages
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-      contents: read
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload docs/ as Pages artifact
-        uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: source
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          token: ${{ github.token }}
+
+      - name: Sync docs to gh-pages
+        run: |
+          rsync -a --delete --exclude='.git' source/docs/ pages/
+
+      - name: Commit and push gh-pages
+        run: |
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet --exit-code && [ -z "$(git status --porcelain)" ]; then
+            echo "No gh-pages changes to publish."
+            exit 0
+          fi
+          git add -A
+          git commit -m "Deploy LabUtopia report from ${GITHUB_SHA}"
+          git push
