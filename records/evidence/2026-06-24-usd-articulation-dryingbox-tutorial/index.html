@@ -607,7 +607,7 @@
 
     <section id="native-plan">
       <h2>硬约束：最终必须调通 LabUtopia 原生复杂 <code>DryingBox</code></h2>
-      <p>这次不是继续把 cube-based surrogate 打磨得更像，而是让 LabUtopia native complex <code>DryingBox_01</code> 本体进入 EBench：保留原生 mesh、材质、层级身份和内部 <code>/handle</code>，只在必要时用 <code>additive physics override</code> 补齐 Isaac runtime 需要的稳定物理属性。2026-06-24 P2 已完成 Franka POC gate：native visual/hierarchy/handle 保留，EBench readback 可见，<code>native_complex_dryingbox_ready=true</code>。</p>
+      <p>这次不是继续把 cube-based surrogate 打磨得更像，而是让 LabUtopia native complex <code>DryingBox_01</code> 本体进入 EBench：保留原生 mesh、材质、层级身份和内部 <code>/handle</code>，只在必要时用 <code>additive physics override</code> 补齐 Isaac runtime 需要的稳定物理属性。2026-06-24 P2 已完成 Franka POC gate：native visual/hierarchy/handle 保留，wrapper-local <code>Looks</code> 和 native <code>material:binding</code> 已重连，EBench readback 中蓝色门、白色侧面、把手、观察窗和控制面板可见，<code>native_complex_dryingbox_ready=true</code>。</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -622,7 +622,7 @@
             <tr>
               <td><code>Native visual</code></td>
               <td>原生 DryingBox 的门板、框架、把手、真实 mesh 和 material identity。</td>
-              <td>少量 <code>displayColor</code> 或 material binding 只用于 eval readback 可读性。</td>
+              <td>在 EBench wrapper 下补 wrapper-local <code>Looks</code>，并把原生 mesh 的 <code>material:binding</code> 重新指向本地 material path。</td>
               <td>不把干燥箱替换成 <code>Cube</code> 拼出来的假箱体作为最终资产。</td>
             </tr>
             <tr>
@@ -685,8 +685,66 @@
             </tr>
             <tr>
               <td><code>EBench readback</code></td>
-              <td><code>saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json</code></td>
-              <td><code>f28451fe121e43ac48c2e4b25ce28dfe395ee09e570318017c45cdfb2257225e</code></td>
+              <td><code>saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json</code></td>
+              <td><code>d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="native-materials">
+      <h2>为什么 LabUtopia 原生没问题，进 EBench 后会出问题</h2>
+      <p>产品上看两边都是 <code>USD</code>，也都在 Isaac 里渲染，但加载方式不同。LabUtopia 原生场景是在自己的 <code>/World</code> 层级里完整展开；EBench POC 则把这个资产放进任务 wrapper，例如 <code>/World/labutopia_level1_poc/obj_obj_DryingBox_01</code>，再通过 <code>payload</code> 把原始内容挂进去。这个 wrapper 能保护任务命名和对象映射，但也会触发 <code>USD payload</code> 的作用域规则。</p>
+      <div class="grid-3">
+        <div class="panel ok">
+          <span class="tag ok">原生 LabUtopia</span>
+          <h3>材质和 mesh 在同一原始舞台</h3>
+          <p>原始 <code>DryingBox_01</code> 的 mesh 可以直接找到 <code>/World/Looks</code> 或内部 <code>Looks</code> 下的 material，所以蓝色门、白色侧面和控制面板能正常显示。</p>
+        </div>
+        <div class="panel warn">
+          <span class="tag warn">EBench wrapper</span>
+          <h3><code>payload</code> 会限制关系目标</h3>
+          <p>当原生资产被挂到 wrapper 下面时，旧的 <code>material:binding</code> 仍然指向原场景里的 material path。USD 会把“指到 payload 外部”的关系视为越界并忽略，结果就是材质 fallback，看起来灰、白、斜，容易误读成箱子倒了。</p>
+        </div>
+        <div class="panel ok">
+          <span class="tag ok">修复后</span>
+          <h3>把 <code>Looks</code> 搬到 wrapper 内</h3>
+          <p>我们在 <code>obj_obj_DryingBox_01</code> 下面创建本地 <code>Looks</code> scope，payload 原始 material，再把门板、把手、控制面板等 mesh 的 <code>material:binding</code> 重新指到 wrapper-local material。这样 mesh、material 和 task UID 同时可用。</p>
+        </div>
+      </div>
+      <div class="callout">
+        所以这次“像倒了”的旧图，不是 native DryingBox 的物理姿态真的倒置，而是证据相机 + 材质作用域没有闭环。修复后同一个 native complex <code>DryingBox_01</code> 能以 upright 状态显示蓝门、白侧面、把手、观察窗和控制面板。
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>修复项</th>
+              <th>具体做法</th>
+              <th>为什么必要</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>wrapper-local Looks</code></td>
+              <td>在 <code>/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks</code> 下 payload 原始 <code>/World/Looks</code>。</td>
+              <td>让 material prim 和 DryingBox wrapper 在同一个可引用 scope 内。</td>
+            </tr>
+            <tr>
+              <td><code>material rebinding</code></td>
+              <td>把 door、handle、panel、body 等 native mesh/subset 的 <code>rel material:binding</code> 指向 wrapper-local material。</td>
+              <td>避免 Isaac/USD 忽略越界 material target，恢复蓝色门和白色箱体。</td>
+            </tr>
+            <tr>
+              <td><code>retake camera</code></td>
+              <td>新增 <code>configs/cameras/labutopia_franka_poc_open_door_native_retake.yml</code> 作为证据相机 override。</td>
+              <td>让 PM 能一眼看到 upright 箱体、蓝色门、白色侧面、handle、window 和 control panel。</td>
+            </tr>
+            <tr>
+              <td><code>native handle evidence</code></td>
+              <td>验证器用 handle 的 scene readback + parent DryingBox native material mask，而不是要求 native handle 必须是 surrogate 的橙色。</td>
+              <td>真实复杂资产的 <code>handle</code> link frame 不一定等于肉眼看到的把手几何中心，不能照搬 cube-based surrogate 的颜色规则。</td>
             </tr>
           </tbody>
         </table>
@@ -934,7 +992,11 @@ official_baseline_evaluable: false</code></pre>
         </figure>
         <figure>
           <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-readback-p2.png" alt="Native complex DryingBox evaluator readback">
-          <figcaption><b>P2 native readback</b>：回到 LabUtopia native complex <code>DryingBox_01</code>，原生箱体和 nested handle 在 EBench evaluator camera 中可见；正式诊断里 <code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>。</figcaption>
+          <figcaption><b>旧 P2 native 反例</b>：已经回到 LabUtopia native complex <code>DryingBox_01</code>，但证据相机和 native material binding 还没闭环，蓝门/白侧面不清楚，所以会让人误以为箱子倒了。</figcaption>
+        </figure>
+        <figure>
+          <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-retake-p2.png" alt="Retake native complex DryingBox evaluator readback">
+          <figcaption><b>P2 retake native PASS</b>：修复 wrapper-local <code>Looks</code> 和 <code>material:binding</code> 后重拍。箱体 upright，蓝色门、白色侧面、把手、观察窗和控制面板可读；正式诊断里 <code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>。</figcaption>
         </figure>
       </div>
     </section>
@@ -976,7 +1038,7 @@ official_baseline_evaluable: false</code></pre>
           <span>用于补充 <code>layering</code>、<code>composition</code> 和协作式资产组织的非官方解读。</span>
         </div>
       </div>
-      <p class="footnote" style="margin-top: 12px;">项目证据来自 <code>saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json</code>、<code>saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json</code>、<code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> 和周报 evidence manifest。</p>
+      <p class="footnote" style="margin-top: 12px;">项目证据来自 <code>saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json</code>、<code>saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json</code>、<code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> 和周报 evidence manifest。</p>
     </section>
   </main>
 
@@ -1019,7 +1081,7 @@ official_baseline_evaluable: false</code></pre>
         tag: "Passed",
         tagClass: "ok",
         title: "P2 原生证据：native visual + additive physics override",
-        body: "P2 已回到 LabUtopia native complex DryingBox_01：视觉、层级、handle 都保留原生资产，只用 additive physics override 修 root scale、fixed base、mass/inertia、joint target 和非任务 DOF。正式诊断为 native_complex_dryingbox_ready=true。",
+        body: "P2 已回到 LabUtopia native complex DryingBox_01：视觉、层级、handle 都保留原生资产，只用 additive physics override 修 root scale、fixed base、mass/inertia、joint target 和非任务 DOF；retake 又修复 wrapper-local Looks 和 material:binding，蓝色门、白色侧面、把手、观察窗和控制面板可读。正式诊断为 native_complex_dryingbox_ready=true。",
         root: "Native payload: <code>/World/DryingBox_01</code>",
         joint: "Verified: <code>runtime_physics_stable=true</code>",
         handle: "Nested native handle: <code>/handle</code> verified in readback",
@@ -1061,14 +1123,14 @@ official_baseline_evaluable: false</code></pre>
         tag: "Gate 5",
         tagClass: "ok",
         title: "open_door eval readback：回到 EBench 评测相机",
-        body: "已运行 level1_open_door 的 evaluator camera readback，记录 native audit hash、joint state、bbox、handle visibility、render validation 和 diagnostics claim boundary。",
-        pass: "已通过：runtime_physics_stable=true，native_complex_dryingbox_ready=true，task_render_accepted=true；diagnostics SHA256 f28451fe121e43ac48c2e4b25ce28dfe395ee09e570318017c45cdfb2257225e。"
+        body: "已运行 level1_open_door 的 evaluator camera readback，并用 retake camera 复验 native material、joint state、handle evidence、render validation 和 diagnostics claim boundary。",
+        pass: "已通过：render_validation.passed=true，native_complex_dryingbox_ready=true，task_render_accepted=true；diagnostics SHA256 d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6。"
       },
       tutorial: {
         tag: "Gate 6",
         tagClass: "warn",
         title: "Tutorial evidence update：把怎么调通写清楚",
-        body: "正在把 asset audit、smoke、wrapper、physics override、eval readback 的证据写进教程。旧图、surrogate 对照图、native 最终图并排展示。",
+        body: "正在把 asset audit、smoke、wrapper、physics override、material rebinding 和 eval readback 的证据写进教程。旧图、surrogate 对照图、旧 P2 native 反例和 P2 retake 最终图并排展示。",
         pass: "通过标准：PM 能看懂为什么 native 一开始坏、我们改了哪些 physics override、哪些 claim 仍然不能说。"
       },
       lift2: {

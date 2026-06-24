@@ -244,6 +244,7 @@ git commit -m "feat: add native DryingBox overlay strategy"
 - Modify: `standalone_tools/labutopia_poc/build_asset_overlay.py`
 - Modify: `standalone_tools/labutopia_poc/validate_task_package.py`
 - Modify: `tests/labutopia_poc/test_validate_task_package.py`
+- Modify: `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json`
 - Modify: `configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml`
 
 - [ ] **Step 1: Write failing validator tests**
@@ -284,18 +285,48 @@ Expected: both commands exit `0`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add standalone_tools/labutopia_poc/build_asset_overlay.py standalone_tools/labutopia_poc/validate_task_package.py tests/labutopia_poc/test_validate_task_package.py configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml
+git add standalone_tools/labutopia_poc/build_asset_overlay.py standalone_tools/labutopia_poc/validate_task_package.py tests/labutopia_poc/test_validate_task_package.py configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json configs/tasks/ebench/labutopia_lab_poc/franka_poc/level1_open_door.yml
 git commit -m "feat: validate native DryingBox physics overrides"
 ```
 
 ## Task 5: Native open_door Eval Readback
+
+**Status, 2026-06-24 UTC:** Franka POC native gate passed for `level1_open_door`.
+The native LabUtopia `DryingBox_01` now loads through the EBench path with native
+visual hierarchy preserved, additive physics overrides applied, stable runtime
+readback, and a visible task target in `camera2`. This is still not an official
+Lift2 baseline claim; `official_baseline_evaluable` intentionally remains
+`false` until Task 7 runs the official baseline lane.
+
+Final evidence chain:
+
+| Evidence | Artifact | Result |
+| --- | --- | --- |
+| Native asset audit | `saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json` | Captures native topology and known USD/PhysX risk flags before runtime fixes. |
+| Native-only Isaac smoke | `saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json` | `runtime_physics_stable=true`, native `DryingBox_01` and handle load without EBench wrapper. |
+| EBench eval readback | `saved/diagnostics/native_dryingbox_open_door_eval_explicit_20260624_093156/diagnostics.json` | `boundary_classification=readback_visible`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`. |
+
+Key implementation notes:
+
+- Preserve native root unit scale `0.001`; forcing identity scale made child
+  part transforms explode outside the camera workspace.
+- Use the native `RevoluteJoint` as the open-door target and ignore the native
+  button `PrismaticJoint` for this metric, so the extra native DOF does not
+  break the door-state check.
+- Use native scene readback and projected task-part evidence when color masks
+  are too brittle for complex source assets, but require local PNG evidence
+  around the projected task part before accepting the fallback. The local PNG
+  evidence must match the object's RGB contract mask, so unrelated texture at
+  the projected point cannot pass as `DryingBox` or handle evidence.
+- The final formal `camera2` is a front-side view from `+Y`, so the orange
+  handle is visible instead of hidden on the far side of the box.
 
 **Files:**
 - Modify: `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py`
 - Modify: `tests/labutopia_poc/test_render_diagnostics_contract.py`
 - Output artifact: `saved/diagnostics/native_dryingbox_open_door_eval_<timestamp>/diagnostics.json`
 
-- [ ] **Step 1: Update diagnostics contract**
+- [x] **Step 1: Update diagnostics contract**
 
 Diagnostics must include these fields. The SHA256 values below are format examples; the implementation must replace them with the actual `audit.json` and `smoke.json` SHA256 values produced in Tasks 1 and 2.
 
@@ -311,11 +342,11 @@ Diagnostics must include these fields. The SHA256 values below are format exampl
 }
 ```
 
-- [ ] **Step 2: Adjust render validation**
+- [x] **Step 2: Adjust render validation**
 
 Stop relying only on surrogate-specific color masks. Native path can use bbox, segmentation, object map, visible area, handle part pose, and optional minimal material override.
 
-- [ ] **Step 3: Run open_door eval readback**
+- [x] **Step 3: Run open_door eval readback**
 
 Run:
 
