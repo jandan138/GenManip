@@ -247,6 +247,76 @@ def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
     assert not stale_path.exists()
 
 
+def test_build_asset_overlay_native_strategy_references_native_drying_box(
+    tmp_path,
+):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+    )
+
+    scene_usda = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene.usda"
+    ).read_text(encoding="utf-8")
+    assert 'def Xform "obj_obj_DryingBox_01" (' in scene_usda
+    assert (
+        "prepend payload = @scene.usd@</World/DryingBox_01>" in scene_usda
+        or "prepend references = @scene.usd@</World/DryingBox_01>" in scene_usda
+    )
+    assert 'over "handle"' in scene_usda
+    assert 'def Cube "body_link"' not in scene_usda
+    assert 'def Cube "door_link"' not in scene_usda
+    assert 'def Cube "handle"' not in scene_usda
+    assert 'def Xform "obj_obj_DryingBox_01_handle" (' not in scene_usda
+
+    manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["articulation_part_paths"] == {
+        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+    }
+    assert manifest["wrapper_prim_paths"]["obj_DryingBox_01"] == (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    )
+    assert manifest["wrapper_prim_paths"]["obj_DryingBox_01_handle"] == (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+    )
+    drying_box_runtime_asset = manifest["drying_box_runtime_asset"]
+    assert drying_box_runtime_asset["strategy"] == (
+        "native_complex_with_additive_physics_override"
+    )
+    assert drying_box_runtime_asset["source_payload_used"] is True
+    assert drying_box_runtime_asset["source_prim_path"] == "/World/DryingBox_01"
+    assert drying_box_runtime_asset["wrapper_prim_path"] == (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    )
+    assert drying_box_runtime_asset["handle_policy"] == "nested_native_handle"
+    assert drying_box_runtime_asset["surrogate_kept_for_debug_baseline"] is True
+
+
+def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["build_asset_overlay.py", "--drying-box-strategy", "native_complex"],
+    )
+
+    args = build_overlay.parse_args()
+
+    assert args.drying_box_strategy == "native_complex"
+
+
 def test_build_asset_overlay_rejects_overlay_scene_inside_source_dir(
     tmp_path, monkeypatch
 ):

@@ -173,7 +173,13 @@ DRYING_BOX_PHYSICS_OVERRIDES = {
         "diagonal_inertia": [0.002, 0.002, 0.002],
     },
 }
-DRYING_BOX_RUNTIME_ASSET = {
+DRYING_BOX_STRATEGY_SURROGATE = "sanitized_surrogate"
+DRYING_BOX_STRATEGY_NATIVE_COMPLEX = "native_complex"
+DRYING_BOX_STRATEGY_CHOICES = (
+    DRYING_BOX_STRATEGY_SURROGATE,
+    DRYING_BOX_STRATEGY_NATIVE_COMPLEX,
+)
+DRYING_BOX_SURROGATE_RUNTIME_ASSET = {
     "strategy": "sanitized_surrogate",
     "wrapper_prim_path": f"/World/{SCENE_UID}/obj_obj_DryingBox_01",
     "base_joint_name": "BaseFixedJoint",
@@ -182,12 +188,30 @@ DRYING_BOX_RUNTIME_ASSET = {
     "source_payload_used": False,
     "visual_affordances": DRYING_BOX_VISUAL_AFFORDANCES,
 }
+DRYING_BOX_NATIVE_RUNTIME_ASSET = {
+    "strategy": "native_complex_with_additive_physics_override",
+    "source_payload_used": True,
+    "source_prim_path": "/World/DryingBox_01",
+    "wrapper_prim_path": f"/World/{SCENE_UID}/obj_obj_DryingBox_01",
+    "handle_policy": "nested_native_handle",
+    "surrogate_kept_for_debug_baseline": True,
+}
 
 
 def _wrapper_name(runtime_object_key: str) -> str:
     if runtime_object_key == TABLE_UID:
         return "obj_table"
     return f"obj_{runtime_object_key}"
+
+
+def _normalize_drying_box_strategy(drying_box_strategy: str) -> str:
+    if drying_box_strategy not in DRYING_BOX_STRATEGY_CHOICES:
+        choices = ", ".join(DRYING_BOX_STRATEGY_CHOICES)
+        raise ValueError(
+            f"Unsupported drying-box strategy {drying_box_strategy!r}. "
+            f"Expected one of: {choices}"
+        )
+    return drying_box_strategy
 
 
 def _wrapper_prim_paths() -> dict[str, str]:
@@ -606,6 +630,47 @@ def _drying_box_surrogate_def(runtime_key: str) -> str:
     )
 
 
+def _drying_box_native_def(source_path: str, runtime_key: str) -> str:
+    wrapper_body = _wrapper_body(source_path, runtime_key)
+    return f"""        def Xform "{_wrapper_name(runtime_key)}" (
+            prepend payload = @scene.usd@<{source_path}>
+        )
+        {{
+{wrapper_body}
+        }}"""
+
+
+def _drying_box_runtime_asset(drying_box_strategy: str) -> dict[str, object]:
+    drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
+    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+        return DRYING_BOX_NATIVE_RUNTIME_ASSET
+    return DRYING_BOX_SURROGATE_RUNTIME_ASSET
+
+
+def _manifest_notes(drying_box_strategy: str) -> list[str]:
+    drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
+    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+        return [
+            "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+            "Immediate obj_* wrapper prims payload top-level LabUtopia source prims including native DryingBox_01.",
+            "DryingBox_01 uses the native LabUtopia complex asset with additive overlay opinions.",
+            "The drying-box handle is exposed as a nested native articulation part, not an independent payload.",
+            "The sanitized DryingBox surrogate remains available via --drying-box-strategy sanitized_surrogate for regression comparison.",
+            "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
+            "A deterministic dome light is authored in the runtime wrapper scene.",
+            "Runtime object keys strip one leading obj_ from wrapper prim names.",
+        ]
+    return [
+        "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+        "Immediate obj_* wrapper prims payload top-level LabUtopia source prims except DryingBox_01.",
+        "DryingBox_01 uses a sanitized runtime surrogate with identity root scale and finite inertial attributes.",
+        "The drying-box handle is exposed as an articulation part, not an independent payload.",
+        "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
+        "A deterministic dome light is authored in the runtime wrapper scene.",
+        "Runtime object keys strip one leading obj_ from wrapper prim names.",
+    ]
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
@@ -614,11 +679,15 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _write_scene_wrapper(path: Path) -> None:
+def _write_scene_wrapper(path: Path, *, drying_box_strategy: str) -> None:
+    drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     wrapper_defs = []
     for source_path, runtime_key in TOP_LEVEL_SOURCE_TO_RUNTIME_OBJECT_KEY.items():
         if runtime_key == "obj_DryingBox_01":
-            wrapper_defs.append(_drying_box_surrogate_def(runtime_key))
+            if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+                wrapper_defs.append(_drying_box_native_def(source_path, runtime_key))
+            else:
+                wrapper_defs.append(_drying_box_surrogate_def(runtime_key))
         else:
             wrapper_body = _wrapper_body(source_path, runtime_key)
             wrapper_defs.append(
@@ -689,7 +758,9 @@ def _reject_overlay_scene_inside_source(
 def build_asset_overlay(
     labutopia_root: str | Path = DEFAULT_LABUTOPIA_ROOT,
     overlay_root: str | Path = DEFAULT_OVERLAY_ROOT,
+    drying_box_strategy: str = DRYING_BOX_STRATEGY_SURROGATE,
 ) -> dict[str, object]:
+    drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     labutopia_root = Path(labutopia_root)
     overlay_root = Path(overlay_root)
     source_dir = labutopia_root / SOURCE_DIR_RELATIVE
@@ -707,7 +778,7 @@ def build_asset_overlay(
     scene_usd = overlay_scene_dir / "scene.usd"
     shutil.copy2(source_scene, scene_usd)
     scene_usda = overlay_scene_dir / "scene.usda"
-    _write_scene_wrapper(scene_usda)
+    _write_scene_wrapper(scene_usda, drying_box_strategy=drying_box_strategy)
 
     copied_paths = [
         path
@@ -727,20 +798,14 @@ def build_asset_overlay(
         "wrapper_prim_paths": _wrapper_prim_paths(),
         "articulation_part_paths": ARTICULATION_PART_PATHS,
         "render_object_contracts": _render_object_contracts(),
-        "drying_box_runtime_asset": DRYING_BOX_RUNTIME_ASSET,
+        "drying_box_runtime_asset": _drying_box_runtime_asset(
+            drying_box_strategy
+        ),
         "table_uid": TABLE_UID,
         "required_genmanip_object_uids": REQUIRED_GENMANIP_OBJECT_UIDS,
         "deterministic_lights": DETERMINISTIC_LIGHTS,
         "copied_files": _copied_files(overlay_root, copied_paths),
-        "notes": [
-            "scene.usda exposes a single scene uid under /World for GenManip discovery.",
-            "Immediate obj_* wrapper prims payload top-level LabUtopia source prims except DryingBox_01.",
-            "DryingBox_01 uses a sanitized runtime surrogate with identity root scale and finite inertial attributes.",
-            "The drying-box handle is exposed as an articulation part, not an independent payload.",
-            "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
-            "A deterministic dome light is authored in the runtime wrapper scene.",
-            "Runtime object keys strip one leading obj_ from wrapper prim names.",
-        ],
+        "notes": _manifest_notes(drying_box_strategy),
     }
 
     manifest_path = overlay_root / MANIFEST_RELATIVE
@@ -772,6 +837,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_OVERLAY_ROOT,
         help=f"Overlay asset root. Default: {DEFAULT_OVERLAY_ROOT}",
+    )
+    parser.add_argument(
+        "--drying-box-strategy",
+        choices=DRYING_BOX_STRATEGY_CHOICES,
+        default=DRYING_BOX_STRATEGY_SURROGATE,
+        help=(
+            "DryingBox runtime asset strategy. "
+            "Use native_complex to payload the original LabUtopia DryingBox_01."
+        ),
     )
     return parser.parse_args()
 

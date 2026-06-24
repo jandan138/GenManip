@@ -193,47 +193,11 @@
         }
     ],
     "drying_box_runtime_asset": {
-        "base_joint_name": "BaseFixedJoint",
-        "joint_name": "RevoluteJoint",
-        "removed_source_joint_types": [
-            "PhysicsPrismaticJoint"
-        ],
-        "source_payload_used": false,
-        "strategy": "sanitized_surrogate",
-        "visual_affordances": [
-            {
-                "display_color": [
-                    0.28,
-                    0.34,
-                    0.42
-                ],
-                "name": "high_contrast_door_panel"
-            },
-            {
-                "display_color": [
-                    0.04,
-                    0.05,
-                    0.06
-                ],
-                "name": "door_outline_seams"
-            },
-            {
-                "display_color": [
-                    0.05,
-                    0.07,
-                    0.09
-                ],
-                "name": "handle_mount_backplate"
-            },
-            {
-                "display_color": [
-                    1.0,
-                    0.18,
-                    0.04
-                ],
-                "name": "high_contrast_handle"
-            }
-        ],
+        "handle_policy": "nested_native_handle",
+        "source_payload_used": true,
+        "source_prim_path": "/World/DryingBox_01",
+        "strategy": "native_complex_with_additive_physics_override",
+        "surrogate_kept_for_debug_baseline": true,
         "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
     },
     "required_genmanip_object_uids": [
@@ -258,9 +222,10 @@
     },
     "runtime_notes": [
         "scene.usda exposes a single scene uid under /World for GenManip discovery.",
-        "Immediate obj_* wrapper prims payload top-level LabUtopia source prims except DryingBox_01.",
-        "DryingBox_01 uses a sanitized runtime surrogate with identity root scale and finite inertial attributes.",
-        "The drying-box handle is exposed as an articulation part, not an independent payload.",
+        "Immediate obj_* wrapper prims payload top-level LabUtopia source prims including native DryingBox_01.",
+        "DryingBox_01 uses the native LabUtopia complex asset with additive overlay opinions.",
+        "The drying-box handle is exposed as a nested native articulation part, not an independent payload.",
+        "The sanitized DryingBox surrogate remains available via --drying-box-strategy sanitized_surrogate for regression comparison.",
         "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
         "A deterministic dome light is authored in the runtime wrapper scene.",
         "Runtime object keys strip one leading obj_ from wrapper prim names."
