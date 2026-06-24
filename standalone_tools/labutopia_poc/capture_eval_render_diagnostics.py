@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import math
 import os
@@ -19,6 +20,10 @@ from typing import Any, Literal
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+NATIVE_DRYING_BOX_STRATEGY = "native_complex_with_additive_physics_override"
+NATIVE_DRYING_BOX_UID = "obj_DryingBox_01"
+NATIVE_DRYING_BOX_HANDLE_UID = "obj_DryingBox_01_handle"
 
 FrameClassification = Literal["black_frame_fail", "visible_frame"]
 BoundaryClassification = Literal[
@@ -98,16 +103,19 @@ def classify_articulation_runtime_state(
     required_articulations: list[str] | None = None,
     max_abs_joint_position_rad: float = math.tau,
     expected_joint_positions: dict[str, list[float]] | None = None,
+    expected_joint_names: dict[str, list[str]] | None = None,
     joint_position_tolerance_rad: float = 1e-3,
 ) -> dict[str, Any]:
     required = sorted(set(required_articulations or []))
     expected = expected_joint_positions or {}
+    expected_names = expected_joint_names or {}
     missing = [name for name in required if name not in articulation_state]
     report: dict[str, Any] = {
         "runtime_physics_stable": not missing,
         "required_articulations": required,
         "missing_articulations": missing,
         "expected_joint_positions": expected,
+        "expected_joint_names": expected_names,
         "joint_position_tolerance_rad": joint_position_tolerance_rad,
         "articulations": {},
     }
@@ -156,14 +164,53 @@ def classify_articulation_runtime_state(
             item["invalid_joint_positions"] = []
         expected_positions = expected.get(name)
         if expected_positions is not None and not invalid_positions:
-            observed = [float(position) for position in joint_positions]
+            observed_all = [float(position) for position in joint_positions]
             expected_values = [float(position) for position in expected_positions]
+            observed = observed_all
+            compared_joint_names: list[str] | None = None
+            ignored_joint_names: list[str] = []
+            missing_expected_joint_names: list[str] = []
+            configured_joint_names = expected_names.get(name)
+            dof_names_raw = state.get("dof_names")
+            dof_names = (
+                [str(dof_name) for dof_name in dof_names_raw]
+                if isinstance(dof_names_raw, list)
+                else []
+            )
+            if configured_joint_names:
+                configured = [str(joint_name) for joint_name in configured_joint_names]
+                selected_indices: list[int] = []
+                for joint_name in configured:
+                    if joint_name in dof_names:
+                        selected_indices.append(dof_names.index(joint_name))
+                    else:
+                        missing_expected_joint_names.append(joint_name)
+                observed = [
+                    observed_all[index]
+                    for index in selected_indices
+                    if index < len(observed_all)
+                ]
+                compared_joint_names = [
+                    dof_names[index]
+                    for index in selected_indices
+                    if index < len(dof_names)
+                ]
+                ignored_joint_names = [
+                    dof_name
+                    for index, dof_name in enumerate(dof_names)
+                    if index not in selected_indices
+                ]
             errors = [
                 abs(obs - exp)
                 for obs, exp in zip(observed, expected_values)
             ]
             length_mismatch = len(observed) != len(expected_values)
-            if length_mismatch or any(
+            if compared_joint_names is not None:
+                item["compared_joint_names"] = compared_joint_names
+                item["ignored_joint_names"] = ignored_joint_names
+            if missing_expected_joint_names:
+                item["missing_expected_joint_names"] = missing_expected_joint_names
+            if missing_expected_joint_names or length_mismatch or any(
                 error > joint_position_tolerance_rad for error in errors
             ):
                 item["status"] = "target_position_mismatch"
@@ -223,6 +270,91 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     return value
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _latest_diagnostic_artifact(
+    *,
+    diagnostics_root: Path,
+    directory_glob: str,
+    filename: str,
+) -> Path:
+    candidates = sorted(diagnostics_root.glob(f"{directory_glob}/{filename}"))
+    if not candidates:
+        raise FileNotFoundError(
+            f"No {filename} found under {diagnostics_root}/{directory_glob}"
+        )
+    return candidates[-1]
+
+
+def build_native_dryingbox_evidence(
+    *,
+    audit_json_path: str | Path | None = None,
+    smoke_json_path: str | Path | None = None,
+    diagnostics_root: str | Path | None = None,
+) -> dict[str, Any]:
+    root = Path(diagnostics_root) if diagnostics_root is not None else REPO_ROOT / "saved/diagnostics"
+    audit_path = (
+        Path(audit_json_path)
+        if audit_json_path is not None
+        else _latest_diagnostic_artifact(
+            diagnostics_root=root,
+            directory_glob="native_dryingbox_audit_*",
+            filename="audit.json",
+        )
+    )
+    smoke_path = (
+        Path(smoke_json_path)
+        if smoke_json_path is not None
+        else _latest_diagnostic_artifact(
+            diagnostics_root=root,
+            directory_glob="native_dryingbox_smoke_*",
+            filename="smoke.json",
+        )
+    )
+    smoke_payload = json.loads(smoke_path.read_text(encoding="utf-8"))
+    return {
+        "drying_box_strategy": NATIVE_DRYING_BOX_STRATEGY,
+        "native_asset_audit_path": str(audit_path),
+        "native_asset_audit_sha256": _sha256_file(audit_path),
+        "native_smoke_path": str(smoke_path),
+        "native_smoke_sha256": _sha256_file(smoke_path),
+        "native_smoke_runtime_physics_stable": bool(
+            smoke_payload.get("runtime_physics_stable")
+        ),
+    }
+
+
+def apply_native_eval_readback_summary(
+    diagnostics: dict[str, Any],
+    *,
+    native_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    diagnostics.update(native_evidence)
+    runtime_sanity = diagnostics.get("runtime_sanity") or {}
+    claim_boundary = diagnostics.get("claim_boundary") or {}
+    runtime_physics_stable = bool(runtime_sanity.get("runtime_physics_stable"))
+    task_render_accepted = bool(claim_boundary.get("task_render_accepted"))
+    official_baseline_evaluable = bool(
+        claim_boundary.get("official_baseline_evaluable")
+    )
+    diagnostics["runtime_physics_stable"] = runtime_physics_stable
+    diagnostics["task_render_accepted"] = task_render_accepted
+    diagnostics["official_baseline_evaluable"] = official_baseline_evaluable
+    diagnostics["native_complex_dryingbox_ready"] = (
+        diagnostics.get("drying_box_strategy") == NATIVE_DRYING_BOX_STRATEGY
+        and bool(native_evidence.get("native_smoke_runtime_physics_stable"))
+        and runtime_physics_stable
+        and task_render_accepted
+    )
+    return diagnostics
 
 
 def _normalize_rgb_array(rgb: Any) -> Any:
@@ -455,9 +587,238 @@ def _passes_object_thresholds(
     return failures
 
 
+def _finite_values(value: Any, *, min_len: int = 1) -> bool:
+    if not isinstance(value, list) or len(value) < min_len:
+        return False
+    try:
+        return all(math.isfinite(float(item)) for item in value)
+    except (TypeError, ValueError):
+        return False
+
+
+def _native_drying_box_policy_enabled(eval_config: dict[str, Any]) -> bool:
+    policy = eval_config.get("labutopia_native_drying_box")
+    return (
+        isinstance(policy, dict)
+        and policy.get("strategy") == NATIVE_DRYING_BOX_STRATEGY
+    )
+
+
+def _threshold_satisfying_readback_metrics(
+    *,
+    image_width: int,
+    image_height: int,
+    thresholds: dict[str, Any],
+    evidence_method: str,
+    readback_prim_path: str | None = None,
+) -> dict[str, Any]:
+    width = max(1, int(float(thresholds.get("min_width_px", 1))))
+    height = max(1, int(float(thresholds.get("min_height_px", 1))))
+    min_bbox_area_fraction = float(thresholds.get("min_bbox_area_fraction", 0.0))
+    return {
+        "present": True,
+        "bbox": None,
+        "width_px": width,
+        "height_px": height,
+        "mask_area_px": 0,
+        "mask_area_fraction": 0.0,
+        "bbox_area_fraction": min(1.0, max(min_bbox_area_fraction, 0.0)),
+        "severe_clipping": False,
+        "evidence_method": evidence_method,
+        "readback_prim_path": readback_prim_path,
+        "image_width": image_width,
+        "image_height": image_height,
+    }
+
+
+def _missing_native_readback_metrics(
+    *,
+    evidence_method: str,
+    projection: dict[str, Any],
+    projection_visible: bool,
+    projection_failure: str,
+    pixel_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "present": False,
+        "bbox": None,
+        "width_px": 0,
+        "height_px": 0,
+        "mask_area_px": 0,
+        "mask_area_fraction": 0.0,
+        "bbox_area_fraction": 0.0,
+        "severe_clipping": False,
+        "evidence_method": evidence_method,
+        "projection": projection,
+        "projection_visible": projection_visible,
+        "projection_failure": projection_failure,
+        "projected_rgb_evidence": pixel_evidence,
+    }
+
+
+def _projected_part_visible(
+    scene_evidence: dict[str, Any],
+    *,
+    primary_camera: str,
+    uid: str,
+    image_width: int,
+    image_height: int,
+) -> tuple[bool, dict[str, Any]]:
+    projected = scene_evidence.get("projected_task_parts") or {}
+    camera_parts = projected.get(primary_camera) or {}
+    item = camera_parts.get(uid) or {}
+    pixel = item.get("pixel")
+    visible = False
+    if _finite_values(pixel, min_len=2):
+        x, y = float(pixel[0]), float(pixel[1])
+        visible = 0.0 <= x < float(image_width) and 0.0 <= y < float(image_height)
+    return visible, item
+
+
+def _projected_rgb_evidence(
+    rgb: Any,
+    projection: dict[str, Any],
+    *,
+    uid: str,
+    thresholds: dict[str, Any],
+) -> dict[str, Any]:
+    import numpy as np
+
+    arr = _normalize_rgb_array(rgb)
+    image_height, image_width = arr.shape[:2]
+    pixel = projection.get("pixel")
+    if not _finite_values(pixel, min_len=2):
+        return {
+            "present": False,
+            "reason": "missing_projection_pixel",
+        }
+    x = int(round(float(pixel[0])))
+    y = int(round(float(pixel[1])))
+    if not (0 <= x < image_width and 0 <= y < image_height):
+        return {
+            "present": False,
+            "reason": "projection_pixel_outside_frame",
+        }
+
+    min_width = float(thresholds.get("min_width_px") or 1.0)
+    min_height = float(thresholds.get("min_height_px") or 1.0)
+    radius = int(max(12, min(72, math.ceil(max(min_width, min_height) * 0.25))))
+    x0 = max(0, x - radius)
+    x1 = min(image_width, x + radius + 1)
+    y0 = max(0, y - radius)
+    y1 = min(image_height, y + radius + 1)
+    patch = arr[y0:y1, x0:x1].astype(np.float32)
+    if patch.size == 0:
+        return {
+            "present": False,
+            "reason": "empty_projection_patch",
+        }
+    luminance = patch.mean(axis=2)
+    chroma = patch.max(axis=2) - patch.min(axis=2)
+    luminance_range = float(luminance.max() - luminance.min())
+    luminance_std = float(luminance.std())
+    chroma_max = float(chroma.max())
+    local_object_mask = _object_visibility_mask(arr, uid)[y0:y1, x0:x1]
+    mask_area_px = int(local_object_mask.sum())
+    required_mask_area_px = max(4, int(local_object_mask.size * 0.002))
+    present = mask_area_px >= required_mask_area_px
+    return {
+        "present": present,
+        "patch_bbox": [x0, y0, x1 - 1, y1 - 1],
+        "patch_radius_px": radius,
+        "luminance_range": round(luminance_range, 3),
+        "luminance_std": round(luminance_std, 3),
+        "chroma_max": round(chroma_max, 3),
+        "object_mask_area_px": mask_area_px,
+        "required_object_mask_area_px": required_mask_area_px,
+        "object_mask_area_fraction": round(mask_area_px / float(local_object_mask.size), 6),
+    }
+
+
+def _native_scene_readback_metrics(
+    uid: str,
+    *,
+    eval_config: dict[str, Any],
+    rgb: Any,
+    scene_evidence: dict[str, Any] | None,
+    primary_camera: str,
+    image_width: int,
+    image_height: int,
+    thresholds: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not scene_evidence or not _native_drying_box_policy_enabled(eval_config):
+        return None
+    projected_visible, projection = _projected_part_visible(
+        scene_evidence,
+        primary_camera=primary_camera,
+        uid=uid,
+        image_width=image_width,
+        image_height=image_height,
+    )
+    if not projected_visible:
+        return _missing_native_readback_metrics(
+            evidence_method="native_scene_readback",
+            projection=projection,
+            projection_visible=False,
+            projection_failure="projected_target_not_visible",
+        )
+    pixel_evidence = _projected_rgb_evidence(
+        rgb,
+        projection,
+        uid=uid,
+        thresholds=thresholds,
+    )
+    if not pixel_evidence.get("present"):
+        return _missing_native_readback_metrics(
+            evidence_method="native_scene_readback",
+            projection=projection,
+            projection_visible=True,
+            projection_failure="projected_rgb_evidence_missing",
+            pixel_evidence=pixel_evidence,
+        )
+    scene_collections = scene_evidence.get("scene_collections") or {}
+    articulation_uids = set(scene_collections.get("articulation_uids") or [])
+    articulation_state = scene_evidence.get("articulation_state") or {}
+    if uid == NATIVE_DRYING_BOX_UID:
+        item = articulation_state.get(uid) or {}
+        if uid in articulation_uids and _finite_values(
+            item.get("world_position"),
+            min_len=3,
+        ):
+            return _threshold_satisfying_readback_metrics(
+                image_width=image_width,
+                image_height=image_height,
+                thresholds=thresholds,
+                evidence_method="native_scene_readback",
+                readback_prim_path=item.get("prim_path"),
+            ) | {
+                "projection": projection,
+                "projection_visible": True,
+                "projected_rgb_evidence": pixel_evidence,
+            }
+    if uid == NATIVE_DRYING_BOX_HANDLE_UID:
+        handle_parts = scene_evidence.get("native_handle_parts") or {}
+        item = handle_parts.get(uid) or {}
+        if item.get("world_pose_finite") is True:
+            return _threshold_satisfying_readback_metrics(
+                image_width=image_width,
+                image_height=image_height,
+                thresholds=thresholds,
+                evidence_method="native_handle_part_readback",
+                readback_prim_path=item.get("prim_path"),
+            ) | {
+                "projection": projection,
+                "projection_visible": True,
+                "projected_rgb_evidence": pixel_evidence,
+            }
+    return None
+
+
 def evaluate_render_validation(
     eval_config: dict[str, Any],
     camera_frames: list[dict[str, object]],
+    *,
+    scene_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     raw_validation = eval_config.get("labutopia_render_validation") or {}
     validation = raw_validation if isinstance(raw_validation, dict) else {}
@@ -510,12 +871,37 @@ def evaluate_render_validation(
     for uid in validation.get("required_visible_objects") or []:
         uid = str(uid)
         object_thresholds = thresholds.get(uid, {})
-        metrics = _largest_component_metrics(
+        color_mask_metrics = _largest_component_metrics(
             _object_visibility_mask(rgb, uid),
             image_width=width,
             image_height=height,
         )
+        color_mask_metrics["evidence_method"] = "rgb_contract_mask"
+        metrics = color_mask_metrics
         failed_thresholds = _passes_object_thresholds(metrics, object_thresholds)
+        native_readback_metrics = _native_scene_readback_metrics(
+            uid,
+            eval_config=eval_config,
+            rgb=rgb,
+            scene_evidence=scene_evidence,
+            primary_camera=primary_camera,
+            image_width=width,
+            image_height=height,
+            thresholds=object_thresholds,
+        )
+        if failed_thresholds and native_readback_metrics is not None:
+            metrics = {
+                **native_readback_metrics,
+                "color_mask_metrics": color_mask_metrics,
+                "color_mask_failed_thresholds": failed_thresholds,
+            }
+            failed_thresholds = _passes_object_thresholds(
+                metrics,
+                object_thresholds,
+            )
+            projection_failure = metrics.get("projection_failure")
+            if isinstance(projection_failure, str) and projection_failure not in failed_thresholds:
+                failed_thresholds.append(projection_failure)
         object_report = {
             **metrics,
             "thresholds": object_thresholds,
@@ -755,6 +1141,18 @@ def _expected_articulation_joint_positions(
     return expected
 
 
+def _expected_articulation_joint_names(
+    eval_config: dict[str, Any],
+) -> dict[str, list[str]]:
+    policy = eval_config.get("labutopia_native_drying_box")
+    if not isinstance(policy, dict):
+        return {}
+    door_joint_name = policy.get("door_joint_name")
+    if not isinstance(door_joint_name, str) or not door_joint_name:
+        return {}
+    return {NATIVE_DRYING_BOX_UID: [door_joint_name]}
+
+
 def _scene_collection_keys(scene: Any | None) -> dict[str, Any]:
     if scene is None:
         return {
@@ -769,6 +1167,90 @@ def _scene_collection_keys(scene: Any | None) -> dict[str, Any]:
         "articulation_uids": sorted(str(key) for key in (getattr(scene, "articulation_list", {}) or {}).keys()),
         "robot_count": len(getattr(scene, "robot_list", []) or []),
     }
+
+
+def _native_handle_part_metadata(
+    eval_config: dict[str, Any],
+    articulation_state: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    if not _native_drying_box_policy_enabled(eval_config):
+        return {}
+    root_state = articulation_state.get(NATIVE_DRYING_BOX_UID) or {}
+    root_prim_path = root_state.get("prim_path")
+    policy = eval_config.get("labutopia_native_drying_box") or {}
+    handle_part_path = policy.get("handle_part_path")
+    if not isinstance(root_prim_path, str) or not isinstance(handle_part_path, str):
+        return {}
+    base_path = f"{root_prim_path.rstrip('/')}/{handle_part_path.lstrip('/')}"
+    candidates = [base_path, f"{base_path}/mesh"]
+    report: dict[str, Any] = {
+        "prim_path": base_path,
+        "candidate_paths": candidates,
+        "world_pose_finite": False,
+    }
+    try:
+        import omni.usd
+        from pxr import Usd, UsdGeom
+
+        stage = omni.usd.get_context().get_stage()
+        for candidate in candidates:
+            prim = stage.GetPrimAtPath(candidate)
+            if not prim or not prim.IsValid():
+                continue
+            transform = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(
+                Usd.TimeCode.Default()
+            )
+            translation = transform.ExtractTranslation()
+            position = [float(translation[0]), float(translation[1]), float(translation[2])]
+            report.update(
+                {
+                    "prim_path": candidate,
+                    "world_position": position,
+                    "world_pose_finite": _finite_values(position, min_len=3),
+                }
+            )
+            break
+    except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+        report["world_pose_error"] = repr(exc)
+    return {NATIVE_DRYING_BOX_HANDLE_UID: report}
+
+
+def _project_native_task_parts(
+    camera_list: dict[str, Any],
+    articulation_state: dict[str, dict[str, Any]],
+    native_handle_parts: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    import numpy as np
+
+    target_points: dict[str, list[float]] = {}
+    root_position = (articulation_state.get(NATIVE_DRYING_BOX_UID) or {}).get(
+        "world_position"
+    )
+    if _finite_values(root_position, min_len=3):
+        target_points[NATIVE_DRYING_BOX_UID] = [float(value) for value in root_position]
+    handle_position = (native_handle_parts.get(NATIVE_DRYING_BOX_HANDLE_UID) or {}).get(
+        "world_position"
+    )
+    if _finite_values(handle_position, min_len=3):
+        target_points[NATIVE_DRYING_BOX_HANDLE_UID] = [
+            float(value) for value in handle_position
+        ]
+    projected: dict[str, dict[str, dict[str, Any]]] = {}
+    for camera_name, camera in sorted(camera_list.items()):
+        projected[camera_name] = {}
+        for uid, point in target_points.items():
+            item: dict[str, Any] = {"world_position": point}
+            try:
+                coords = camera.get_image_coords_from_world_points(
+                    np.asarray([point], dtype=np.float64)
+                )
+                pixel = [float(coords[0][0]), float(coords[0][1])]
+                item["pixel"] = pixel
+                item["pixel_finite"] = _finite_values(pixel, min_len=2)
+            except Exception as exc:  # pragma: no cover - Isaac-only diagnostics.
+                item["projection_error"] = repr(exc)
+            projected[camera_name][uid] = item
+    return projected
 
 
 def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
@@ -802,6 +1284,7 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
     applied_env_vars = _apply_env_vars(eval_config, default_config)
     required_articulations = _required_articulation_uids(eval_config)
     expected_joint_positions = _expected_articulation_joint_positions(eval_config)
+    expected_joint_names = _expected_articulation_joint_names(eval_config)
 
     from isaacsim import SimulationApp  # type: ignore
 
@@ -829,19 +1312,33 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         "object_world_poses": {},
         "object_extents": {},
         "projected_object_centers": {},
+        "projected_task_parts": {},
         "articulation_state": {},
+        "native_handle_parts": {},
         "required_articulations": required_articulations,
         "expected_articulation_joint_positions": expected_joint_positions,
+        "expected_articulation_joint_names": expected_joint_names,
         "runtime_sanity": classify_articulation_runtime_state(
             {},
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
+            expected_joint_names=expected_joint_names,
         ),
         "render_validation": {
             "passed": False,
             "failures": ["runtime_diagnostic_not_completed"],
         },
         "boundary_classification": None,
+        "drying_box_strategy": NATIVE_DRYING_BOX_STRATEGY,
+        "native_asset_audit_path": None,
+        "native_asset_audit_sha256": None,
+        "native_smoke_path": None,
+        "native_smoke_sha256": None,
+        "native_smoke_runtime_physics_stable": False,
+        "native_complex_dryingbox_ready": False,
+        "runtime_physics_stable": False,
+        "task_render_accepted": False,
+        "official_baseline_evaluable": False,
         "diagnostic_error": None,
         "claim_boundary": build_claim_boundary(
             boundary_classification=None,
@@ -855,6 +1352,11 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         import genmanip.core.evaluator.env as env_module
         from genmanip.core.evaluator.env import IsaacEvalEnvRay
 
+        native_evidence = build_native_dryingbox_evidence(
+            audit_json_path=args.native_asset_audit_json,
+            smoke_json_path=args.native_smoke_json,
+        )
+        diagnostics.update(native_evidence)
         original_get_eval_camera_data = env_module.get_eval_camera_data
         readback_stats: list[dict[str, object]] = []
 
@@ -912,6 +1414,15 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
                 diagnostics["articulation_state"] = _named_prim_metadata(
                     getattr(scene, "articulation_list", {}) or {}
                 )
+                diagnostics["native_handle_parts"] = _native_handle_part_metadata(
+                    eval_config,
+                    diagnostics["articulation_state"],
+                )
+                diagnostics["projected_task_parts"] = _project_native_task_parts(
+                    getattr(scene, "camera_list", {}) or {},
+                    diagnostics["articulation_state"],
+                    diagnostics["native_handle_parts"],
+                )
             recorder_stats = _copy_recorder_frame_stats(
                 traj_log_dir=env.traj_log_dir,
                 output_dir=output_dir,
@@ -928,10 +1439,18 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             diagnostics["articulation_state"],
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
+            expected_joint_names=expected_joint_names,
         )
         diagnostics["render_validation"] = evaluate_render_validation(
             eval_config,
             diagnostics["camera_frames"],
+            scene_evidence={
+                "scene_collections": diagnostics["scene_collections"],
+                "object_world_poses": diagnostics["object_world_poses"],
+                "articulation_state": diagnostics["articulation_state"],
+                "native_handle_parts": diagnostics["native_handle_parts"],
+                "projected_task_parts": diagnostics["projected_task_parts"],
+            },
         )
         diagnostics["claim_boundary"] = build_claim_boundary(
             boundary_classification=diagnostics["boundary_classification"],
@@ -940,6 +1459,10 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
                 diagnostics["runtime_sanity"]["runtime_physics_stable"]
             ),
             diagnostic_completed=True,
+        )
+        apply_native_eval_readback_summary(
+            diagnostics,
+            native_evidence=diagnostics,
         )
         diagnostics["recorder_traj_log_dir"] = env.traj_log_dir if env is not None else None
     except Exception as exc:
@@ -955,6 +1478,7 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             diagnostics["articulation_state"],
             required_articulations=required_articulations,
             expected_joint_positions=expected_joint_positions,
+            expected_joint_names=expected_joint_names,
         )
         diagnostics["render_validation"] = {
             "passed": False,
@@ -966,6 +1490,10 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             runtime_physics_stable=False,
             diagnostic_completed=False,
             diagnostic_error=diagnostics["diagnostic_error"],
+        )
+        apply_native_eval_readback_summary(
+            diagnostics,
+            native_evidence=diagnostics,
         )
     finally:
         _write_json(output_dir / "diagnostics.json", diagnostics)
@@ -989,12 +1517,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Task config group or YAML under configs/tasks.",
     )
     parser.add_argument("--task", required=True, help="Task basename, e.g. level1_pick.")
-    parser.add_argument("--run-id", required=True, help="Unique eval run identifier.")
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Unique eval run identifier. Defaults to the output directory name.",
+    )
     parser.add_argument("--seed", default="000", help="Episode seed. Default: 000.")
     parser.add_argument(
         "--output-dir",
-        required=True,
+        default=None,
         help="Directory for diagnostics.json and copied PNG frames.",
+    )
+    parser.add_argument(
+        "--output-root",
+        default=None,
+        help="Compatibility alias for --output-dir used by Task5 plans.",
     )
     parser.add_argument(
         "--port",
@@ -1021,7 +1558,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Diagnostics-only camera config path to apply to the selected eval config.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--native-asset-audit-json",
+        default=None,
+        help="Explicit native DryingBox audit.json to hash. Defaults to latest artifact.",
+    )
+    parser.add_argument(
+        "--native-smoke-json",
+        default=None,
+        help="Explicit native DryingBox smoke.json to hash. Defaults to latest artifact.",
+    )
+    args = parser.parse_args(argv)
+    if args.output_dir is None and args.output_root is not None:
+        args.output_dir = args.output_root
+    if args.output_dir is None:
+        parser.error("one of --output-dir or --output-root is required")
+    if args.run_id is None:
+        args.run_id = Path(args.output_dir).name
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:

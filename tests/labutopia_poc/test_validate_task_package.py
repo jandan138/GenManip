@@ -384,7 +384,7 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
         "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
         "handle_policy": "nested_native_handle",
         "surrogate_kept_for_debug_baseline": True,
-        "unit_policy": "override_root_scale_to_identity",
+        "unit_policy": "preserve_native_unit_scale_0_001",
         "fixed_base_policy": "world_fixed_joint_body0_removed",
         "door_joint_name": "RevoluteJoint",
         "door_reset_target": [0.0],
@@ -399,7 +399,7 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     scene_text = runtime_scene.read_text(encoding="utf-8")
     assert 'def Xform "obj_obj_DryingBox_01_handle" (' not in scene_text
     assert "prepend payload = @scene.usd@</World/DryingBox_01>" in scene_text
-    assert "double3 xformOp:scale = (1, 1, 1)" in scene_text
+    assert "double3 xformOp:scale = (0.001, 0.001, 0.001)" in scene_text
     assert "delete rel physics:body0" in scene_text
     assert 'def Cube "body_link"' not in scene_text
     assert 'def Cube "door_link"' not in scene_text
@@ -468,15 +468,16 @@ def test_open_door_evidence_camera_is_close_to_handle_for_visual_qa():
     camera2 = cameras["camera2"]
 
     position = camera2["position"]
-    handle_anchor = [0.77, -0.02, 0.80]
+    handle_anchor = [0.455607, 0.248763, 1.108592]
 
     distance_to_handle = math.dist(position, handle_anchor)
 
-    assert 0.54 <= distance_to_handle <= 0.64
-    assert 0.72 <= position[0] <= 0.78
-    assert -0.60 <= position[1] <= -0.52
-    assert 0.99 <= position[2] <= 1.05
-    assert 4.5 <= camera2["focal_length"] <= 5.5
+    assert 0.98 <= distance_to_handle <= 1.10
+    assert 0.58 <= position[0] <= 0.66
+    assert 1.15 <= position[1] <= 1.35
+    assert 1.30 <= position[2] <= 1.40
+    assert camera2["orientation"] == [0.87184, -0.4898, 0.0, 0.0]
+    assert 3.8 <= camera2["focal_length"] <= 4.2
     assert 9.0 <= camera2["horizontal_aperture"] <= 11.0
 
 
@@ -666,9 +667,10 @@ def test_drying_box_articulation_topology_is_ready_for_runtime():
         runtime_scene
     )
 
-    assert report["root_scale"] in ([], [1.0, 1.0, 1.0])
+    assert report["root_scale"] == [0.001, 0.001, 0.001]
     assert report["native_handle_path_exists"] is True
-    assert report["non_identity_root_scale"] is False
+    assert report["root_unit_scale_ready"] is True
+    assert report["task_visible_workspace_ready"] is True
     assert report["duplicate_rigid_link_names"] == {}
     assert report["invalid_center_of_mass_links"] == []
     assert report["invalid_principal_axes_links"] == []
@@ -685,6 +687,31 @@ def test_drying_box_articulation_topology_is_ready_for_runtime():
     ]
     assert report["unexpected_joint_types"] == []
     assert report["runtime_topology_ready"] is True
+
+
+def test_native_drying_box_units_keep_task_parts_in_workspace():
+    manifest_path = (
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = validate_task_package._load_json(manifest_path)
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert report["task_part_world_positions"]["handle"] == pytest.approx(
+        [0.455607, 0.248763, 1.108592],
+        abs=1e-3,
+    )
+    assert report["task_part_world_positions"]["door"] == pytest.approx(
+        [0.536732, 0.022285, 1.110061],
+        abs=1e-3,
+    )
+    assert report["task_visible_workspace_ready"] is True
 
 
 def test_labutopia_camera_configs_define_cleanup_flags():
@@ -790,7 +817,7 @@ def test_validate_camera_configs_rejects_open_door_lens_regression(
     _write_yaml(open_door_camera_path, open_door_cameras)
     monkeypatch.setattr(validate_task_package, "ROOT", tmp_path)
 
-    with pytest.raises(AssertionError, match="camera2 focal_length must be 5.4"):
+    with pytest.raises(AssertionError, match="camera2 focal_length must be 4.0"):
         validate_task_package._validate_camera_configs()
 
 

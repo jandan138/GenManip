@@ -199,7 +199,7 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "wrapper_prim_path": f"/World/{SCENE_UID}/obj_obj_DryingBox_01",
     "handle_policy": "nested_native_handle",
     "surrogate_kept_for_debug_baseline": True,
-    "unit_policy": "override_root_scale_to_identity",
+    "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
@@ -465,7 +465,7 @@ def _render_override_tree(
 
 def _native_drying_box_root_overrides(root_path: str) -> str:
     return (
-        f"            double3 xformOp:scale = (1, 1, 1)\n"
+        f"            double3 xformOp:scale = (0.001, 0.001, 0.001)\n"
         f'            uniform token[] xformOpOrder = ["xformOp:translate", '
         f'"xformOp:rotateXYZ", "xformOp:scale"]\n'
         f'            over "FixedJoint_01"\n'

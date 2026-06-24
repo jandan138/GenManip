@@ -16,11 +16,11 @@ camera2:
   name: camera_2
   exists: false
   prim_path: /LabUtopiaOpenDoorCamera2
-  position: [0.75, -0.56, 1.02]
-  orientation: [0.87184, 0.4898, 0.0, 0.0]
+  position: [0.62, 1.25, 1.35]
+  orientation: [0.87184, -0.4898, 0.0, 0.0]
   camera_axes: usd
   resolution: [512, 512]
-  focal_length: 5.4
+  focal_length: 4.0
   horizontal_aperture: 10.0
   image_type: rgb
   task_view: level1_open_door

@@ -205,7 +205,7 @@
         "source_prim_path": "/World/DryingBox_01",
         "strategy": "native_complex_with_additive_physics_override",
         "surrogate_kept_for_debug_baseline": true,
-        "unit_policy": "override_root_scale_to_identity",
+        "unit_policy": "preserve_native_unit_scale_0_001",
         "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
     },
     "required_genmanip_object_uids": [

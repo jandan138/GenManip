@@ -80,10 +80,10 @@ EXPECTED_FRANKA_TASK_CAMERA2_CONTRACTS = {
         "horizontal_aperture": 10.0,
     },
     "level1_open_door": {
-        "position": [0.75, -0.56, 1.02],
-        "orientation": [0.87184, 0.4898, 0.0, 0.0],
+        "position": [0.62, 1.25, 1.35],
+        "orientation": [0.87184, -0.4898, 0.0, 0.0],
         "resolution": [512, 512],
-        "focal_length": 5.4,
+        "focal_length": 4.0,
         "horizontal_aperture": 10.0,
     },
 }
@@ -140,7 +140,7 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
     "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
     "handle_policy": "nested_native_handle",
     "surrogate_kept_for_debug_baseline": True,
-    "unit_policy": "override_root_scale_to_identity",
+    "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
@@ -149,7 +149,7 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
 }
 EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     "prepend payload = @scene.usd@</World/DryingBox_01>",
-    "double3 xformOp:scale = (1, 1, 1)",
+    "double3 xformOp:scale = (0.001, 0.001, 0.001)",
     "delete rel physics:body0",
     'over "handle"',
     'over "button"',
@@ -449,7 +449,7 @@ def _validate_task_semantics() -> None:
 
 
 def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, Any]:
-    from pxr import Usd, UsdPhysics
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.Open(str(runtime_scene))
     _assert(stage is not None, f"{runtime_scene}: failed to open USD stage")
@@ -491,6 +491,36 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     rounded_root_scale = _rounded(root_scale)
     non_identity_root_scale = bool(root_scale) and any(
         abs(value - 1.0) > 1e-6 for value in root_scale
+    )
+    root_unit_scale_ready = bool(root_scale) and all(
+        abs(value - 0.001) <= 1e-6 for value in root_scale
+    )
+
+    def _world_translation(path: str) -> list[float]:
+        prim = stage.GetPrimAtPath(path)
+        if not prim or not prim.IsValid() or not prim.IsA(UsdGeom.Xformable):
+            return []
+        matrix = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(
+            Usd.TimeCode.Default()
+        )
+        translation = matrix.ExtractTranslation()
+        return _rounded([float(translation[0]), float(translation[1]), float(translation[2])])
+
+    task_part_world_positions = {
+        "root": _world_translation(root_path),
+        "door": _world_translation(f"{root_path}/body/Group/door/mesh"),
+        "handle": _world_translation(f"{root_path}/handle/mesh"),
+    }
+
+    def _inside_workspace(position: list[float]) -> bool:
+        if len(position) != 3:
+            return False
+        x, y, z = position
+        return 0.0 <= x <= 1.2 and -0.5 <= y <= 0.8 and 0.5 <= z <= 1.4
+
+    task_visible_workspace_ready = all(
+        _inside_workspace(task_part_world_positions[key])
+        for key in ("root", "door", "handle")
     )
 
     rigid_link_paths: list[str] = []
@@ -600,7 +630,8 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
         [
             not root_has_articulation_api,
             not native_handle_path_exists,
-            non_identity_root_scale,
+            not root_unit_scale_ready,
+            not task_visible_workspace_ready,
             duplicate_rigid_link_names,
             missing_mass_links,
             missing_inertia_links,
@@ -623,6 +654,9 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
         "native_handle_path_exists": native_handle_path_exists,
         "root_scale": rounded_root_scale,
         "non_identity_root_scale": non_identity_root_scale,
+        "root_unit_scale_ready": root_unit_scale_ready,
+        "task_part_world_positions": task_part_world_positions,
+        "task_visible_workspace_ready": task_visible_workspace_ready,
         "rigid_link_paths": rigid_link_paths,
         "duplicate_rigid_link_names": duplicate_rigid_link_names,
         "missing_mass_links": missing_mass_links,
