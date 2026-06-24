@@ -109,13 +109,15 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 
 旧的三张 JPG 保留为历史失败样例。新的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们更适合说明今天的真实状态：链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手/把手像一大片橙色面板”推进到“关闭位正确、门板/框架/细把手可识别”。这说明任务渲染门禁已经通过，但不等于官方 Lift2 baseline 已经可评。
 
+`open_door` 的 USD 铰接物体问题已经单独整理成解释性教学页：`docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html`。这篇页面面向产品经理解释 `USD articulation`、`ArticulationRootAPI`、`RevoluteJoint`、`runtime surrogate`、门把手层级和我们这次的修复路径。
+
 给产品经理看的前后对照：
 
 | 任务 | 旧图问题 | 已经做的修复 | 现在还差什么 |
 | --- | --- | --- | --- |
 | `level1_pick` | 抓取目标不明显，只看图无法判断“要抓哪个瓶子” | 修正 eval camera readback、相机朝向、光照，把瓶子归一到 Franka 工作区，并在 pick 任务里隐藏烧杯、托盘、干燥箱等非目标物体 | 当前新图已经能让 PM 看懂“抓这个蓝色瓶子”，并已通过任务渲染门禁 |
 | `level1_place` | 看不出源物体和目标托盘的关系，不像一个放置任务 | 修正托盘、烧杯、瓶子坐标和颜色标记，并在 place 任务里隐藏瓶子和干燥箱，只保留烧杯与目标托盘 | 当前新图能看懂“把烧杯放到黄色托盘附近”，并已通过任务渲染门禁 |
-| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 DryingBox runtime surrogate，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机 | 最新图中关节已回到期望关闭位 `0.0`，门板、框架和细橙色把手可识别，并已通过任务渲染门禁；下一步接 Lift2 baseline gate |
+| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 DryingBox runtime surrogate，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机；背景解释见 `docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html` | 最新图中关节已回到期望关闭位 `0.0`，门板、框架和细橙色把手可识别，并已通过任务渲染门禁；下一步接 Lift2 baseline gate |
 
 需要特别说明：
 

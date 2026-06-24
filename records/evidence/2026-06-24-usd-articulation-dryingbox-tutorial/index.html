@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>USD Articulation 教学：DryingBox 门问题复盘</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-soft: #eef3f7;
+      --ink: #17212f;
+      --muted: #5b6d7e;
+      --faint: #8493a3;
+      --border: #d6dee8;
+      --border-strong: #aebccd;
+      --blue: #245da8;
+      --blue-soft: #e7f0fb;
+      --green: #14765b;
+      --green-soft: #e4f4ee;
+      --amber: #8c5d0d;
+      --amber-soft: #fff2d8;
+      --red: #a23b32;
+      --red-soft: #fae9e7;
+      --violet: #6548a7;
+      --violet-soft: #eee9fb;
+      --dark: #263242;
+      --shadow: 0 12px 30px rgba(36, 52, 71, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.68;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      padding: 2px 5px;
+      border: 1px solid #dce5ef;
+      border-radius: 4px;
+      background: #edf2f7;
+      color: #203040;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #111827;
+      color: #d7e2ee;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    pre code {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-size: inherit;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-height: 58px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      font-weight: 800;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .brand span { color: var(--blue); }
+    .nav {
+      margin-left: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 14px;
+    }
+    .nav a { color: var(--muted); }
+    header {
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+    }
+    .hero {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 38px 32px 28px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+      gap: 28px;
+      align-items: center;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-size: clamp(32px, 4.5vw, 58px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+    .lede {
+      margin: 0;
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 32px 60px;
+    }
+    section {
+      margin: 0 0 24px;
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 23px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 0 0 9px;
+      font-size: 17px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+    p { margin: 0 0 12px; }
+    p:last-child { margin-bottom: 0; }
+    ul { margin: 8px 0 0; padding-left: 20px; }
+    li { margin: 6px 0; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: stretch;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .panel {
+      min-width: 0;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .panel.ok { border-color: #b5ddcf; background: var(--green-soft); }
+    .panel.warn { border-color: #e6c985; background: var(--amber-soft); }
+    .panel.bad { border-color: #e5b5b0; background: var(--red-soft); }
+    .panel.blue { border-color: #bfd3ef; background: var(--blue-soft); }
+    .panel.violet { border-color: #cdbfeb; background: var(--violet-soft); }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: #eef3f7;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .tag.ok { background: var(--green-soft); color: var(--green); }
+    .tag.warn { background: var(--amber-soft); color: var(--amber); }
+    .tag.bad { background: var(--red-soft); color: var(--red); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    button,
+    .button-link {
+      min-height: 36px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      padding: 7px 11px;
+      cursor: pointer;
+    }
+    button[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #ffffff;
+    }
+    .button-link {
+      display: inline-flex;
+      align-items: center;
+      color: var(--blue);
+    }
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0 0;
+    }
+    .metric {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      min-width: 0;
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .metric .value {
+      margin-top: 5px;
+      font-size: 20px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+    .hero-stage,
+    .interactive-stage {
+      position: relative;
+      min-height: 360px;
+      padding: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, #f8fbff 0%, #f0f3f6 54%, #d9dde2 54%, #cfd5dc 100%);
+    }
+    .floor-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 96px;
+      height: 1px;
+      background: rgba(23, 33, 47, 0.12);
+    }
+    .door-model {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      width: 280px;
+      height: 188px;
+      transform: translate(-50%, -50%);
+      transform-style: preserve-3d;
+    }
+    .box-frame {
+      position: absolute;
+      left: 16px;
+      top: 20px;
+      width: 248px;
+      height: 138px;
+      border: 12px solid #1f2933;
+      border-bottom-width: 7px;
+      background: #f3f4f6;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    }
+    .back-wall {
+      position: absolute;
+      left: 46px;
+      top: 45px;
+      width: 168px;
+      height: 92px;
+      background: #d7dce2;
+    }
+    .door-leaf {
+      position: absolute;
+      left: 122px;
+      top: 42px;
+      width: 108px;
+      height: 112px;
+      transform-origin: left center;
+      transform: perspective(520px) rotateY(var(--door-angle, -28deg));
+      border: 1px solid #8d99a6;
+      background: #94a4b6;
+      box-shadow: 10px 12px 18px rgba(25, 35, 48, 0.18);
+      transition: transform 280ms ease;
+    }
+    .handle {
+      position: absolute;
+      right: 19px;
+      top: 35px;
+      width: 24px;
+      height: 70px;
+      border-radius: 3px;
+      background: #f05a24;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+    .hinge-axis {
+      position: absolute;
+      left: 117px;
+      top: 36px;
+      width: 4px;
+      height: 124px;
+      background: #0f172a;
+    }
+    .ghost-handle {
+      display: none;
+      position: absolute;
+      left: -70px;
+      top: -70px;
+      width: 58px;
+      height: 150px;
+      border: 2px dashed #d64545;
+      background: rgba(240, 90, 36, 0.32);
+    }
+    .state-bad .door-leaf { transform: perspective(520px) rotateY(-78deg) scale(1.18); }
+    .state-bad .ghost-handle { display: block; }
+    .state-bad .handle { width: 58px; right: 6px; }
+    .state-fixed .door-leaf { transform: perspective(520px) rotateY(var(--door-angle, -28deg)); }
+    .annotation {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      max-width: 210px;
+      min-height: 32px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .annotation.root { left: 18px; top: 16px; }
+    .annotation.joint { right: 18px; top: 16px; }
+    .annotation.handle-note { right: 18px; bottom: 18px; }
+    .range-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 74px;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--blue);
+    }
+    .hierarchy {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .node {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      padding: 9px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .node .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--faint);
+    }
+    .node.good .dot { background: var(--green); }
+    .node.warn .dot { background: var(--amber); }
+    .node.bad .dot { background: var(--red); }
+    .node small { color: var(--muted); }
+    .table-wrap { overflow-x: auto; margin-top: 12px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .render-compare {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    figure {
+      margin: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #eef2f6;
+    }
+    figcaption {
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .source-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .source-item {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .source-item b { display: block; margin-bottom: 4px; }
+    .source-item span { color: var(--muted); font-size: 14px; }
+    .callout {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--blue);
+      background: var(--blue-soft);
+      color: #17304f;
+    }
+    .footnote {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .door-leaf { transition: none; }
+    }
+    @media (max-width: 980px) {
+      .hero,
+      .grid-2,
+      .grid-3,
+      .render-compare,
+      .source-list,
+      .metric-row {
+        grid-template-columns: 1fr;
+      }
+      .hero-stage,
+      .interactive-stage {
+        min-height: 330px;
+      }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 16px; align-items: flex-start; flex-direction: column; gap: 4px; padding-top: 10px; padding-bottom: 10px; }
+      .nav { margin-left: 0; }
+      .hero, main { padding-left: 16px; padding-right: 16px; }
+      section { padding: 16px; }
+      .range-row { grid-template-columns: 1fr; }
+      .door-model { width: 240px; transform: translate(-50%, -50%) scale(0.86); }
+      .annotation { position: static; margin: 6px 0; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="brand" href="../2026-06-22-labutopia-ebench-weekly-report/index.html">LabUtopia <span>EBench</span></a>
+    <nav class="nav" aria-label="Page navigation">
+      <a href="#why">为什么单独讲门</a>
+      <a href="#primer">USD Articulation</a>
+      <a href="#incident">我们踩到的问题</a>
+      <a href="#fix">解决方案</a>
+      <a href="#sources">资料来源</a>
+    </nav>
+  </div>
+
+  <header>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Teaching Note · USD Physics · DryingBox</p>
+        <h1>为什么一个门会让 <code>open_door</code> 变难</h1>
+        <p class="lede">这篇页面给产品经理和评测侧解释：<code>USD articulation</code> 不是普通模型导入，它同时包含层级、刚体、关节、驱动、材质和运行期状态。我们遇到的 DryingBox 问题，本质是“一个看起来像门的资产，进入 Isaac runtime 后没有成为一个稳定、可读、可评的门”。</p>
+        <div class="toolbar">
+          <a class="button-link" href="../2026-06-22-labutopia-ebench-weekly-report/index.html">返回周报</a>
+          <a class="button-link" href="#sources">查看资料来源</a>
+        </div>
+      </div>
+      <div class="hero-stage state-fixed" id="heroStage" aria-label="Interactive DryingBox door diagram">
+        <div class="floor-line"></div>
+        <div class="annotation root">Articulation Root: <code>obj_obj_DryingBox_01</code></div>
+        <div class="annotation joint">Joint: <code>RevoluteJoint</code></div>
+        <div class="door-model">
+          <div class="box-frame"></div>
+          <div class="back-wall"></div>
+          <div class="hinge-axis"></div>
+          <div class="ghost-handle"></div>
+          <div class="door-leaf"><div class="handle"></div></div>
+        </div>
+        <div class="annotation handle-note">Handle path: <code>/handle</code></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="why">
+      <h2>一句话结论</h2>
+      <div class="grid-3">
+        <div class="panel bad">
+          <span class="tag bad">Before</span>
+          <h3>旧门不是稳定任务对象</h3>
+          <p>旧图只看到黑箱角，门板、把手、铰链和动作点不可读；运行期还出现过 <code>joint position ~= 1.573e13</code> 这类异常状态。</p>
+        </div>
+        <div class="panel warn">
+          <span class="tag warn">Root Cause</span>
+          <h3>USD 层级和 PhysX articulation 不干净</h3>
+          <p>门是 <code>articulated object</code>，不是普通 mesh。<code>ArticulationRootAPI</code>、<code>RigidBodyAPI</code>、<code>Joint</code>、<code>body0/body1</code>、<code>scale</code> 和 <code>handle</code> 层级都要同时正确。</p>
+        </div>
+        <div class="panel ok">
+          <span class="tag ok">After</span>
+          <h3>用 runtime surrogate 收敛风险</h3>
+          <p>我们改成稳定的 DryingBox <code>runtime surrogate</code>：固定底座、只保留一个 <code>RevoluteJoint</code>、把门回放到 <code>[0.0]</code>、把手保留在内部 <code>/handle</code> 路径。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="primer">
+      <h2>先把基础讲清楚：什么是 <code>USD articulation</code></h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3><code>USD</code> 不是单个模型文件</h3>
+          <p><code>USD</code> 更像一个“可组合的场景数据库”。一个最终场景通常由很多 <code>layer</code>、<code>reference</code>、<code>payload</code> 和 override 合成。产品上看到的是一个门，工程上看到的是一棵 <code>prim hierarchy</code> 加很多属性。</p>
+          <p>这也是为什么“资产加载成功”不等于“评测可用”：mesh 可能出现了，但坐标、材质、物理、关节、相机读取任一环节不对，任务图就可能不可读。</p>
+        </div>
+        <div class="panel">
+          <h3><code>Articulation</code> 是带关节的刚体系统</h3>
+          <p>在 <code>UsdPhysics</code> / <code>PhysX</code> 里，<code>articulation</code> 由多个 rigid links 和 joints 组成。<code>joint position</code> 是每个 <code>DOF</code> 的状态；如果是旋转轴，它就是弧度角。</p>
+          <p>门最小可用结构可以理解成：箱体是固定 base，门板是一个 link，门板和箱体之间有一个 <code>RevoluteJoint</code>，把手应该挂在门板上。</p>
+        </div>
+      </div>
+      <div class="metric-row">
+        <div class="metric">
+          <div class="label">Root</div>
+          <div class="value"><code>ArticulationRootAPI</code></div>
+        </div>
+        <div class="metric">
+          <div class="label">Base</div>
+          <div class="value"><code>PhysicsFixedJoint</code></div>
+        </div>
+        <div class="metric">
+          <div class="label">Door DOF</div>
+          <div class="value"><code>RevoluteJoint</code></div>
+        </div>
+        <div class="metric">
+          <div class="label">Reset Target</div>
+          <div class="value"><code>[0.0]</code></div>
+        </div>
+      </div>
+      <div class="callout">
+        对产品经理的比喻：普通 <code>mesh</code> 像一块静态道具；<code>USD articulation</code> 像一个带合页、门轴、限位、质量和物理状态的舞台机关。道具放进场景只要位置对；机关还必须能稳定转、能复位、能被相机看清。
+      </div>
+    </section>
+
+    <section id="interactive">
+      <h2>互动：切换失败模式，看门为什么会坏</h2>
+      <p>下面这个小动画不是 Isaac 渲染结果，而是用于教学的结构示意。切换按钮可以看到我们这次实际排查过的几类风险。</p>
+      <div class="toolbar" role="group" aria-label="Failure mode controls">
+        <button type="button" class="mode-btn" data-mode="fixed" aria-pressed="true">最终修复态</button>
+        <button type="button" class="mode-btn" data-mode="detached" aria-pressed="false">把手飞走</button>
+        <button type="button" class="mode-btn" data-mode="exploded" aria-pressed="false">关节爆值</button>
+        <button type="button" class="mode-btn" data-mode="native" aria-pressed="false">原生复杂资产</button>
+      </div>
+      <div class="grid-2">
+        <div class="interactive-stage state-fixed" id="doorStage">
+          <div class="floor-line"></div>
+          <div class="annotation root" id="rootLabel">Root scale: <code>[1,1,1]</code></div>
+          <div class="annotation joint" id="jointLabel">Joint state: <code>0.0 rad</code></div>
+          <div class="door-model">
+            <div class="box-frame"></div>
+            <div class="back-wall"></div>
+            <div class="hinge-axis"></div>
+            <div class="ghost-handle"></div>
+            <div class="door-leaf"><div class="handle"></div></div>
+          </div>
+          <div class="annotation handle-note" id="handleLabel">Nested handle: <code>/World/.../obj_obj_DryingBox_01/handle</code></div>
+        </div>
+        <div class="panel" id="modeExplanation">
+          <span class="tag ok">Fixed</span>
+          <h3>最终修复态：稳定、可读、可验证</h3>
+          <p>当前正式诊断里，DryingBox 只暴露 <code>RevoluteJoint</code>，<code>joint_positions=[0.0]</code>，<code>runtime_physics_stable=true</code>。门板、框架和细橙色把手都在同一张 <code>camera2</code> readback 图里。</p>
+          <div class="range-row">
+            <span>门角度演示</span>
+            <input id="doorRange" type="range" min="0" max="80" value="28" aria-label="Door angle demo">
+            <code id="angleValue">28 deg</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="incident">
+      <h2>我们这次遇到的门问题</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>问题</th>
+              <th>产品侧表现</th>
+              <th>工程侧原因</th>
+              <th>风险</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>旧图只看到黑箱角</td>
+              <td>看不出门在哪里，也看不出要抓哪个把手。</td>
+              <td><code>camera2</code> 构图、任务对象显隐、LabUtopia 坐标归一都还没收敛。</td>
+              <td>PM 无法判断任务是否成立，评测侧也无法把它当作有效视觉证据。</td>
+            </tr>
+            <tr>
+              <td><code>joint position</code> 爆值</td>
+              <td>门状态不可解释，reset 后可能不是可评的关闭态。</td>
+              <td>原始 DryingBox 的 <code>USD physics topology</code> 对 Isaac runtime 不稳定，出现过 <code>1.573e13</code> 量级关节读数和 <code>PhysX transform warning</code>。</td>
+              <td>策略还没开始评，场景状态已经不可信。</td>
+            </tr>
+            <tr>
+              <td>把手像独立物体</td>
+              <td>把手位置异常，或者中间版本变成一大片橙色面板。</td>
+              <td>把手原本应该是 DryingBox 内部子路径 <code>/handle</code>，但导入/封装时曾出现 top-level duplicate 或过大 display marker。</td>
+              <td>动作点不可读，视觉 QA 会把图判为 WARN 或 FAIL。</td>
+            </tr>
+            <tr>
+              <td>原生材质/结构不等于 eval 可读</td>
+              <td>原生视角可能更像 LabUtopia，但不一定能让任务目标清楚。</td>
+              <td>P1 目标是 <code>eval-path evidence</code>，所以用了任务专用 <code>camera2</code>、任务级隐藏和高对比 <code>displayColor</code>。</td>
+              <td>如果混淆“展示图”和“评测图”，会误判当前 readiness。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="fix">
+      <h2>我们怎么解决：从原始资产到稳定 <code>runtime surrogate</code></h2>
+      <div class="grid-2">
+        <div>
+          <div class="hierarchy" aria-label="DryingBox hierarchy">
+            <div class="node good">
+              <span class="dot"></span>
+              <div><b><code>/World/labutopia_level1_poc/obj_obj_DryingBox_01</code></b><br><small><code>PhysicsArticulationRootAPI</code>, root scale <code>[1,1,1]</code></small></div>
+              <span class="tag ok">Root</span>
+            </div>
+            <div class="node good">
+              <span class="dot"></span>
+              <div><b><code>body_link</code></b><br><small>fixed base, mass and inertia are finite</small></div>
+              <span class="tag ok">Base</span>
+            </div>
+            <div class="node good">
+              <span class="dot"></span>
+              <div><b><code>door_link</code></b><br><small>connected by <code>RevoluteJoint</code>, reset target <code>[0.0]</code></small></div>
+              <span class="tag ok">Door</span>
+            </div>
+            <div class="node good">
+              <span class="dot"></span>
+              <div><b><code>/handle</code></b><br><small>nested under DryingBox, fixed to <code>door_link</code>, scale <code>[0.045,0.075,0.25]</code></small></div>
+              <span class="tag ok">Handle</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>关键策略</h3>
+          <ul>
+            <li>不用不稳定的原始复杂 articulation 直接进评测，而是生成 DryingBox <code>runtime surrogate</code>。</li>
+            <li>用 <code>BaseFixedJoint</code> 把箱体固定住，避免整个干燥箱在物理里漂移。</li>
+            <li>只保留一个明确的 <code>RevoluteJoint</code>，让门的状态可以用一个角度解释。</li>
+            <li>在 reset 后回放 <code>target_positions=[0.0]</code>，保证任务从关闭态开始。</li>
+            <li>把 <code>handle</code> 保持为 DryingBox 内部子部件，而不是 top-level object。</li>
+            <li>给门板、门缝、把手加 <code>displayColor</code> 和 material binding，让 <code>camera2</code> 读图可解释。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top: 16px;">
+        <div class="panel">
+          <h3>代码层证据</h3>
+          <pre><code>root: /World/labutopia_level1_poc/obj_obj_DryingBox_01
+joint: RevoluteJoint
+target_positions: [0.0]
+handle: /World/labutopia_level1_poc/obj_obj_DryingBox_01/handle
+runtime_joint_positions: [0.0]
+runtime_physics_stable: true
+task_render_accepted: true
+official_baseline_evaluable: false</code></pre>
+        </div>
+        <div class="panel">
+          <h3>可读性结果</h3>
+          <p>最终图不是为了还原 LabUtopia 原生 viewer，而是为了证明 evaluator 能看到任务：门板、框架、细橙色把手在同一张图里；<code>render_validation</code> 能检测到 <code>obj_DryingBox_01</code> 和 <code>obj_DryingBox_01_handle</code> 的 bbox 尺寸达标。</p>
+          <p>当前边界是：<code>task_render_accepted=true</code>，但 <code>official_baseline_evaluable=false</code>，因为官方 Lift2 baseline 的复合资产和 runner 还没验证。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <h2>旧图和最终图怎么读</h2>
+      <div class="render-compare">
+        <figure>
+          <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door.jpg" alt="Old open door failed render">
+          <figcaption><b>旧图</b>：只看到黑色箱体角，门板、把手、铰链和动作点都不明确。</figcaption>
+        </figure>
+        <figure>
+          <img src="../2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-eval-readback-p1.png" alt="Current open door evaluator readback">
+          <figcaption><b>最终 eval readback</b>：正面可见 DryingBox frame、door panel 和 thin orange handle；正式诊断里 <code>render_validation.passed=true</code>。</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="sources">
+      <h2>资料来源和我们如何使用</h2>
+      <p>中文解释是面向 PM 的二次整理；英文术语保留原样，便于工程和论文阅读时对齐官方文档。</p>
+      <div class="source-list">
+        <div class="source-item">
+          <b><a href="https://openusd.org/release/intro.html">OpenUSD Introduction</a></b>
+          <span>用于解释 <code>USD composition</code>、<code>layer</code>、<code>reference</code> 和 scene graph 不是单个模型文件。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://openusd.org/dev/api/usd_physics_page_front.html">UsdPhysics Schema</a></b>
+          <span>用于说明 <code>UsdPhysics</code> 是 USD 中表达 physics simulation representation 的 schema 集合。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html">UsdPhysicsArticulationRootAPI</a></b>
+          <span>用于解释 <code>ArticulationRootAPI</code> 标记 reduced-coordinate articulation subtree，以及 fixed-base root 的放置规则。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://openusd.org/dev/api/class_usd_physics_joint.html">UsdPhysicsJoint</a></b>
+          <span>用于解释 <code>Joint</code> 如何约束两个 rigid bodies，或约束 rigid body 与 world。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/rigid_bodies_articulations/articulations.html">Omni Physics Articulations</a></b>
+          <span>用于对齐 Isaac/Omniverse 对 <code>USD hierarchy</code>、fixed-base articulation 和 root API 的实践要求。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/Articulations.html">PhysX Articulations</a></b>
+          <span>用于解释 <code>reduced-coordinate articulation</code> 维护 joint positions / velocities / accelerations，旋转轴 joint position 是 radians。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://developer.nvidia.com/blog/new-video-series-what-developers-need-to-know-about-universal-scene-description/">NVIDIA OpenUSD for Developers</a></b>
+          <span>用于 PM 口径解释 <code>OpenUSD</code> 是建模、分类、组合多数据源的生态，不只是文件格式。</span>
+        </div>
+        <div class="source-item">
+          <b><a href="https://aousd.org/blog/explainer-series-what-is-openusd/">AOUSD Explainer: What Is OpenUSD?</a></b>
+          <span>用于补充 <code>layering</code>、<code>composition</code> 和协作式资产组织的非官方解读。</span>
+        </div>
+      </div>
+      <p class="footnote" style="margin-top: 12px;">项目证据来自 <code>saved/diagnostics/labutopia_p1_gate_open_door_formal_20260624_0002/diagnostics.json</code>、<code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> 和周报 evidence manifest。</p>
+    </section>
+  </main>
+
+  <script>
+    const modeData = {
+      fixed: {
+        tag: "Fixed",
+        tagClass: "ok",
+        title: "最终修复态：稳定、可读、可验证",
+        body: "当前正式诊断里，DryingBox 只暴露 RevoluteJoint，joint_positions=[0.0]，runtime_physics_stable=true。门板、框架和细橙色把手都在同一张 camera2 readback 图里。",
+        root: "Root scale: <code>[1,1,1]</code>",
+        joint: "Joint state: <code>0.0 rad</code>",
+        handle: "Nested handle: <code>/World/.../obj_obj_DryingBox_01/handle</code>",
+        stateClass: "state-fixed",
+        angle: 28
+      },
+      detached: {
+        tag: "Failure",
+        tagClass: "bad",
+        title: "把手飞走：看图不知道动作点在哪里",
+        body: "把手如果被当成 top-level duplicate object，就不再可靠地跟随 door_link。产品看到的是缺把手、漂浮把手，或异常大的橙色块；评测侧无法确认 action point。",
+        root: "Bad hierarchy: <code>obj_obj_DryingBox_01_handle</code>",
+        joint: "Door link: <code>untrusted</code>",
+        handle: "Handle no longer behaves like nested <code>/handle</code>",
+        stateClass: "state-bad",
+        angle: 54
+      },
+      exploded: {
+        tag: "Failure",
+        tagClass: "bad",
+        title: "关节爆值：门状态已经不可解释",
+        body: "旧运行里出现过 1.573e13 量级 joint position。对 PM 来说，这等价于门的角度读数坏了；对评测来说，reset 后场景状态不能被信任。",
+        root: "Root / scale / inertia: <code>unsafe</code>",
+        joint: "Joint state: <code>1.573e13 rad</code>",
+        handle: "Action point cannot be trusted",
+        stateClass: "state-bad",
+        angle: 80
+      },
+      native: {
+        tag: "Tradeoff",
+        tagClass: "warn",
+        title: "原生复杂资产：像原场景，但不一定可评",
+        body: "LabUtopia 原生视角和材质更接近真实资产，但 P1 目标是 eval-path evidence。我们先用 task camera、displayColor 和 runtime surrogate 把任务读图链路打稳。",
+        root: "Native payload: <code>complex topology</code>",
+        joint: "Runtime readiness: <code>must be checked</code>",
+        handle: "Need readable <code>door + handle</code> in camera2",
+        stateClass: "state-fixed",
+        angle: 18
+      }
+    };
+
+    const stage = document.getElementById("doorStage");
+    const heroStage = document.getElementById("heroStage");
+    const explanation = document.getElementById("modeExplanation");
+    const rootLabel = document.getElementById("rootLabel");
+    const jointLabel = document.getElementById("jointLabel");
+    const handleLabel = document.getElementById("handleLabel");
+    const range = document.getElementById("doorRange");
+    const angleValue = document.getElementById("angleValue");
+    const buttons = Array.from(document.querySelectorAll(".mode-btn"));
+
+    function setAngle(value) {
+      const angle = Number(value);
+      const cssAngle = `${-angle}deg`;
+      stage.style.setProperty("--door-angle", cssAngle);
+      heroStage.style.setProperty("--door-angle", cssAngle);
+      angleValue.textContent = `${angle} deg`;
+    }
+
+    function setMode(mode) {
+      const data = modeData[mode];
+      buttons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+      });
+      stage.className = `interactive-stage ${data.stateClass}`;
+      heroStage.className = `hero-stage ${data.stateClass}`;
+      rootLabel.innerHTML = data.root;
+      jointLabel.innerHTML = data.joint;
+      handleLabel.innerHTML = data.handle;
+      explanation.innerHTML = `
+        <span class="tag ${data.tagClass}">${data.tag}</span>
+        <h3>${data.title}</h3>
+        <p>${data.body}</p>
+        <div class="range-row">
+          <span>门角度演示</span>
+          <input id="doorRange" type="range" min="0" max="80" value="${data.angle}" aria-label="Door angle demo">
+          <code id="angleValue">${data.angle} deg</code>
+        </div>
+      `;
+      const newRange = document.getElementById("doorRange");
+      const newAngle = document.getElementById("angleValue");
+      newRange.addEventListener("input", (event) => {
+        const angle = Number(event.target.value);
+        const cssAngle = `${-angle}deg`;
+        stage.style.setProperty("--door-angle", cssAngle);
+        heroStage.style.setProperty("--door-angle", cssAngle);
+        newAngle.textContent = `${angle} deg`;
+      });
+      setAngle(data.angle);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    });
+    range.addEventListener("input", (event) => setAngle(event.target.value));
+    setMode("fixed");
+  </script>
+</body>
+</html>
