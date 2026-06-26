@@ -94,6 +94,74 @@ EOS/其他工程师任务: 8087
 
 所以当前 LabUtopia POC 测试没有干扰 EOS 那边正在跑的任务。
 
+## P0：黑屏问题与修复（产品向说明）
+
+HTML 版详见周报页 [P0 黑屏](docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html#p0) 章节。
+
+### P0 是什么
+
+后端 smoke（reset/step/写结果）跑通之后的第一道「渲染读图门禁」：走 EBench 正式评测链路拍 `camera2`，三个任务不能再出现 **纯黑图**。
+
+- P0 目标：eval readback 有有效像素（`readback_visible`）
+- P0 不负责：PM 可读任务图（P1）、策略得分、官方 Lift2 baseline
+
+### 当时看到了什么
+
+6/22 render smoke（`run_id=labutopia_franka_render_smoke_20260622_150819`）保存的 `camera2` 帧全部纯黑（RGB min/max/mean = 0）。最初周报 JPG 是手工 direct-render 截图，不能代表评测链路真实画面。
+
+### 先排除了什么
+
+诊断脚本证明：`readback_black_before_recorder`——图在 `get_eval_camera_data()` 阶段就已全黑，**不是** EpisodeRecorder 写 PNG 弄坏的。问题在相机/光照/场景渲染。
+
+### 黑屏是三件事叠在一起
+
+| 原因 | 产品化解释 | 责任归属 | P0 处理 |
+| --- | --- | --- | --- |
+| **P0a · 相机位姿没生效** | YAML 写了相机位置，但 GenManip「简化相机格式」运行时没应用，相机对着空处 | GenManip 代码缺口 + 我们选了这条相机路径 | 修 `camera_utils.py`；临时把 camera2 挪到物体区域 |
+| **P0b · overlay 缺光** | overlay 场景只搬了物体，没把 LabUtopia 原生灯光带过来 | LabUtopia 接入方式 | overlay 生成器补 `DeterministicDomeLight`（强度 1000） |
+| **坐标错位** | 机器人在 x≈-0.4，物体还在 x≈8–45 的源场景坐标 | 接入配置 | P0 临时挪相机；**物体归位是 P1** |
+
+### 什么是 overlay 场景（P0b 改这里）
+
+**overlay** = 为 LabUtopia 单独生成的 EBench 兼容场景包，放在 `_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/`，**不修改**官方 `EBench-Assets`。
+
+P0b 改的代码（GenManip 接入分支，非 LabUtopia 主仓库）：
+
+- `standalone_tools/labutopia_poc/build_asset_overlay.py` — 生成 `scene.usda` 时写入 DomeLight
+- `standalone_tools/labutopia_poc/validate_task_package.py` — 静态校验灯光存在
+- `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json` — 记录契约
+
+### 为什么 EBench 原生没踩坑
+
+GenManip 按 YAML 有没有 `pixel_size` 分两条相机路径：
+
+| 路径 | 识别方式 | 谁在用 | P0 前是否设位姿 |
+| --- | --- | --- | --- |
+| **SimBox Style** | 有 `pixel_size`、完整内参 | 官方 Lift2 baseline（`fixed_camera_lift2_simbox.yml`） | 会 |
+| **GenManip Style** | 简化字段，从 LabUtopia 抄来 | Franka POC（`labutopia_franka_poc.yml`） | P0 前不会（已修） |
+
+结论：不是 EBench 整体坏了，是我们 POC 走了少测的 GenManip Style 路径；官方可评最终仍要切 SimBox + Lift2（`lift2_candidate`）。
+
+### P0 修完边界
+
+**可以说：**
+
+- eval 链路不再纯黑
+- 黑屏在 readback 阶段，不是 recorder
+- GenManip Style 位姿缺口已修；overlay 已补光
+
+**还不能说：**
+
+- P0 后一度是「灰底小点」图（`FAIL_LOW_TEXTURE`）→ P1 才解决
+- PM 可读任务图 → P1 通过
+- 官方 baseline 可评 → 未验证
+
+P0 证据：
+
+- [render_diagnostics_20260623.json](labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json) — 初始纯黑诊断
+- [render_p0a_p0b_20260623.json](labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json) — P0 修复后非黑
+- [render_visual_investigation_20260623.md](labutopia_lab_poc/render_visual_investigation_20260623.md) — 技术复盘
+
 ## 有没有渲染图验证？
 
 2026-06-23 到 2026-06-24 最新复核结论：现在已经有从 EBench/evaluator 路径读回的非黑图，说明“能不能通过评测链路拍到东西”这个问题已经推进闭环。旧 JPG 保留为历史失败样例，P1 PNG 是更可信的 eval-path 证据：`pick` 目标瓶清楚，`place` 烧杯和黄色托盘关系可读，`open_door` 已从物理爆值、黑箱角和大橙色块推进到关闭位正确、门板/框架/细橙色把手可识别。P2 retake PNG 进一步证明 `open_door` 已回到 LabUtopia native complex `DryingBox_01`，不是箱子倒置，而是旧 P2 图的材质/证据视角未闭环；新图中原生箱体 upright，蓝色门、白色侧面、把手、观察窗和控制面板可见。三任务最新正式诊断均为 `render_validation.passed=true`、`task_render_accepted=true`，native open_door 诊断为 `native_complex_dryingbox_ready=true`。
@@ -140,7 +208,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 资产根目录不对 | 系统一开始会去错误目录找 LabUtopia 场景 | 增加 LabUtopia manifest 识别逻辑，运行时切换到 overlay asset root | 已解决 |
 | 缺少 `meta_info.pkl` | 传统 GenManip 任务依赖采集包里的元信息，LabUtopia POC 没有这份文件 | 针对 LabUtopia POC，从实时场景里自动生成最小可用元信息 | 已解决 |
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
-| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | 已修 camera axes/pose、deterministic lighting 和工作区相机；三任务当前 eval readback 均非黑 | 黑屏解除 |
+| eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | P0a：修 GenManip Style 相机位姿生效 + 临时对准物体区域；P0b：overlay 补 `DeterministicDomeLight`；详见 [P0 章节](docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html#p0) | 黑屏解除（PM 可读任务图属 P1） |
 | 当前任务图验收边界 | `pick` 已清楚，`place` 关系可读；`open_door` 已能读回且关闭位正确，门板/框架/细把手可识别 | 三任务最新正式诊断均为 `render_validation.passed=true`；P2 又补上 native complex `DryingBox_01` 的 EBench readback 证据；继续接 Lift2 baseline 所需的复合资产/官方 runner gate | 任务渲染/native gate 通过 |
 | `open_door` 运行期物理不稳定 | 旧版本 runtime articulation joint position 爆到 `1.573e13`，并伴随 PhysX transform warning | P1 已用 DryingBox `sanitized_surrogate`、固定底座、对齐后的门铰链和关节目标回放修复；P2 已把稳定性迁移到 LabUtopia native complex `DryingBox_01`，并通过 `native_dryingbox_visual_retake_final_20260624_0002` 读回验证 | native gate 已通过 |
 | 资产导入/layout 静态坐标 | 之前任务物体在源 lab 坐标，handle 变成异常放大的独立物体 | P1 已把对象归一到 Franka 工作区，并把 handle 保留为 DryingBox 内部子路径 | 静态层已推进 |
