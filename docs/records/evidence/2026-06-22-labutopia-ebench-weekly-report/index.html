@@ -396,6 +396,7 @@
     <nav class="nav" aria-label="page navigation">
       <a href="#overview">总览</a>
       <a href="#assets">资产加载</a>
+      <a href="#p0">P0 黑屏</a>
       <a href="#renders">渲染图</a>
       <a href="../2026-06-24-usd-articulation-dryingbox-tutorial/index.html">门教学</a>
       <a href="#evidence">证据</a>
@@ -585,6 +586,194 @@
           <h3>还没闭环的部分</h3>
             <p>native DryingBox 的 Franka POC gate 已通过，但官方 baseline 仍未闭环。下一步要把 LabUtopia overlay、默认 <code>robot_usds/lift2</code> 和默认 <code>miscs/curobo</code> 组成 Lift2 candidate 资产根目录，做 composite asset preflight、Lift2 dry smoke 和官方 runner discovery；这些通过前仍保持 <code>official_baseline_evaluable=false</code>。</p>
         </div>
+      </div>
+    </section>
+
+    <section id="p0">
+      <h2>P0：黑屏问题与修复（产品向说明）</h2>
+      <p><b>P0 是什么？</b> 在 Franka POC 后端 smoke 已经跑通之后，我们加的第一道「渲染读图门禁」：走 EBench 正式评测链路（reset → 相机读回 → 保存帧），三个任务不能再出现 <b>纯黑图</b>。P0 只要求「相机能读到有效像素」，不要求 PM 一眼看懂任务——那是 P1 的事。</p>
+
+      <div class="metric-grid" style="margin-top: 14px;">
+        <div class="metric">
+          <div class="label">P0 目标</div>
+          <div class="value status-ok">eval readback 非纯黑</div>
+          <div class="detail">三任务 <code>camera2</code> 不再 <code>channel_max=[0,0,0]</code></div>
+        </div>
+        <div class="metric">
+          <div class="label">P0 不负责</div>
+          <div class="value status-warn">任务图验收</div>
+          <div class="detail">PM 可读截图、策略得分、官方 Lift2 baseline</div>
+        </div>
+        <div class="metric">
+          <div class="label">P0 状态</div>
+          <div class="value status-ok">已关闭</div>
+          <div class="detail">2026-06-23 · commit <code>76e1da2</code></div>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 18px;">当时看到了什么</h3>
+      <p>6/22 render smoke（<code>run_id=labutopia_franka_render_smoke_20260622_150819</code>）里，三个任务保存的 <code>camera2</code> 帧全部是纯黑：RGB 采样 min/max/mean 均为 0。最初周报里的三张 JPG 也不是这条链路拍出来的，而是手工 direct-render 截图，不能代表真实评测画面。</p>
+
+      <h3 style="margin-top: 18px;">我们先排除了什么</h3>
+      <div class="panel soft" style="margin-top: 10px;">
+        <p>用诊断脚本在 <b>两个时间点</b>各抓一帧：<code>get_eval_camera_data()</code> 刚返回时，以及 EpisodeRecorder 写 PNG 前。结论：<code>readback_black_before_recorder</code>——图在「读相机」这一步就已经全黑，<b>不是录屏/写文件模块弄坏的</b>。问题在相机、光照或场景渲染侧。</p>
+      </div>
+
+      <h3 style="margin-top: 18px;">黑屏其实是三件事叠在一起</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>原因</th>
+              <th>产品化解释</th>
+              <th>算谁的问题</th>
+              <th>P0 怎么处理</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>P0a · 相机位姿没生效</b></td>
+              <td>任务 YAML 里写了相机位置和朝向，但 GenManip 的「简化相机格式」运行时没有真正应用，相机停在默认位置，对着空处拍。</td>
+              <td>GenManip 代码缺口 + LabUtopia 接入选用了这条相机路径</td>
+              <td class="status-ok">修 <code>camera_utils.py</code>，让 YAML 位姿生效；临时把 <code>camera2</code> 挪到物体所在区域</td>
+            </tr>
+            <tr>
+              <td><b>P0b · overlay 场景缺光</b></td>
+              <td>LabUtopia 接入用的 overlay 场景最初只搬了物体，没有把 LabUtopia 原生场景里的灯光一起带过来；没光就容易黑屏。</td>
+              <td>LabUtopia 接入方式（overlay 生成策略）</td>
+              <td class="status-ok">在 overlay 生成器里补一盏确定性 DomeLight（强度 1000）</td>
+            </tr>
+            <tr>
+              <td><b>坐标错位</b></td>
+              <td>机器人站在工作台旁（x≈-0.4），瓶子/烧杯却在源场景远距离坐标（x≈8–10），干燥箱更远（x≈45）。就算相机能拍，也可能对着空桌子。</td>
+              <td>接入配置 / 资产布局</td>
+              <td class="status-warn">P0 临时挪相机；<b>真正把物体归位是 P1</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top: 18px;">什么是 overlay 场景？（P0b 改的是这里）</h3>
+      <div class="split">
+        <div class="panel soft">
+          <p><b>overlay</b> = 为 LabUtopia 单独生成、放在独立目录里的 EBench 兼容场景包；<b>不直接修改</b>官方下载的 <code>EBench-Assets</code>。</p>
+          <p style="margin-top: 10px;">评测时系统把 <code>ASSETS_DIR</code> 临时指到：</p>
+          <p><code>_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets</code></p>
+          <p style="margin-top: 10px;">任务配置里的 <code>scene_usds/labutopia/level1_poc/lab_001/scene</code> 会加载这里生成的 <code>scene.usda</code>。</p>
+        </div>
+        <div class="panel ok">
+          <p><b>P0b 改的代码位置</b>（不是 LabUtopia 主仓库）：</p>
+          <ul style="margin: 10px 0 0 18px; padding: 0;">
+            <li><code>standalone_tools/labutopia_poc/build_asset_overlay.py</code> — 生成场景时写入 <code>DeterministicDomeLight</code></li>
+            <li><code>validate_task_package.py</code> — 静态检查「场景里必须有这盏灯」</li>
+            <li><code>common/assets_manifest.json</code> — 记录灯光契约</li>
+          </ul>
+          <p style="margin-top: 10px;">重新跑生成器后，真正的产物是 overlay 目录里的 <code>scene.usda</code>。</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 18px;">为什么 EBench 原生任务没踩这个坑？</h3>
+      <p>GenManip 里相机配置分两条路，靠 YAML 里有没有 <code>pixel_size</code> 字段自动分流：</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>路径</th>
+              <th>怎么识别</th>
+              <th>谁在用</th>
+              <th>P0 前会不会设相机位姿</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>SimBox Style</b></td>
+              <td>YAML 含 <code>pixel_size</code>、<code>f_number</code>、<code>camera_params</code> 等完整内参</td>
+              <td>EBench 官方 Lift2 baseline 的腕部/俯视相机（<code>fixed_camera_lift2_simbox.yml</code>）</td>
+              <td class="status-ok">会</td>
+            </tr>
+            <tr>
+              <td><b>GenManip Style</b></td>
+              <td>只有 <code>focal_length</code>、<code>position</code>、<code>resolution</code> 等简化字段</td>
+              <td>LabUtopia Franka POC（<code>labutopia_franka_poc.yml</code>，从 LabUtopia 原生配置简化而来）</td>
+              <td class="status-blocked">P0 前<b>不会</b>（已修）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 12px;">所以：<b>不完全是「EBench 没问题、GenManip 全坏了」</b>。官方 baseline 主要走 SimBox 相机 + 完整场景自带灯光；我们 Franka POC 故意走了更简化的 GenManip Style 相机来快速冒烟，才暴露了这条少走路径的缺口。官方可评最终仍要切到 SimBox + Lift2（<code>lift2_candidate</code> profile）。</p>
+
+      <h3 style="margin-top: 18px;">P0 修完到什么程度</h3>
+      <div class="split">
+        <div class="panel ok">
+          <h3>可以说</h3>
+          <ul style="margin: 0 0 0 18px; padding: 0;">
+            <li>eval 链路不再纯黑（pick/place 受控诊断：<code>readback_visible</code>，<code>nonzero_pixels=65536</code>）</li>
+            <li>黑屏主因已定位：相机 readback 阶段，不是 recorder 写盘</li>
+            <li>GenManip Style 相机位姿缺口已在接入分支修复</li>
+            <li>overlay 场景已补确定性光照</li>
+          </ul>
+        </div>
+        <div class="panel warn">
+          <h3>还不能说（P1 及以后）</h3>
+          <ul style="margin: 0 0 0 18px; padding: 0;">
+            <li>P0 后画面一度是「几乎整屏灰底」——能拍到像素，但看不清任务对象（<code>FAIL_LOW_TEXTURE</code>）</li>
+            <li>PM 可读的任务截图 → P1 资产归位 + 任务级隐藏后才通过</li>
+            <li>官方 Lift2 baseline 可评 → 尚未验证</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="flow" style="grid-template-columns: repeat(4, minmax(140px, 1fr)); margin-top: 16px;">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-title">6/22 smoke</div>
+          <div class="step-copy">后端链路通，但 <code>camera2</code> 纯黑</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-title">6/23 诊断</div>
+          <div class="step-copy">定位到 readback，排除 recorder</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-title">P0a + P0b</div>
+          <div class="step-copy">相机位姿 + overlay 补光</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-title">P1 接力</div>
+          <div class="step-copy">物体归位 → PM 可读任务图</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 18px;">P0 证据链接</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>证据</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_diagnostics_20260623.json">render_diagnostics_20260623.json</a></td>
+              <td>三任务纯黑 readback 的初始诊断（<code>readback_black_before_recorder</code>）。</td>
+            </tr>
+            <tr>
+              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json">render_p0a_p0b_20260623.json</a></td>
+              <td>P0a 相机 + P0b 光照修复后，pick/place 变为非黑（但仍 <code>FAIL_LOW_TEXTURE</code>）。</td>
+            </tr>
+            <tr>
+              <td><a href="../../../labutopia_lab_poc/render_visual_investigation_20260623.md">render_visual_investigation_20260623.md</a></td>
+              <td>技术复盘：黑屏边界、坐标 red flags、P0/P1 递进关系。</td>
+            </tr>
+            <tr>
+              <td><a href="../../../labutopia_lab_poc/franka_render_smoke.md">franka_render_smoke.md</a></td>
+              <td>6/22 render smoke 记录与 follow-up 结论。</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -927,7 +1116,7 @@
         <div class="milestone">
           <span class="tag">P0</span>
           <h3>Camera readback 源头修复</h3>
-          <p>已完成 camera axes/pose、deterministic lighting 和工作区相机修复；三任务已经非黑。</p>
+          <p>已完成 P0a 相机位姿生效 + P0b overlay 补光；三任务 eval readback 已从纯黑变为非黑。产品向说明见本页 <a href="#p0">P0 黑屏</a> 章节。</p>
         </div>
         <div class="milestone">
           <span class="tag">P1a</span>
@@ -989,6 +1178,11 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td>P0 黑屏说明（本页）</td>
+              <td>产品向解释：黑屏原因、overlay、SimBox vs GenManip Style、P0 边界。</td>
+              <td><a href="#p0">跳转到 P0 章节</a></td>
+            </tr>
             <tr>
               <td>Markdown 周报</td>
               <td>文字版 PM 汇报。</td>
