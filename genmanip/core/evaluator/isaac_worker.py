@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import sys
 import time
@@ -31,6 +32,25 @@ def import_modules():
     import torch
     import numpy
     from pydantic import BaseModel, Field
+
+
+def _force_stdlib_asyncio_policy(logger: logging.Logger) -> None:
+    """IsaacSim 4.1 async_engine expects the stdlib asyncio loop internals."""
+
+    before_policy = asyncio.get_event_loop_policy()
+    before_policy_name = (
+        f"{before_policy.__class__.__module__}.{before_policy.__class__.__name__}"
+    )
+    logger.info("asyncio event loop policy before IsaacSim startup: %s", before_policy_name)
+
+    if before_policy.__class__.__module__.startswith("uvloop"):
+        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+
+    after_policy = asyncio.get_event_loop_policy()
+    after_policy_name = (
+        f"{after_policy.__class__.__module__}.{after_policy.__class__.__name__}"
+    )
+    logger.info("asyncio event loop policy for IsaacSim startup: %s", after_policy_name)
 
 
 def _read_proc_status_memory_kb() -> dict[str, int]:
@@ -97,6 +117,7 @@ class IsaacWorker:
 
         # ---------- Isaac modules ----------
         import_modules()
+        _force_stdlib_asyncio_policy(self.logger)
 
         from isaacsim import SimulationApp  # type: ignore
 
