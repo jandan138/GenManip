@@ -4,6 +4,8 @@ import json
 import ray
 import argparse
 
+os.environ.setdefault("XDG_CACHE_HOME", "/cpfs/shared/simulation/zhuzihou/dev/_cache")
+
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_dir)
 

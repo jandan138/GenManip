@@ -760,8 +760,10 @@ class IsaacWorkerPool:
             raise
 
     def _spawn_worker(self, w_id: str):
+        worker_env = dict(self.worker_env_vars)
+        worker_env.setdefault("XDG_CACHE_HOME", "/cpfs/shared/simulation/zhuzihou/dev/_cache")
         return IsaacWorker.options(
-            runtime_env={"env_vars": self.worker_env_vars}
+            runtime_env={"env_vars": worker_env}
         ).remote(
             w_id,
             self.pool_log_id,
