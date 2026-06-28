@@ -1,241 +1,949 @@
 {
-    "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
-    "runtime_usd_name": "scene_usds/labutopia/level1_poc/lab_001/scene",
-    "generated_manifest": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/labutopia_level1_poc.json",
-    "scene_uid": "labutopia_level1_poc",
-    "source_prim_paths": [
-        "/World/conical_bottle02",
-        "/World/beaker2",
-        "/World/target_plat",
-        "/World/DryingBox_01",
-        "/World/DryingBox_01/handle",
-        "/World/table"
+  "articulation_part_paths": {
+    "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+  },
+  "deterministic_lights": [
+    {
+      "intensity": 1000,
+      "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
+      "type": "DomeLight"
+    }
+  ],
+  "drying_box_runtime_asset": {
+    "button_joint_name": "PrismaticJoint",
+    "button_prismatic_joint_policy": "ignored_by_open_door_metric",
+    "door_joint_name": "RevoluteJoint",
+    "door_reset_target": [
+      0.0
     ],
-    "source_task_prims": {
-        "level1_open_door": [
-            "/World/DryingBox_01",
-            "/World/DryingBox_01/handle",
-            "/World/DryingBox_01/RevoluteJoint"
-        ],
-        "level1_pick": [
-            "/World/conical_bottle02"
-        ],
-        "level1_place": [
-            "/World/beaker2",
-            "/World/target_plat"
-        ]
+    "fixed_base_policy": "world_fixed_joint_body0_removed",
+    "handle_policy": "nested_native_handle",
+    "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
+    "material_scope_policy": "preserve_owned_world_looks",
+    "material_status": "mixed_native_and_fallback",
+    "source_payload_used": true,
+    "source_prim_path": "/World/DryingBox_01",
+    "strategy": "native_complex_with_additive_physics_override",
+    "surrogate_kept_for_debug_baseline": true,
+    "unit_policy": "preserve_native_unit_scale_0_001",
+    "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+  },
+  "drying_box_wrapper_composition": {
+    "binding_record_coverage": {
+      "collection_bindings": [],
+      "direct_and_inherited_xform_bindings": "source_binding_records",
+      "geomsubset_bindings": []
     },
-    "source_to_runtime_object_key": {
-        "/World/DryingBox_01": "obj_DryingBox_01",
-        "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
-        "/World/beaker2": "obj_beaker2",
-        "/World/conical_bottle02": "obj_conical_bottle02",
-        "/World/table": "table",
-        "/World/target_plat": "obj_target_plat"
+    "camera_light_prerequisites": {
+      "deterministic_light_prims": [
+        "/World/labutopia_level1_poc/DeterministicDomeLight"
+      ],
+      "primary_evidence_camera": "camera2",
+      "task_yaml_camera_names": [
+        "camera1",
+        "camera2"
+      ]
     },
-    "runtime_object_keys": [
-        "obj_conical_bottle02",
-        "obj_beaker2",
-        "obj_target_plat",
-        "obj_DryingBox_01",
-        "obj_DryingBox_01_handle",
-        "table"
-    ],
-    "wrapper_prim_paths": {
-        "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
-        "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
-        "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
-        "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
-        "table": "/World/labutopia_level1_poc/obj_table"
+    "compute_bound_material_summary": {
+      "bound_material_count": 32,
+      "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
+      "status": "mixed_native_and_fallback",
+      "unbound_fallback_count": 3
     },
-    "articulation_part_paths": {
-        "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
-    },
-    "render_object_contracts": {
-        "obj_DryingBox_01": {
-            "desired_runtime_translation": [
-                0.75,
-                0.1,
-                0.78
-            ],
-            "display_color": [
-                0.82,
-                0.84,
-                0.88
-            ],
-            "expected_world_bbox_lwh_m": {
-                "max": [
-                    0.75,
-                    0.9,
-                    0.8
-                ],
-                "min": [
-                    0.45,
-                    0.5,
-                    0.45
-                ]
-            },
-            "role": "articulated_drying_box",
-            "source_prim_path": "/World/DryingBox_01",
-            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
-        },
-        "obj_DryingBox_01_handle": {
-            "compose_nested_transform_with_parent": "obj_DryingBox_01",
-            "display_color": [
-                1.0,
-                0.18,
-                0.04
-            ],
-            "expected_world_bbox_lwh_m": {
-                "max": [
-                    0.08,
-                    0.08,
-                    0.26
-                ],
-                "min": [
-                    0.03,
-                    0.03,
-                    0.14
-                ]
-            },
-            "role": "door_handle",
-            "source_prim_path": "/World/DryingBox_01/handle",
-            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
-        },
-        "obj_beaker2": {
-            "desired_runtime_translation": [
-                0.27,
-                0.18,
-                0.84
-            ],
-            "display_color": [
-                0.1,
-                0.72,
-                0.54
-            ],
-            "expected_world_bbox_lwh_m": {
-                "max": [
-                    0.16,
-                    0.16,
-                    0.14
-                ],
-                "min": [
-                    0.07,
-                    0.07,
-                    0.05
-                ]
-            },
-            "role": "place_object",
-            "source_prim_path": "/World/beaker2",
-            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_beaker2"
-        },
-        "obj_conical_bottle02": {
-            "desired_runtime_translation": [
-                0.28,
-                0.0,
-                0.8
-            ],
-            "display_color": [
-                0.1,
-                0.48,
-                0.95
-            ],
-            "expected_world_bbox_lwh_m": {
-                "max": [
-                    0.14,
-                    0.14,
-                    0.22
-                ],
-                "min": [
-                    0.05,
-                    0.05,
-                    0.1
-                ]
-            },
-            "role": "pick_target",
-            "source_prim_path": "/World/conical_bottle02",
-            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_conical_bottle02"
-        },
-        "obj_target_plat": {
-            "desired_runtime_translation": [
-                0.26,
-                -0.24,
-                0.776
-            ],
-            "display_color": [
-                0.95,
-                0.78,
-                0.12
-            ],
-            "expected_world_bbox_lwh_m": {
-                "max": [
-                    0.14,
-                    0.14,
-                    0.02
-                ],
-                "min": [
-                    0.08,
-                    0.08,
-                    5e-05
-                ]
-            },
-            "role": "place_target",
-            "source_prim_path": "/World/target_plat",
-            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_target_plat"
-        }
-    },
-    "deterministic_lights": [
+    "fallback_display_color_policy": {
+      "fallback_records": [
         {
-            "intensity": 1000,
-            "prim_path": "/World/labutopia_level1_poc/DeterministicDomeLight",
-            "type": "DomeLight"
+          "display_color": [
+            0.1,
+            0.36,
+            0.95
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/Group/_900_1"
+        },
+        {
+          "display_color": [
+            1.0,
+            0.48,
+            0.04
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+          "source_binding_status": "unbound_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/button"
+        },
+        {
+          "display_color": [
+            0.88,
+            0.92,
+            0.96
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/panel"
         }
-    ],
-    "drying_box_runtime_asset": {
-        "button_joint_name": "PrismaticJoint",
-        "button_prismatic_joint_policy": "ignored_by_open_door_metric",
-        "door_joint_name": "RevoluteJoint",
-        "door_reset_target": [
-            0.0
+      ],
+      "material_status": "mixed_native_and_fallback",
+      "policy": "stage3_task_visible_readability_overlay"
+    },
+    "material_dependency_report": [
+      {
+        "bytes": null,
+        "dependency_location_status": "external_remote_mdl_dependency",
+        "helper_mdl_imports": [],
+        "internal_connection_targets_policy": "preserved_via_owned_material_scope_payload",
+        "local_path": null,
+        "material_name": "Aluminum_Anodized_Charcoal",
+        "mdl_source_asset": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl",
+        "mdl_subidentifier": "Aluminum_Anodized_Charcoal",
+        "offline_material_closure_status": "open_remote_dependency",
+        "outputs_mdl_connections": [
+          "outputs:mdl:surface",
+          "outputs:mdl:displacement",
+          "outputs:mdl:volume"
         ],
-        "fixed_base_policy": "world_fixed_joint_body0_removed",
-        "handle_policy": "nested_native_handle",
-        "source_payload_used": true,
-        "source_prim_path": "/World/DryingBox_01",
-        "strategy": "native_complex_with_additive_physics_override",
-        "surrogate_kept_for_debug_baseline": true,
-        "unit_policy": "preserve_native_unit_scale_0_001",
-        "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
-    },
-    "required_genmanip_object_uids": [
-        "obj_conical_bottle02",
-        "obj_beaker2",
-        "obj_target_plat",
-        "obj_DryingBox_01",
-        "obj_DryingBox_01_handle",
-        "obj_table"
+        "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "sha256": null,
+        "shader_inputs_policy": "preserved_via_owned_material_scope_payload",
+        "shader_paths": [
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal/Shader"
+        ],
+        "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "texture_dependency_records": [],
+        "texture_hashes": {},
+        "texture_paths": []
+      },
+      {
+        "bytes": 2808,
+        "dependency_location_status": "local_file_copied_with_source_scene",
+        "helper_mdl_imports": [
+          {
+            "bytes": 19141,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_materials",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_materials.mdl",
+            "sha256": "650f7a8e9a28d4f1b96f9a19232eb77df98460672311ea554c8a50ef4c6aa804"
+          },
+          {
+            "bytes": 116258,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_maps",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_maps.mdl",
+            "sha256": "be935fede0b3c1de4fdd49d203ec9682198f1403b4b8f763489219b313475b88"
+          },
+          {
+            "bytes": 49608,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_materials",
+            "relative_path": "SubUSDs/materials/vray_materials.mdl",
+            "sha256": "9b7086f7415d7c38125603d39a6d0265098dfe75ba590814568d94819a6e2e77"
+          },
+          {
+            "bytes": 25765,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_maps",
+            "relative_path": "SubUSDs/materials/vray_maps.mdl",
+            "sha256": "362fc09e31e1e442da0fa963f6548bf2ae6d16888abfda70259d64fb7b382b79"
+          }
+        ],
+        "internal_connection_targets_policy": "preserved_via_owned_material_scope_payload",
+        "local_path": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/assets/chemistry_lab/lab_001/SubUSDs/materials/material_11.mdl",
+        "material_name": "mdl_0007",
+        "mdl_source_asset": "./SubUSDs/materials/material_11.mdl",
+        "mdl_subidentifier": "mdl_0007",
+        "offline_material_closure_status": "local_file_copied_with_source_scene",
+        "outputs_mdl_connections": [
+          "outputs:mdl:surface",
+          "outputs:mdl:displacement",
+          "outputs:mdl:volume"
+        ],
+        "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "sha256": "f91013cdb672bc6670ef09225f378918df2fed2a977de2b3927e4f148ced9a32",
+        "shader_inputs_policy": "preserved_via_owned_material_scope_payload",
+        "shader_paths": [
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007/Shader"
+        ],
+        "source_material_path": "/World/Looks/mdl_0007",
+        "texture_dependency_records": [],
+        "texture_hashes": {},
+        "texture_paths": []
+      },
+      {
+        "bytes": 2781,
+        "dependency_location_status": "local_file_copied_with_source_scene",
+        "helper_mdl_imports": [
+          {
+            "bytes": 19141,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_materials",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_materials.mdl",
+            "sha256": "650f7a8e9a28d4f1b96f9a19232eb77df98460672311ea554c8a50ef4c6aa804"
+          },
+          {
+            "bytes": 116258,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_maps",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_maps.mdl",
+            "sha256": "be935fede0b3c1de4fdd49d203ec9682198f1403b4b8f763489219b313475b88"
+          },
+          {
+            "bytes": 49608,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_materials",
+            "relative_path": "SubUSDs/materials/vray_materials.mdl",
+            "sha256": "9b7086f7415d7c38125603d39a6d0265098dfe75ba590814568d94819a6e2e77"
+          },
+          {
+            "bytes": 25765,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_maps",
+            "relative_path": "SubUSDs/materials/vray_maps.mdl",
+            "sha256": "362fc09e31e1e442da0fa963f6548bf2ae6d16888abfda70259d64fb7b382b79"
+          }
+        ],
+        "internal_connection_targets_policy": "preserved_via_owned_material_scope_payload",
+        "local_path": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/assets/chemistry_lab/lab_001/SubUSDs/materials/material_08.mdl",
+        "material_name": "mdl_0008",
+        "mdl_source_asset": "./SubUSDs/materials/material_08.mdl",
+        "mdl_subidentifier": "mdl_0008",
+        "offline_material_closure_status": "local_file_copied_with_source_scene",
+        "outputs_mdl_connections": [
+          "outputs:mdl:surface",
+          "outputs:mdl:displacement",
+          "outputs:mdl:volume"
+        ],
+        "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+        "sha256": "2d340831b68cb0402efac04f53857c8fef5c479f505c7dfbf96fc26525acd6ae",
+        "shader_inputs_policy": "preserved_via_owned_material_scope_payload",
+        "shader_paths": [
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008/Shader"
+        ],
+        "source_material_path": "/World/Looks/mdl_0008",
+        "texture_dependency_records": [
+          {
+            "bytes": 521549,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "relative_path": "SubUSDs/textures/image4.jpg",
+            "sha256": "e09ebed0a7ce8e9d55a4d80bdf15c8950c341913febceabf63c4030afc44d511"
+          }
+        ],
+        "texture_hashes": {
+          "SubUSDs/textures/image4.jpg": "e09ebed0a7ce8e9d55a4d80bdf15c8950c341913febceabf63c4030afc44d511"
+        },
+        "texture_paths": [
+          "SubUSDs/textures/image4.jpg"
+        ]
+      },
+      {
+        "bytes": 5487,
+        "dependency_location_status": "local_file_copied_with_source_scene",
+        "helper_mdl_imports": [
+          {
+            "bytes": 19141,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_materials",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_materials.mdl",
+            "sha256": "650f7a8e9a28d4f1b96f9a19232eb77df98460672311ea554c8a50ef4c6aa804"
+          },
+          {
+            "bytes": 116258,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "ad_3dsmax_maps",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_maps.mdl",
+            "sha256": "be935fede0b3c1de4fdd49d203ec9682198f1403b4b8f763489219b313475b88"
+          },
+          {
+            "bytes": 49608,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_materials",
+            "relative_path": "SubUSDs/materials/vray_materials.mdl",
+            "sha256": "9b7086f7415d7c38125603d39a6d0265098dfe75ba590814568d94819a6e2e77"
+          },
+          {
+            "bytes": 25765,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "module": "vray_maps",
+            "relative_path": "SubUSDs/materials/vray_maps.mdl",
+            "sha256": "362fc09e31e1e442da0fa963f6548bf2ae6d16888abfda70259d64fb7b382b79"
+          }
+        ],
+        "internal_connection_targets_policy": "preserved_via_owned_material_scope_payload",
+        "local_path": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/assets/chemistry_lab/lab_001/SubUSDs/materials/material_09.mdl",
+        "material_name": "mdl_0009",
+        "mdl_source_asset": "./SubUSDs/materials/material_09.mdl",
+        "mdl_subidentifier": "mdl_0009",
+        "offline_material_closure_status": "local_file_copied_with_source_scene",
+        "outputs_mdl_connections": [
+          "outputs:mdl:surface",
+          "outputs:mdl:displacement",
+          "outputs:mdl:volume"
+        ],
+        "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009",
+        "sha256": "0569e8b1b05810a9c1d0eb604184dbc5450f0ad79307639e0cb0ec44dce26ea8",
+        "shader_inputs_policy": "preserved_via_owned_material_scope_payload",
+        "shader_paths": [
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009/Shader"
+        ],
+        "source_material_path": "/World/Looks/mdl_0009",
+        "texture_dependency_records": [
+          {
+            "bytes": 1763114,
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "relative_path": "SubUSDs/textures/image1.JPG",
+            "sha256": "bd387a0fd4e53b46e607d3be4f5683286af546e9b0ae15d264343db5d8b0c17a"
+          }
+        ],
+        "texture_hashes": {
+          "SubUSDs/textures/image1.JPG": "bd387a0fd4e53b46e607d3be4f5683286af546e9b0ae15d264343db5d8b0c17a"
+        },
+        "texture_paths": [
+          "SubUSDs/textures/image1.JPG"
+        ]
+      }
     ],
-    "required_object_uids": [
-        "obj_conical_bottle02",
-        "obj_beaker2",
-        "obj_target_plat",
-        "obj_DryingBox_01",
-        "obj_DryingBox_01_handle",
-        "obj_table"
+    "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
+    "material_scope_ownership": "source_world_looks_payloaded_under_wrapper",
+    "material_scope_policy": "preserve_owned_world_looks",
+    "material_status": "mixed_native_and_fallback",
+    "nested_handle_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+    "owned_material_paths": [
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009"
     ],
-    "table_uid": "table",
-    "env_vars": {
-        "MDL_SYSTEM_PATH": "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+    "payload_dependency_report": {
+      "native_payload": "scene.usd</World/DryingBox_01>",
+      "owned_material_scope_payload": "scene.usd</World/Looks>"
     },
-    "runtime_notes": [
-        "scene.usda exposes a single scene uid under /World for GenManip discovery.",
-        "Immediate obj_* wrapper prims payload top-level LabUtopia source prims including native DryingBox_01.",
-        "DryingBox_01 uses the native LabUtopia complex asset with additive overlay opinions.",
-        "The drying-box handle is exposed as a nested native articulation part, not an independent payload.",
-        "The sanitized DryingBox surrogate remains available via --drying-box-strategy sanitized_surrogate for regression comparison.",
-        "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
-        "A deterministic dome light is authored in the runtime wrapper scene.",
-        "Runtime object keys strip one leading obj_ from wrapper prim names."
+    "runtime_material_scope": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks",
+    "runtime_rebind_count": 32,
+    "runtime_rebind_map": {
+      "/World/DryingBox_01/Group/_14_1": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/Group/_255_1": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/Group/_908_1": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/Group_01/mesh": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_01": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_02": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_03": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_04": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_05": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_06": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_07": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_08": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_09": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_10": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_11": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_12": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_13": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_14": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_15": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_16": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_17": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_01/mesh_18": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_02/group": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_02/group_01": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_02/group_04": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/Group_02/group_05": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      },
+      "/World/DryingBox_01/body/Group/door/mesh": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/body/body": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009",
+        "source_binding_target": "/World/Looks/mdl_0009"
+      },
+      "/World/DryingBox_01/handle/mesh": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/panel/mesh": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "source_binding_target": "/World/Looks/mdl_0007"
+      },
+      "/World/DryingBox_01/panel/mesh_01": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+        "source_binding_target": "/World/Looks/mdl_0008"
+      },
+      "/World/DryingBox_01/panel/mesh_02": {
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal"
+      }
+    },
+    "schema_version": 1,
+    "source_binding_record_count": 32,
+    "source_binding_records": [
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_14_1",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/Group/_14_1"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_255_1",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/Group/_255_1"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_908_1",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/Group/_908_1"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_01",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_01"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_02",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_02"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_03",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_03"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_04",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_04"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_05",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_05"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_06",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_06"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_07",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_07"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_08",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_08"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_09",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_09"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_10",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_10"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_11",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_11"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_12",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_12"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_13",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_13"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_14",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_14"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_15",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_15"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_16",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_16"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_17",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_17"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_18",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_01/mesh_18"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_02/group"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_01",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_02/group_01"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_04",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_02/group_04"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_05",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/Group_02/group_05"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/body/Group/door/mesh"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body",
+        "source_binding_target": "/World/Looks/mdl_0009",
+        "source_prim_path": "/World/DryingBox_01/body/body"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle/mesh",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/handle/mesh"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel/mesh",
+        "source_binding_target": "/World/Looks/mdl_0007",
+        "source_prim_path": "/World/DryingBox_01/panel/mesh"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel/mesh_01",
+        "source_binding_target": "/World/Looks/mdl_0008",
+        "source_prim_path": "/World/DryingBox_01/panel/mesh_01"
+      },
+      {
+        "binding_kind": "direct_or_inherited_native_material_binding",
+        "rebind_status": "runtime_target_inside_drying_box_wrapper",
+        "runtime_binding_target": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel/mesh_02",
+        "source_binding_target": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "source_prim_path": "/World/DryingBox_01/panel/mesh_02"
+      }
+    ],
+    "source_material_scope": "/World/Looks",
+    "source_payload_target": "scene.usd</World/DryingBox_01>",
+    "source_payload_used": true,
+    "source_prim_path": "/World/DryingBox_01",
+    "stale_source_binding_count": 0,
+    "stale_source_binding_targets": [],
+    "top_level_handle_payload_allowed": false,
+    "unresolved_binding_target_count": 0,
+    "unresolved_binding_targets": [],
+    "worker_mdl_system_path": "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl",
+    "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+    "wrapper_transform_report": {
+      "axis_policy": "preserve_source_up_axis_and_axes",
+      "source_scale": [
+        0.001,
+        0.001,
+        0.001
+      ],
+      "workspace_translation": [
+        0.75,
+        0.1,
+        0.78
+      ]
+    }
+  },
+  "env_vars": {
+    "MDL_SYSTEM_PATH": "/isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+  },
+  "generated_manifest": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/labutopia_level1_poc.json",
+  "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+  "render_object_contracts": {
+    "obj_DryingBox_01": {
+      "desired_runtime_translation": [
+        0.75,
+        0.1,
+        0.78
+      ],
+      "display_color": [
+        0.82,
+        0.84,
+        0.88
+      ],
+      "expected_world_bbox_lwh_m": {
+        "max": [
+          0.75,
+          0.9,
+          0.8
+        ],
+        "min": [
+          0.45,
+          0.5,
+          0.45
+        ]
+      },
+      "role": "articulated_drying_box",
+      "source_prim_path": "/World/DryingBox_01",
+      "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    },
+    "obj_DryingBox_01_handle": {
+      "compose_nested_transform_with_parent": "obj_DryingBox_01",
+      "display_color": [
+        1.0,
+        0.18,
+        0.04
+      ],
+      "expected_world_bbox_lwh_m": {
+        "max": [
+          0.08,
+          0.08,
+          0.26
+        ],
+        "min": [
+          0.03,
+          0.03,
+          0.14
+        ]
+      },
+      "role": "door_handle",
+      "source_prim_path": "/World/DryingBox_01/handle",
+      "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+    },
+    "obj_beaker2": {
+      "desired_runtime_translation": [
+        0.27,
+        0.18,
+        0.84
+      ],
+      "display_color": [
+        0.1,
+        0.72,
+        0.54
+      ],
+      "expected_world_bbox_lwh_m": {
+        "max": [
+          0.16,
+          0.16,
+          0.14
+        ],
+        "min": [
+          0.07,
+          0.07,
+          0.05
+        ]
+      },
+      "role": "place_object",
+      "source_prim_path": "/World/beaker2",
+      "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_beaker2"
+    },
+    "obj_conical_bottle02": {
+      "desired_runtime_translation": [
+        0.28,
+        0.0,
+        0.8
+      ],
+      "display_color": [
+        0.1,
+        0.48,
+        0.95
+      ],
+      "expected_world_bbox_lwh_m": {
+        "max": [
+          0.14,
+          0.14,
+          0.22
+        ],
+        "min": [
+          0.05,
+          0.05,
+          0.1
+        ]
+      },
+      "role": "pick_target",
+      "source_prim_path": "/World/conical_bottle02",
+      "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_conical_bottle02"
+    },
+    "obj_target_plat": {
+      "desired_runtime_translation": [
+        0.26,
+        -0.24,
+        0.776
+      ],
+      "display_color": [
+        0.95,
+        0.78,
+        0.12
+      ],
+      "expected_world_bbox_lwh_m": {
+        "max": [
+          0.14,
+          0.14,
+          0.02
+        ],
+        "min": [
+          0.08,
+          0.08,
+          5e-05
+        ]
+      },
+      "role": "place_target",
+      "source_prim_path": "/World/target_plat",
+      "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_target_plat"
+    }
+  },
+  "required_genmanip_object_uids": [
+    "obj_conical_bottle02",
+    "obj_beaker2",
+    "obj_target_plat",
+    "obj_DryingBox_01",
+    "obj_DryingBox_01_handle",
+    "obj_table"
+  ],
+  "required_object_uids": [
+    "obj_conical_bottle02",
+    "obj_beaker2",
+    "obj_target_plat",
+    "obj_DryingBox_01",
+    "obj_DryingBox_01_handle",
+    "obj_table"
+  ],
+  "runtime_notes": [
+    "scene.usda exposes a single scene uid under /World for GenManip discovery.",
+    "Immediate obj_* wrapper prims payload top-level LabUtopia source prims including native DryingBox_01.",
+    "DryingBox_01 uses the native LabUtopia complex asset with additive overlay opinions.",
+    "The drying-box handle is exposed as a nested native articulation part, not an independent payload.",
+    "The sanitized DryingBox surrogate remains available via --drying-box-strategy sanitized_surrogate for regression comparison.",
+    "Task object wrapper translations normalize LabUtopia source coordinates into the robot/table workspace.",
+    "A deterministic dome light is authored in the runtime wrapper scene.",
+    "Runtime object keys strip one leading obj_ from wrapper prim names."
+  ],
+  "runtime_object_keys": [
+    "obj_conical_bottle02",
+    "obj_beaker2",
+    "obj_target_plat",
+    "obj_DryingBox_01",
+    "obj_DryingBox_01_handle",
+    "table"
+  ],
+  "runtime_usd_name": "scene_usds/labutopia/level1_poc/lab_001/scene",
+  "scene_uid": "labutopia_level1_poc",
+  "source_prim_paths": [
+    "/World/conical_bottle02",
+    "/World/beaker2",
+    "/World/target_plat",
+    "/World/DryingBox_01",
+    "/World/DryingBox_01/handle",
+    "/World/table"
+  ],
+  "source_task_prims": {
+    "level1_open_door": [
+      "/World/DryingBox_01",
+      "/World/DryingBox_01/handle",
+      "/World/DryingBox_01/RevoluteJoint"
+    ],
+    "level1_pick": [
+      "/World/conical_bottle02"
+    ],
+    "level1_place": [
+      "/World/beaker2",
+      "/World/target_plat"
     ]
+  },
+  "source_to_runtime_object_key": {
+    "/World/DryingBox_01": "obj_DryingBox_01",
+    "/World/DryingBox_01/handle": "obj_DryingBox_01_handle",
+    "/World/beaker2": "obj_beaker2",
+    "/World/conical_bottle02": "obj_conical_bottle02",
+    "/World/table": "table",
+    "/World/target_plat": "obj_target_plat"
+  },
+  "table_uid": "table",
+  "wrapper_prim_paths": {
+    "obj_DryingBox_01": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+    "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+    "obj_beaker2": "/World/labutopia_level1_poc/obj_obj_beaker2",
+    "obj_conical_bottle02": "/World/labutopia_level1_poc/obj_obj_conical_bottle02",
+    "obj_target_plat": "/World/labutopia_level1_poc/obj_obj_target_plat",
+    "table": "/World/labutopia_level1_poc/obj_table"
+  }
 }

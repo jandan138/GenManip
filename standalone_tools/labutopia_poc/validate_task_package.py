@@ -142,6 +142,9 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
     "surrogate_kept_for_debug_baseline": True,
     "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
+    "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
+    "material_scope_policy": "preserve_owned_world_looks",
+    "material_status": "mixed_native_and_fallback",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -155,6 +158,8 @@ EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     'over "button"',
     'over "RevoluteJoint"',
     "float state:angular:physics:position = 0",
+    'def Scope "Looks" (',
+    "prepend payload = @scene.usd@</World/Looks>",
 ]
 FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     'def Cube "body_link"',
@@ -162,6 +167,32 @@ FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     'def Cube "handle"',
     'def Xform "obj_obj_DryingBox_01_handle" (',
 ]
+EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT = 32
+EXPECTED_DRYING_BOX_MATERIAL_PATHS = {
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009",
+}
+EXPECTED_DRYING_BOX_FALLBACK_PATHS = {
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+}
+EXPECTED_DRYING_BOX_WORKER_MDL_SYSTEM_PATH = (
+    "/isaac-sim/materials/:"
+    "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:"
+    "{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+)
+EXPECTED_DRYING_BOX_LOCAL_MDL_MATERIALS = {
+    "mdl_0007",
+    "mdl_0008",
+    "mdl_0009",
+}
+EXPECTED_DRYING_BOX_TEXTURE_PATHS = {
+    "mdl_0008": ["SubUSDs/textures/image4.jpg"],
+    "mdl_0009": ["SubUSDs/textures/image1.JPG"],
+}
 EXPECTED_FRANKA_CAMERA_AXES = {
     "camera1": "usd",
     "camera2": "usd",
@@ -396,6 +427,7 @@ def _validate_assets_manifest() -> None:
         "primvars:displayColor" in runtime_scene_text,
         f"{runtime_scene}: missing task object displayColor overrides",
     )
+    _validate_drying_box_wrapper_composition(path, manifest, runtime_scene_text)
 
     generated_manifest = manifest.get("generated_manifest")
     _assert(
@@ -418,11 +450,500 @@ def _validate_assets_manifest() -> None:
         "articulation_part_paths": "articulation_part_paths",
         "render_object_contracts": "render_object_contracts",
         "drying_box_runtime_asset": "drying_box_runtime_asset",
+        "drying_box_wrapper_composition": "drying_box_wrapper_composition",
     }.items():
         _assert(
             manifest.get(common_key) == generated.get(generated_key),
             f"{path}: {common_key} differs from {generated_path}:{generated_key}",
         )
+
+
+def _validate_drying_box_wrapper_composition(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    runtime_scene_text: str,
+) -> None:
+    report = manifest.get("drying_box_wrapper_composition")
+    _assert(
+        isinstance(report, dict),
+        f"{manifest_path}: drying_box_wrapper_composition must record Stage 3 wrapper evidence",
+    )
+    root_path = EXPECTED_WRAPPER_PRIM_PATHS["obj_DryingBox_01"]
+    _assert(
+        report.get("schema_version") == 1,
+        f"{manifest_path}: drying_box_wrapper_composition.schema_version must be 1",
+    )
+    for key in (
+        "wrapper_prim_path",
+        "source_prim_path",
+        "material_policy",
+        "material_scope_policy",
+        "material_status",
+    ):
+        _assert(
+            report.get(key) == manifest["drying_box_runtime_asset"].get(key),
+            f"{manifest_path}: drying_box_wrapper_composition.{key} must match drying_box_runtime_asset",
+        )
+    _assert(
+        report.get("wrapper_prim_path") == root_path,
+        f"{manifest_path}: wrapper report must target {root_path}",
+    )
+    _assert(
+        report.get("source_material_scope") == "/World/Looks",
+        f"{manifest_path}: wrapper report must record source /World/Looks",
+    )
+    _assert(
+        report.get("runtime_material_scope") == f"{root_path}/Looks",
+        f"{manifest_path}: wrapper report must record wrapper-local Looks scope",
+    )
+    _assert(
+        report.get("material_scope_ownership")
+        == "source_world_looks_payloaded_under_wrapper",
+        f"{manifest_path}: preserve_owned_world_looks must own source Looks under wrapper",
+    )
+    if "rel material:binding = </World/Looks/" in runtime_scene_text:
+        raise AssertionError(
+            f"{manifest_path}: stale /World/Looks material binding remains after wrapper rebind"
+        )
+    _assert(
+        "prepend payload = @scene.usd@</World/Looks>" in runtime_scene_text,
+        f"{manifest_path}: preserve_owned_world_looks must payload source Looks under wrapper",
+    )
+    source_records = report.get("source_binding_records")
+    _assert(
+        isinstance(source_records, list)
+        and len(source_records) == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+        f"{manifest_path}: source_binding_records must cover task-visible DryingBox material bindings",
+    )
+    _assert(
+        report.get("source_binding_record_count")
+        == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+        f"{manifest_path}: source_binding_record_count mismatch",
+    )
+    _assert(
+        report.get("runtime_rebind_count")
+        == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+        f"{manifest_path}: runtime_rebind_count mismatch",
+    )
+    _assert(
+        report.get("stale_source_binding_count") == 0,
+        f"{manifest_path}: stale source material bindings must be zero",
+    )
+    _assert(
+        report.get("unresolved_binding_target_count") == 0,
+        f"{manifest_path}: unresolved material binding targets must be zero",
+    )
+    runtime_targets = set()
+    source_record_paths = set()
+    for record in source_records:
+        _assert(
+            isinstance(record, dict),
+            f"{manifest_path}: source_binding_records entries must be mappings",
+        )
+        source_prim_path = record.get("source_prim_path")
+        source_target = record.get("source_binding_target")
+        runtime_target = record.get("runtime_binding_target")
+        _assert(
+            isinstance(source_prim_path, str)
+            and source_prim_path.startswith("/World/DryingBox_01/"),
+            f"{manifest_path}: source binding record must keep native source prim path",
+        )
+        _assert(
+            isinstance(source_target, str)
+            and source_target.startswith("/World/Looks/"),
+            f"{manifest_path}: source binding target must record original /World/Looks path",
+        )
+        _assert(
+            isinstance(runtime_target, str)
+            and runtime_target.startswith(f"{root_path}/Looks/"),
+            f"{manifest_path}: runtime binding target must stay inside wrapper Looks",
+        )
+        _assert(
+            f"rel material:binding = <{runtime_target}>" in runtime_scene_text,
+            f"{manifest_path}: runtime scene missing local material binding {runtime_target}",
+        )
+        runtime_targets.add(runtime_target)
+        source_record_paths.add(source_prim_path)
+    runtime_rebind_map = report.get("runtime_rebind_map")
+    _assert(
+        isinstance(runtime_rebind_map, dict)
+        and set(runtime_rebind_map) == source_record_paths,
+        f"{manifest_path}: runtime_rebind_map keys must match source_binding_records",
+    )
+    for record in source_records:
+        map_entry = runtime_rebind_map[record["source_prim_path"]]
+        _assert(
+            isinstance(map_entry, dict)
+            and map_entry.get("source_binding_target")
+            == record["source_binding_target"]
+            and map_entry.get("runtime_binding_target")
+            == record["runtime_binding_target"],
+            f"{manifest_path}: runtime_rebind_map entries must match source binding records",
+        )
+    _assert(
+        runtime_targets == EXPECTED_DRYING_BOX_MATERIAL_PATHS,
+        f"{manifest_path}: runtime material targets must match expected DryingBox materials",
+    )
+    _assert(
+        set(report.get("owned_material_paths", []))
+        == EXPECTED_DRYING_BOX_MATERIAL_PATHS,
+        f"{manifest_path}: owned_material_paths must list wrapper-local material prims",
+    )
+    compute_summary = report.get("compute_bound_material_summary")
+    _assert(
+        compute_summary
+        == {
+            "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
+            "bound_material_count": EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+            "unbound_fallback_count": 3,
+            "status": "mixed_native_and_fallback",
+        },
+        f"{manifest_path}: compute_bound_material_summary must record mixed native/fallback status",
+    )
+    fallback_policy = report.get("fallback_display_color_policy")
+    _assert(
+        isinstance(fallback_policy, dict),
+        f"{manifest_path}: missing fallback_display_color_policy",
+    )
+    _assert(
+        fallback_policy.get("material_status") == "mixed_native_and_fallback",
+        f"{manifest_path}: fallback displayColor must be labelled mixed_native_and_fallback",
+    )
+    fallback_records = fallback_policy.get("fallback_records")
+    _assert(
+        isinstance(fallback_records, list),
+        f"{manifest_path}: fallback_records must be a list",
+    )
+    fallback_paths = {
+        record.get("runtime_prim_path")
+        for record in fallback_records
+        if isinstance(record, dict)
+    }
+    _assert(
+        fallback_paths == EXPECTED_DRYING_BOX_FALLBACK_PATHS,
+        f"{manifest_path}: fallback_records must cover known Stage 2 material gaps",
+    )
+    for fallback_path in EXPECTED_DRYING_BOX_FALLBACK_PATHS:
+        relative_name = fallback_path.rsplit("/", 1)[-1]
+        _assert(
+            f'over "{relative_name}"' in runtime_scene_text,
+            f"{manifest_path}: runtime scene missing fallback override for {fallback_path}",
+        )
+    dependency_report = report.get("material_dependency_report")
+    _assert(
+        isinstance(dependency_report, list) and len(dependency_report) == 4,
+        f"{manifest_path}: material_dependency_report must record all DryingBox materials",
+    )
+    for material_record in dependency_report:
+        _assert(
+            isinstance(material_record, dict),
+            f"{manifest_path}: material dependency entries must be mappings",
+        )
+        for required_key in (
+            "runtime_material_path",
+            "shader_paths",
+            "outputs_mdl_connections",
+            "mdl_source_asset",
+            "mdl_subidentifier",
+            "dependency_location_status",
+        ):
+            _assert(
+                required_key in material_record,
+                f"{manifest_path}: material dependency missing {required_key}",
+            )
+    dependency_by_name = {
+        record["material_name"]: record
+        for record in dependency_report
+        if isinstance(record, dict) and "material_name" in record
+    }
+    _assert(
+        set(dependency_by_name)
+        == EXPECTED_DRYING_BOX_LOCAL_MDL_MATERIALS
+        | {"Aluminum_Anodized_Charcoal"},
+        f"{manifest_path}: material_dependency_report must cover expected material names",
+    )
+    for material_name in EXPECTED_DRYING_BOX_LOCAL_MDL_MATERIALS:
+        record = dependency_by_name[material_name]
+        _assert(
+            record.get("dependency_location_status")
+            == "local_file_copied_with_source_scene",
+            f"{manifest_path}: {material_name} MDL must be copied with the source scene",
+        )
+        _assert(
+            isinstance(record.get("sha256"), str) and bool(record.get("sha256")),
+            f"{manifest_path}: {material_name} MDL must record sha256",
+        )
+        _assert(
+            isinstance(record.get("bytes"), int) and record.get("bytes", 0) > 0,
+            f"{manifest_path}: {material_name} MDL must record byte size",
+        )
+        helper_imports = record.get("helper_mdl_imports")
+        _assert(
+            isinstance(helper_imports, list) and len(helper_imports) >= 4,
+            f"{manifest_path}: {material_name} must record local helper MDL imports",
+        )
+        for helper in helper_imports:
+            _assert(
+                isinstance(helper, dict)
+                and helper.get("dependency_location_status")
+                == "local_file_copied_with_source_scene"
+                and isinstance(helper.get("sha256"), str)
+                and bool(helper.get("sha256"))
+                and isinstance(helper.get("bytes"), int)
+                and helper.get("bytes", 0) > 0,
+                f"{manifest_path}: {material_name} helper MDL imports must be local hashed files",
+            )
+    for material_name, expected_textures in EXPECTED_DRYING_BOX_TEXTURE_PATHS.items():
+        record = dependency_by_name[material_name]
+        _assert(
+            record.get("texture_paths") == expected_textures,
+            f"{manifest_path}: {material_name} texture_paths mismatch",
+        )
+        texture_hashes = record.get("texture_hashes")
+        _assert(
+            isinstance(texture_hashes, dict),
+            f"{manifest_path}: {material_name} texture_hashes must be a mapping",
+        )
+        for texture_path in expected_textures:
+            _assert(
+                isinstance(texture_hashes.get(texture_path), str)
+                and bool(texture_hashes.get(texture_path)),
+                f"{manifest_path}: {material_name} texture {texture_path} must record sha256",
+            )
+    aluminum = dependency_by_name["Aluminum_Anodized_Charcoal"]
+    _assert(
+        aluminum.get("dependency_location_status") == "external_remote_mdl_dependency"
+        and aluminum.get("offline_material_closure_status") == "open_remote_dependency",
+        f"{manifest_path}: Aluminum material must remain labelled as an external remote MDL dependency",
+    )
+    _assert(
+        report.get("worker_mdl_system_path")
+        == EXPECTED_DRYING_BOX_WORKER_MDL_SYSTEM_PATH,
+        f"{manifest_path}: worker_mdl_system_path must document required MDL search path",
+    )
+    payload_report = report.get("payload_dependency_report")
+    _assert(
+        payload_report
+        == {
+            "native_payload": "scene.usd</World/DryingBox_01>",
+            "owned_material_scope_payload": "scene.usd</World/Looks>",
+        },
+        f"{manifest_path}: payload_dependency_report mismatch",
+    )
+    transform_report = report.get("wrapper_transform_report")
+    _assert(
+        isinstance(transform_report, dict)
+        and transform_report.get("source_scale") == [0.001, 0.001, 0.001]
+        and transform_report.get("workspace_translation") == [0.75, 0.1, 0.78],
+        f"{manifest_path}: wrapper_transform_report must record scale and workspace translation",
+    )
+    camera_light = report.get("camera_light_prerequisites")
+    _assert(
+        isinstance(camera_light, dict)
+        and camera_light.get("task_yaml_camera_names") == ["camera1", "camera2"]
+        and camera_light.get("primary_evidence_camera") == "camera2"
+        and camera_light.get("deterministic_light_prims")
+        == ["/World/labutopia_level1_poc/DeterministicDomeLight"],
+        f"{manifest_path}: camera_light_prerequisites missing task camera/light metadata",
+    )
+
+
+def _inspect_drying_box_wrapper_materials(
+    runtime_scene: Path,
+    wrapper_report: dict[str, Any],
+) -> dict[str, Any]:
+    from pxr import Usd, UsdGeom, UsdShade
+
+    stage = Usd.Stage.Open(str(runtime_scene))
+    _assert(stage is not None, f"{runtime_scene}: failed to open USD stage")
+
+    root_path = str(wrapper_report["wrapper_prim_path"])
+    bound_material_paths: dict[str, str] = {}
+    unresolved_binding_paths: list[str] = []
+    stale_source_binding_paths: list[str] = []
+    expected_mismatch_paths: list[dict[str, str]] = []
+    runtime_rebind_map_mismatch_paths: list[dict[str, str]] = []
+    authored_world_looks_binding_paths: list[dict[str, object]] = []
+    unresolved_authored_binding_paths: list[dict[str, object]] = []
+    full_subtree_mesh_paths: list[str] = []
+    full_subtree_bound_mesh_paths: list[str] = []
+    full_subtree_unbound_mesh_paths: list[str] = []
+    runtime_rebind_map = wrapper_report.get("runtime_rebind_map", {})
+
+    def _is_inside_wrapper(path: str) -> bool:
+        return path == root_path or path.startswith(f"{root_path}/")
+
+    def _is_expected_fallback(path: str) -> bool:
+        return path in EXPECTED_DRYING_BOX_FALLBACK_PATHS
+
+    def _display_color_value(value: Any) -> list[float] | None:
+        if value is None or len(value) == 0:
+            return None
+        color = value[0]
+        return [round(float(channel), 6) for channel in color]
+
+    for record in wrapper_report.get("source_binding_records", []):
+        runtime_prim_path = str(record["runtime_prim_path"])
+        expected_target = str(record["runtime_binding_target"])
+        prim = stage.GetPrimAtPath(runtime_prim_path)
+        if not prim or not prim.IsValid():
+            unresolved_binding_paths.append(runtime_prim_path)
+            continue
+        binding_api = UsdShade.MaterialBindingAPI(prim)
+        material, relationship = binding_api.ComputeBoundMaterial()
+        relationship_targets = (
+            [str(target) for target in relationship.GetTargets()]
+            if relationship and relationship.IsValid()
+            else []
+        )
+        if any(target.startswith("/World/Looks/") for target in relationship_targets):
+            stale_source_binding_paths.append(runtime_prim_path)
+        if not material or not material.GetPrim().IsValid():
+            unresolved_binding_paths.append(runtime_prim_path)
+            continue
+        bound_path = str(material.GetPrim().GetPath())
+        if bound_path.startswith("/World/Looks/"):
+            stale_source_binding_paths.append(runtime_prim_path)
+        if bound_path != expected_target:
+            expected_mismatch_paths.append(
+                {
+                    "runtime_prim_path": runtime_prim_path,
+                    "expected": expected_target,
+                    "actual": bound_path,
+                }
+            )
+        if isinstance(runtime_rebind_map, dict):
+            map_entry = runtime_rebind_map.get(str(record["source_prim_path"]))
+            map_expected_target = (
+                map_entry.get("runtime_binding_target")
+                if isinstance(map_entry, dict)
+                else None
+            )
+            if map_expected_target != bound_path:
+                runtime_rebind_map_mismatch_paths.append(
+                    {
+                        "source_prim_path": str(record["source_prim_path"]),
+                        "runtime_prim_path": runtime_prim_path,
+                        "expected": str(map_expected_target),
+                        "actual": bound_path,
+                    }
+                )
+        bound_material_paths[runtime_prim_path] = bound_path
+
+    for prim in stage.Traverse():
+        prim_path = str(prim.GetPath())
+        if not _is_inside_wrapper(prim_path):
+            continue
+        for relationship in prim.GetRelationships():
+            if not relationship.GetName().startswith("material:binding"):
+                continue
+            relationship_targets = [str(target) for target in relationship.GetTargets()]
+            stale_targets = [
+                target
+                for target in relationship_targets
+                if target.startswith("/World/Looks/")
+            ]
+            if stale_targets:
+                authored_world_looks_binding_paths.append(
+                    {
+                        "prim_path": prim_path,
+                        "relationship": relationship.GetName(),
+                        "targets": stale_targets,
+                    }
+                )
+            unresolved_targets = [
+                target
+                for target in relationship_targets
+                if target and not stage.GetPrimAtPath(target).IsValid()
+            ]
+            if unresolved_targets:
+                unresolved_authored_binding_paths.append(
+                    {
+                        "prim_path": prim_path,
+                        "relationship": relationship.GetName(),
+                        "targets": unresolved_targets,
+                    }
+                )
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        full_subtree_mesh_paths.append(prim_path)
+        material, _relationship = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
+        if material and material.GetPrim().IsValid():
+            full_subtree_bound_mesh_paths.append(prim_path)
+        else:
+            full_subtree_unbound_mesh_paths.append(prim_path)
+
+    unbound_fallback_paths = []
+    missing_fallback_display_color_paths = []
+    invalid_fallback_display_color_paths = []
+    for record in wrapper_report.get("fallback_display_color_policy", {}).get(
+        "fallback_records", []
+    ):
+        runtime_prim_path = str(record["runtime_prim_path"])
+        prim = stage.GetPrimAtPath(runtime_prim_path)
+        if not prim or not prim.IsValid():
+            missing_fallback_display_color_paths.append(runtime_prim_path)
+            continue
+        display_attr = prim.GetAttribute("primvars:displayColor")
+        if not display_attr or not display_attr.IsValid():
+            missing_fallback_display_color_paths.append(runtime_prim_path)
+        else:
+            expected_color = [
+                round(float(channel), 6) for channel in record["display_color"]
+            ]
+            interpolation_attr = prim.GetAttribute(
+                "primvars:displayColor:interpolation"
+            )
+            actual_color = _display_color_value(display_attr.Get())
+            actual_interpolation = (
+                interpolation_attr.Get()
+                if interpolation_attr and interpolation_attr.IsValid()
+                else None
+            )
+            if actual_color != expected_color or actual_interpolation != "constant":
+                invalid_fallback_display_color_paths.append(runtime_prim_path)
+        material, _relationship = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
+        if not material or not material.GetPrim().IsValid():
+            unbound_fallback_paths.append(runtime_prim_path)
+
+    return {
+        "stage_opened": True,
+        "bound_material_count": len(bound_material_paths),
+        "bound_material_paths": bound_material_paths,
+        "unresolved_binding_target_count": len(unresolved_binding_paths),
+        "unresolved_binding_paths": sorted(unresolved_binding_paths),
+        "stale_source_binding_paths": sorted(set(stale_source_binding_paths)),
+        "expected_mismatch_paths": expected_mismatch_paths,
+        "runtime_rebind_map_mismatch_paths": runtime_rebind_map_mismatch_paths,
+        "authored_world_looks_binding_paths": sorted(
+            authored_world_looks_binding_paths,
+            key=lambda item: (str(item["prim_path"]), str(item["relationship"])),
+        ),
+        "unresolved_authored_binding_paths": sorted(
+            unresolved_authored_binding_paths,
+            key=lambda item: (str(item["prim_path"]), str(item["relationship"])),
+        ),
+        "full_subtree_mesh_count": len(full_subtree_mesh_paths),
+        "full_subtree_bound_mesh_count": len(full_subtree_bound_mesh_paths),
+        "full_subtree_unbound_mesh_paths": sorted(full_subtree_unbound_mesh_paths),
+        "unexpected_unbound_mesh_paths": sorted(
+            path
+            for path in full_subtree_unbound_mesh_paths
+            if not _is_expected_fallback(path)
+        ),
+        "unbound_fallback_paths": sorted(unbound_fallback_paths),
+        "missing_fallback_display_color_paths": sorted(
+            missing_fallback_display_color_paths
+        ),
+        "invalid_fallback_display_color_paths": sorted(
+            invalid_fallback_display_color_paths
+        ),
+        "material_status": (
+            "mixed_native_and_fallback"
+            if unbound_fallback_paths
+            else "resolved_native_material"
+        ),
+    }
 
 
 def _validate_task_semantics() -> None:
@@ -1084,6 +1605,60 @@ def validate_task_package() -> None:
     _assert(
         physics_report["runtime_topology_ready"],
         f"{runtime_scene}: DryingBox articulation topology is not runtime-ready: {physics_report}",
+    )
+    material_report = _inspect_drying_box_wrapper_materials(
+        runtime_scene,
+        manifest["drying_box_wrapper_composition"],
+    )
+    _assert(
+        material_report["bound_material_count"]
+        == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+        f"{runtime_scene}: DryingBox material bindings did not resolve: {material_report}",
+    )
+    _assert(
+        material_report["unresolved_binding_target_count"] == 0,
+        f"{runtime_scene}: DryingBox material bindings are unresolved: {material_report}",
+    )
+    _assert(
+        material_report["stale_source_binding_paths"] == [],
+        f"{runtime_scene}: DryingBox material bindings still target /World/Looks: {material_report}",
+    )
+    _assert(
+        material_report["expected_mismatch_paths"] == [],
+        f"{runtime_scene}: DryingBox material binding targets mismatch: {material_report}",
+    )
+    _assert(
+        material_report.get("runtime_rebind_map_mismatch_paths", []) == [],
+        f"{runtime_scene}: DryingBox runtime_rebind_map does not match composed bindings: {material_report}",
+    )
+    _assert(
+        material_report.get("authored_world_looks_binding_paths", []) == [],
+        f"{runtime_scene}: DryingBox subtree still authors /World/Looks material bindings: {material_report}",
+    )
+    _assert(
+        material_report.get("unresolved_authored_binding_paths", []) == [],
+        f"{runtime_scene}: DryingBox subtree has unresolved authored material bindings: {material_report}",
+    )
+    _assert(
+        material_report["missing_fallback_display_color_paths"] == [],
+        f"{runtime_scene}: DryingBox fallback displayColor is incomplete: {material_report}",
+    )
+    _assert(
+        material_report.get("invalid_fallback_display_color_paths", []) == [],
+        f"{runtime_scene}: DryingBox fallback displayColor values are invalid: {material_report}",
+    )
+    _assert(
+        material_report["unbound_fallback_paths"]
+        == sorted(EXPECTED_DRYING_BOX_FALLBACK_PATHS),
+        f"{runtime_scene}: DryingBox unbound fallback set must match known material gaps: {material_report}",
+    )
+    _assert(
+        material_report.get("unexpected_unbound_mesh_paths", []) == [],
+        f"{runtime_scene}: DryingBox has unexpected unbound meshes: {material_report}",
+    )
+    _assert(
+        material_report["material_status"] == "mixed_native_and_fallback",
+        f"{runtime_scene}: DryingBox material status must remain mixed_native_and_fallback: {material_report}",
     )
     _validate_task_semantics()
     _validate_camera_configs()

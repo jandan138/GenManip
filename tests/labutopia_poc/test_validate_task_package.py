@@ -165,6 +165,87 @@ def Xform "World"
     )
 
 
+def _write_stage3_wrapper_scene(
+    path,
+    *,
+    material_binding_target="/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+):
+    root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""#usda 1.0
+def Xform "World"
+{{
+    def Xform "labutopia_level1_poc"
+    {{
+        def Xform "obj_obj_DryingBox_01" (
+            prepend payload = @scene.usd@</World/DryingBox_01>
+        )
+        {{
+            double3 xformOp:translate = (0.75, 0.1, 0.78)
+            double3 xformOp:scale = (0.001, 0.001, 0.001)
+            def Scope "Looks" (
+                prepend payload = @scene.usd@</World/Looks>
+            )
+            {{
+            }}
+            over "FixedJoint_01"
+            {{
+                delete rel physics:body0 = <{root_path}/Group_02/group/mesh>
+            }}
+            over "RevoluteJoint"
+            {{
+                float state:angular:physics:position = 0
+            }}
+            over "handle"
+            {{
+                over "mesh" (
+                    prepend apiSchemas = ["MaterialBindingAPI", "PhysicsMassAPI"]
+                )
+                {{
+                    rel material:binding = <{material_binding_target}>
+                    float physics:mass = 0.1
+                    point3f physics:diagonalInertia = (0.002, 0.002, 0.002)
+                    point3f physics:centerOfMass = (0, 0, 0)
+                    quatf physics:principalAxes = (1, 0, 0, 0)
+                }}
+            }}
+            over "button"
+            {{
+                color3f[] primvars:displayColor = [(1, 0.48, 0.04)]
+                uniform token primvars:displayColor:interpolation = "constant"
+            }}
+        }}
+        def DomeLight "DeterministicDomeLight"
+        {{
+            float inputs:intensity = 1000
+        }}
+    }}
+}}
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_generated_manifest_from_common(manifest):
+    generated = {
+        "usd_name": manifest["runtime_usd_name"],
+        "scene_uid": manifest["scene_uid"],
+        "runtime_object_keys": manifest["runtime_object_keys"],
+        "wrapper_prim_paths": manifest["wrapper_prim_paths"],
+        "source_to_runtime_object_key": manifest["source_to_runtime_object_key"],
+        "deterministic_lights": manifest["deterministic_lights"],
+        "articulation_part_paths": manifest["articulation_part_paths"],
+        "render_object_contracts": manifest["render_object_contracts"],
+        "drying_box_runtime_asset": manifest["drying_box_runtime_asset"],
+    }
+    if "drying_box_wrapper_composition" in manifest:
+        generated["drying_box_wrapper_composition"] = manifest[
+            "drying_box_wrapper_composition"
+        ]
+    _write_json(validate_task_package.Path(manifest["generated_manifest"]), generated)
+
+
 def _write_task_files(task_root):
     for profile in ("franka_poc", "lift2_candidate"):
         profile_root = task_root / "ebench/labutopia_lab_poc" / profile
@@ -345,6 +426,55 @@ def Xform "World"
         validate_task_package._validate_assets_manifest()
 
 
+def test_assets_manifest_rejects_missing_stage3_wrapper_composition_report(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    overlay_root = tmp_path / "overlay/assets"
+    runtime_scene = overlay_root / f"{validate_task_package.RUNTIME_USD_NAME}.usda"
+    _write_stage3_wrapper_scene(runtime_scene)
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["overlay_root"] = str(overlay_root)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    manifest.pop("drying_box_wrapper_composition", None)
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="drying_box_wrapper_composition"):
+        validate_task_package._validate_assets_manifest()
+
+
+def test_assets_manifest_rejects_stale_world_looks_material_binding(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    overlay_root = tmp_path / "overlay/assets"
+    runtime_scene = overlay_root / f"{validate_task_package.RUNTIME_USD_NAME}.usda"
+    _write_stage3_wrapper_scene(runtime_scene, material_binding_target="/World/Looks/mdl_0007")
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["overlay_root"] = str(overlay_root)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="stale /World/Looks material binding"):
+        validate_task_package._validate_assets_manifest()
+
+
 def test_labutopia_tasks_define_runtime_articulation_contract():
     for path in validate_task_package._indexed_task_yaml_paths():
         data = validate_task_package._load_yaml(path)
@@ -377,20 +507,47 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert manifest["articulation_part_paths"] == {
         "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
     }
-    assert manifest["drying_box_runtime_asset"] == {
-        "strategy": "native_complex_with_additive_physics_override",
-        "source_payload_used": True,
-        "source_prim_path": "/World/DryingBox_01",
-        "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
-        "handle_policy": "nested_native_handle",
-        "surrogate_kept_for_debug_baseline": True,
-        "unit_policy": "preserve_native_unit_scale_0_001",
-        "fixed_base_policy": "world_fixed_joint_body0_removed",
-        "door_joint_name": "RevoluteJoint",
-        "door_reset_target": [0.0],
-        "button_prismatic_joint_policy": "ignored_by_open_door_metric",
-        "button_joint_name": "PrismaticJoint",
+    assert (
+        manifest["drying_box_runtime_asset"]
+        == validate_task_package.EXPECTED_DRYING_BOX_RUNTIME_ASSET
+    )
+    report = manifest["drying_box_wrapper_composition"]
+    assert report["schema_version"] == 1
+    assert report["material_scope_policy"] == "preserve_owned_world_looks"
+    assert (
+        report["material_policy"]
+        == "owned_world_looks_payload_with_wrapper_local_rebind"
+    )
+    assert report["material_status"] == "mixed_native_and_fallback"
+    assert report["source_binding_record_count"] == 32
+    assert report["runtime_rebind_count"] == 32
+    assert report["stale_source_binding_count"] == 0
+    assert report["unresolved_binding_target_count"] == 0
+    assert set(report["owned_material_paths"]) == (
+        validate_task_package.EXPECTED_DRYING_BOX_MATERIAL_PATHS
+    )
+    material_dependencies = {
+        item["material_name"]: item
+        for item in report["material_dependency_report"]
     }
+    assert material_dependencies["mdl_0007"]["helper_mdl_imports"]
+    assert material_dependencies["mdl_0008"]["helper_mdl_imports"]
+    assert material_dependencies["mdl_0009"]["helper_mdl_imports"]
+    assert material_dependencies["mdl_0008"]["texture_paths"] == [
+        "SubUSDs/textures/image4.jpg"
+    ]
+    assert material_dependencies["mdl_0009"]["texture_paths"] == [
+        "SubUSDs/textures/image1.JPG"
+    ]
+    assert material_dependencies["mdl_0008"]["texture_hashes"][
+        "SubUSDs/textures/image4.jpg"
+    ]
+    assert material_dependencies["mdl_0009"]["texture_hashes"][
+        "SubUSDs/textures/image1.JPG"
+    ]
+    assert material_dependencies["Aluminum_Anodized_Charcoal"][
+        "dependency_location_status"
+    ] == "external_remote_mdl_dependency"
 
     runtime_scene = (
         validate_task_package.Path(manifest["overlay_root"])
@@ -401,6 +558,9 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert "prepend payload = @scene.usd@</World/DryingBox_01>" in scene_text
     assert "double3 xformOp:scale = (0.001, 0.001, 0.001)" in scene_text
     assert "delete rel physics:body0" in scene_text
+    assert "prepend payload = @scene.usd@</World/Looks>" in scene_text
+    assert "rel material:binding = </World/Looks/" not in scene_text
+    assert "primvars:displayColor" in scene_text
     assert 'def Cube "body_link"' not in scene_text
     assert 'def Cube "door_link"' not in scene_text
     assert 'def Cube "handle"' not in scene_text
@@ -618,6 +778,217 @@ def test_drying_box_articulation_physics_is_sanitized_for_runtime():
     assert report["zero_inertia_links"] == []
     assert report["missing_inertia_links"] == []
     assert report["sanitized_for_physx"] is True
+
+
+def test_drying_box_material_bindings_resolve_inside_wrapper():
+    manifest_path = (
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = validate_task_package._load_json(manifest_path)
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+
+    report = validate_task_package._inspect_drying_box_wrapper_materials(
+        runtime_scene,
+        manifest["drying_box_wrapper_composition"],
+    )
+
+    assert report["stage_opened"] is True
+    assert report["bound_material_count"] == 32
+    assert report["unresolved_binding_target_count"] == 0
+    assert report["stale_source_binding_paths"] == []
+    assert report["expected_mismatch_paths"] == []
+    assert report["authored_world_looks_binding_paths"] == []
+    assert report["unexpected_unbound_mesh_paths"] == []
+    assert report["unbound_fallback_paths"] == sorted(
+        validate_task_package.EXPECTED_DRYING_BOX_FALLBACK_PATHS
+    )
+    assert report["invalid_fallback_display_color_paths"] == []
+    assert report["material_status"] == "mixed_native_and_fallback"
+
+
+def test_drying_box_material_readback_reports_runtime_rebind_map_drift():
+    manifest_path = (
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = validate_task_package._load_json(manifest_path)
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+    wrapper_report = copy.deepcopy(manifest["drying_box_wrapper_composition"])
+    record = wrapper_report["source_binding_records"][0]
+    wrapper_report["runtime_rebind_map"][record["source_prim_path"]][
+        "runtime_binding_target"
+    ] = f"{wrapper_report['runtime_material_scope']}/mdl_0008"
+
+    report = validate_task_package._inspect_drying_box_wrapper_materials(
+        runtime_scene,
+        wrapper_report,
+    )
+
+    assert report["runtime_rebind_map_mismatch_paths"] == [
+        {
+            "source_prim_path": record["source_prim_path"],
+            "runtime_prim_path": record["runtime_prim_path"],
+            "expected": f"{wrapper_report['runtime_material_scope']}/mdl_0008",
+            "actual": record["runtime_binding_target"],
+        }
+    ]
+
+
+def test_drying_box_material_readback_does_not_whitelist_fallback_descendants(
+    tmp_path,
+):
+    root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    runtime_scene = tmp_path / "scene.usda"
+    runtime_scene.write_text(
+        f"""#usda 1.0
+def Xform "World"
+{{
+    def Xform "labutopia_level1_poc"
+    {{
+        def Xform "obj_obj_DryingBox_01"
+        {{
+            def Xform "panel"
+            {{
+                color3f[] primvars:displayColor = [(0.88, 0.92, 0.96)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                def Mesh "mesh"
+                {{
+                }}
+            }}
+        }}
+    }}
+}}
+""",
+        encoding="utf-8",
+    )
+
+    report = validate_task_package._inspect_drying_box_wrapper_materials(
+        runtime_scene,
+        {
+            "wrapper_prim_path": root_path,
+            "source_binding_records": [],
+            "fallback_display_color_policy": {
+                "fallback_records": [
+                    {
+                        "runtime_prim_path": f"{root_path}/panel",
+                        "display_color": [0.88, 0.92, 0.96],
+                    }
+                ]
+            },
+            "runtime_rebind_map": {},
+        },
+    )
+
+    assert report["unexpected_unbound_mesh_paths"] == [f"{root_path}/panel/mesh"]
+
+
+def test_drying_box_material_readback_reports_unresolved_authored_bindings(
+    tmp_path,
+):
+    root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    runtime_scene = tmp_path / "scene.usda"
+    runtime_scene.write_text(
+        f"""#usda 1.0
+def Xform "World"
+{{
+    def Xform "labutopia_level1_poc"
+    {{
+        def Xform "obj_obj_DryingBox_01"
+        {{
+            def Mesh "extra_mesh" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {{
+                rel material:binding = <{root_path}/Looks/Missing>
+            }}
+        }}
+    }}
+}}
+""",
+        encoding="utf-8",
+    )
+
+    report = validate_task_package._inspect_drying_box_wrapper_materials(
+        runtime_scene,
+        {
+            "wrapper_prim_path": root_path,
+            "source_binding_records": [],
+            "fallback_display_color_policy": {"fallback_records": []},
+            "runtime_rebind_map": {},
+        },
+    )
+
+    assert report["unresolved_authored_binding_paths"] == [
+        {
+            "prim_path": f"{root_path}/extra_mesh",
+            "relationship": "material:binding",
+            "targets": [f"{root_path}/Looks/Missing"],
+        }
+    ]
+
+
+def test_validate_task_package_rejects_material_binding_target_mismatch(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    _write_json(
+        common_root / "assets_manifest.json",
+        {
+            "overlay_root": str(tmp_path / "overlay/assets"),
+            "runtime_usd_name": validate_task_package.RUNTIME_USD_NAME,
+            "drying_box_wrapper_composition": {"schema_version": 1},
+        },
+    )
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+    monkeypatch.setattr(validate_task_package, "_validate_assets_manifest", lambda: None)
+    monkeypatch.setattr(
+        validate_task_package,
+        "_inspect_drying_box_articulation_physics",
+        lambda _runtime_scene: {
+            "sanitized_for_physx": True,
+            "runtime_topology_ready": True,
+        },
+    )
+    monkeypatch.setattr(
+        validate_task_package,
+        "_inspect_drying_box_wrapper_materials",
+        lambda _runtime_scene, _wrapper_report: {
+            "bound_material_count": validate_task_package.EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+            "unresolved_binding_target_count": 0,
+            "stale_source_binding_paths": [],
+            "expected_mismatch_paths": [
+                {
+                    "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle/mesh",
+                    "expected": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
+                    "actual": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
+                }
+            ],
+            "missing_fallback_display_color_paths": [],
+            "unbound_fallback_paths": sorted(
+                validate_task_package.EXPECTED_DRYING_BOX_FALLBACK_PATHS
+            ),
+            "material_status": "mixed_native_and_fallback",
+        },
+    )
+    monkeypatch.setattr(validate_task_package, "_validate_task_semantics", lambda: None)
+    monkeypatch.setattr(validate_task_package, "_validate_camera_configs", lambda: None)
+    monkeypatch.setattr(validate_task_package, "_indexed_task_yaml_paths", lambda: [])
+    monkeypatch.setattr(
+        validate_task_package,
+        "_validate_metrics_manager_lazy_registration",
+        lambda: None,
+    )
+
+    with pytest.raises(AssertionError, match="material binding targets mismatch"):
+        validate_task_package.validate_task_package()
 
 
 def test_drying_box_topology_requires_native_button_prismatic_joint(tmp_path):

@@ -9,6 +9,52 @@ import standalone_tools.labutopia_poc.build_asset_overlay as build_overlay
 from standalone_tools.labutopia_poc.build_asset_overlay import build_asset_overlay
 
 
+def _write_native_material_fixture(source_dir):
+    materials_dir = source_dir / "SubUSDs" / "materials"
+    textures_dir = source_dir / "SubUSDs" / "textures"
+    materials_dir.mkdir(parents=True)
+    textures_dir.mkdir(parents=True)
+    helper_bytes = {
+        "ad_3dsmax_materials.mdl": b"mdl 1.6;\n",
+        "ad_3dsmax_maps.mdl": b"mdl 1.6;\n",
+        "vray_materials.mdl": b"mdl 1.6;\n",
+        "vray_maps.mdl": b"mdl 1.6;\n",
+    }
+    helper_hashes = {}
+    for helper_name, helper_content in helper_bytes.items():
+        (materials_dir / helper_name).write_bytes(helper_content)
+        helper_hashes[helper_name] = hashlib.sha256(helper_content).hexdigest()
+    texture_bytes = {
+        "image4.jpg": b"fixture texture 4",
+        "image1.JPG": b"fixture texture 1",
+    }
+    texture_hashes = {}
+    for texture_name, texture_content in texture_bytes.items():
+        (textures_dir / texture_name).write_bytes(texture_content)
+        texture_hashes[texture_name] = hashlib.sha256(texture_content).hexdigest()
+    shared_imports = """mdl 1.6;
+import ad_3dsmax_materials::*;
+import ad_3dsmax_maps::*;
+import vray_materials::*;
+import vray_maps::*;
+"""
+    (materials_dir / "material_11.mdl").write_text(
+        shared_imports + "export material mdl_0007() = material();\n",
+        encoding="utf-8",
+    )
+    (materials_dir / "material_08.mdl").write_text(
+        shared_imports
+        + 'export material mdl_0008() = material(surface: material_surface(scattering: df::diffuse_reflection_bsdf(tint: texture_2d("../textures/image4.jpg", ::tex::gamma_srgb))));\n',
+        encoding="utf-8",
+    )
+    (materials_dir / "material_09.mdl").write_text(
+        shared_imports
+        + 'export material mdl_0009() = material(surface: material_surface(scattering: df::diffuse_reflection_bsdf(tint: texture_2d("../textures/image1.JPG", ::tex::gamma_srgb))));\n',
+        encoding="utf-8",
+    )
+    return helper_bytes, helper_hashes, texture_hashes
+
+
 def test_build_asset_overlay_writes_scene_wrapper_manifest_and_cleans_reruns(
     tmp_path,
 ):
@@ -312,6 +358,9 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
     source_dir.mkdir(parents=True)
     (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+    helper_bytes, helper_hashes, texture_hashes = _write_native_material_fixture(
+        source_dir
+    )
 
     overlay_root = tmp_path / "overlay" / "assets"
     build_asset_overlay(
@@ -354,7 +403,9 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
         "rel material:binding = "
         "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal>"
     ) in drying_box_block
-    assert "primvars:displayColor" not in drying_box_block
+    assert "rel material:binding = </World/Looks/" not in drying_box_block
+    assert "primvars:displayColor" in drying_box_block
+    assert 'over "_900_1"' in drying_box_block
     assert "float physics:mass = 2" in drying_box_block
     assert "float physics:mass = 0.5" in drying_box_block
     assert "float physics:mass = 0.1" in drying_box_block
@@ -363,11 +414,143 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     drying_box_runtime_asset = manifest["drying_box_runtime_asset"]
-    assert drying_box_runtime_asset["material_policy"] == "preserve_native_materials"
+    assert drying_box_runtime_asset["material_policy"] == (
+        "owned_world_looks_payload_with_wrapper_local_rebind"
+    )
     assert (
         drying_box_runtime_asset["material_scope_policy"]
-        == "payload_source_world_looks_under_drying_box_wrapper_with_rebound_bindings"
+        == "preserve_owned_world_looks"
     )
+    assert drying_box_runtime_asset["material_status"] == "mixed_native_and_fallback"
+
+    root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    report = manifest["drying_box_wrapper_composition"]
+    assert report["schema_version"] == 1
+    assert report["wrapper_prim_path"] == root_path
+    assert report["source_prim_path"] == "/World/DryingBox_01"
+    assert report["material_scope_policy"] == "preserve_owned_world_looks"
+    assert report["material_policy"] == (
+        "owned_world_looks_payload_with_wrapper_local_rebind"
+    )
+    assert report["material_status"] == "mixed_native_and_fallback"
+    assert report["source_material_scope"] == "/World/Looks"
+    assert report["runtime_material_scope"] == f"{root_path}/Looks"
+    assert report["material_scope_ownership"] == (
+        "source_world_looks_payloaded_under_wrapper"
+    )
+    assert report["source_binding_record_count"] == len(
+        build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS
+    )
+    assert report["runtime_rebind_count"] == len(
+        build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS
+    )
+    assert report["stale_source_binding_count"] == 0
+    assert report["unresolved_binding_target_count"] == 0
+    assert report["compute_bound_material_summary"] == {
+        "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
+        "bound_material_count": len(build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS),
+        "unbound_fallback_count": 3,
+        "status": "mixed_native_and_fallback",
+    }
+    expected_material_paths = {
+        f"{root_path}/Looks/{material_name}"
+        for material_name in set(build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS.values())
+    }
+    assert set(report["owned_material_paths"]) == expected_material_paths
+    assert {
+        record["runtime_binding_target"]
+        for record in report["source_binding_records"]
+    } == expected_material_paths
+    assert all(
+        record["source_binding_target"].startswith("/World/Looks/")
+        for record in report["source_binding_records"]
+    )
+    assert all(
+        record["runtime_binding_target"].startswith(f"{root_path}/Looks/")
+        for record in report["source_binding_records"]
+    )
+    fallback_policy = report["fallback_display_color_policy"]
+    assert fallback_policy["material_status"] == "mixed_native_and_fallback"
+    assert fallback_policy["policy"] == "stage3_task_visible_readability_overlay"
+    assert {
+        record["runtime_prim_path"]
+        for record in fallback_policy["fallback_records"]
+    } == {
+        f"{root_path}/button",
+        f"{root_path}/Group/_900_1",
+        f"{root_path}/panel",
+    }
+    assert report["payload_dependency_report"] == {
+        "native_payload": "scene.usd</World/DryingBox_01>",
+        "owned_material_scope_payload": "scene.usd</World/Looks>",
+    }
+    assert report["wrapper_transform_report"] == {
+        "source_scale": [0.001, 0.001, 0.001],
+        "axis_policy": "preserve_source_up_axis_and_axes",
+        "workspace_translation": [0.75, 0.1, 0.78],
+    }
+    assert report["camera_light_prerequisites"] == {
+        "task_yaml_camera_names": ["camera1", "camera2"],
+        "primary_evidence_camera": "camera2",
+        "deterministic_light_prims": [
+            "/World/labutopia_level1_poc/DeterministicDomeLight"
+        ],
+    }
+    assert report["worker_mdl_system_path"] == (
+        "/isaac-sim/materials/:"
+        "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:"
+        "{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+    )
+
+    material_dependencies = {
+        item["material_name"]: item
+        for item in report["material_dependency_report"]
+    }
+    assert material_dependencies["mdl_0007"]["helper_mdl_imports"] == [
+        {
+            "module": "ad_3dsmax_materials",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_materials.mdl",
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "sha256": helper_hashes["ad_3dsmax_materials.mdl"],
+            "bytes": len(helper_bytes["ad_3dsmax_materials.mdl"]),
+        },
+        {
+            "module": "ad_3dsmax_maps",
+            "relative_path": "SubUSDs/materials/ad_3dsmax_maps.mdl",
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "sha256": helper_hashes["ad_3dsmax_maps.mdl"],
+            "bytes": len(helper_bytes["ad_3dsmax_maps.mdl"]),
+        },
+        {
+            "module": "vray_materials",
+            "relative_path": "SubUSDs/materials/vray_materials.mdl",
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "sha256": helper_hashes["vray_materials.mdl"],
+            "bytes": len(helper_bytes["vray_materials.mdl"]),
+        },
+        {
+            "module": "vray_maps",
+            "relative_path": "SubUSDs/materials/vray_maps.mdl",
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "sha256": helper_hashes["vray_maps.mdl"],
+            "bytes": len(helper_bytes["vray_maps.mdl"]),
+        },
+    ]
+    assert material_dependencies["mdl_0008"]["texture_paths"] == [
+        "SubUSDs/textures/image4.jpg"
+    ]
+    assert material_dependencies["mdl_0008"]["texture_hashes"] == {
+        "SubUSDs/textures/image4.jpg": texture_hashes["image4.jpg"]
+    }
+    assert material_dependencies["mdl_0009"]["texture_paths"] == [
+        "SubUSDs/textures/image1.JPG"
+    ]
+    assert material_dependencies["mdl_0009"]["texture_hashes"] == {
+        "SubUSDs/textures/image1.JPG": texture_hashes["image1.JPG"]
+    }
+    assert material_dependencies["Aluminum_Anodized_Charcoal"][
+        "dependency_location_status"
+    ] == "external_remote_mdl_dependency"
 
 
 def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):

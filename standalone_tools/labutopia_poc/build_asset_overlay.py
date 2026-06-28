@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -17,6 +18,11 @@ DEFAULT_OVERLAY_ROOT = Path(
 SOURCE_SCENE_RELATIVE = Path("assets/chemistry_lab/lab_001/lab_001.usd")
 SOURCE_DIR_RELATIVE = SOURCE_SCENE_RELATIVE.parent
 SOURCE_WORLD_LOOKS_PATH = "/World/Looks"
+REQUIRED_WORKER_MDL_SYSTEM_PATH = (
+    "/isaac-sim/materials/:"
+    "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:"
+    "{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+)
 OVERLAY_SCENE_RELATIVE = Path("scene_usds/labutopia/level1_poc/lab_001")
 USD_NAME = "scene_usds/labutopia/level1_poc/lab_001/scene"
 MANIFEST_RELATIVE = Path("manifests/labutopia_level1_poc.json")
@@ -212,6 +218,43 @@ DRYING_BOX_NATIVE_MATERIAL_BINDINGS = {
     "panel/mesh_01": "mdl_0008",
     "panel/mesh_02": "Aluminum_Anodized_Charcoal",
 }
+DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY = "preserve_owned_world_looks"
+DRYING_BOX_NATIVE_MATERIAL_POLICY = (
+    "owned_world_looks_payload_with_wrapper_local_rebind"
+)
+DRYING_BOX_NATIVE_MATERIAL_STATUS = "mixed_native_and_fallback"
+DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES = {
+    "button": {
+        "display_color": [1.0, 0.48, 0.04],
+        "source_binding_status": "unbound_in_stage2_source_readback",
+    },
+    "Group/_900_1": {
+        "display_color": [0.10, 0.36, 0.95],
+        "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+    },
+    "panel": {
+        "display_color": [0.88, 0.92, 0.96],
+        "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+    },
+}
+DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS = {
+    "mdl_0007": {
+        "mdl_source_asset": "./SubUSDs/materials/material_11.mdl",
+        "mdl_subidentifier": "mdl_0007",
+    },
+    "mdl_0008": {
+        "mdl_source_asset": "./SubUSDs/materials/material_08.mdl",
+        "mdl_subidentifier": "mdl_0008",
+    },
+    "mdl_0009": {
+        "mdl_source_asset": "./SubUSDs/materials/material_09.mdl",
+        "mdl_subidentifier": "mdl_0009",
+    },
+    "Aluminum_Anodized_Charcoal": {
+        "mdl_source_asset": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl",
+        "mdl_subidentifier": "Aluminum_Anodized_Charcoal",
+    },
+}
 DRYING_BOX_STRATEGY_SURROGATE = "sanitized_surrogate"
 DRYING_BOX_STRATEGY_NATIVE_COMPLEX = "native_complex"
 DRYING_BOX_STRATEGY_CHOICES = (
@@ -236,8 +279,9 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "surrogate_kept_for_debug_baseline": True,
     "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
-    "material_policy": "preserve_native_materials",
-    "material_scope_policy": "payload_source_world_looks_under_drying_box_wrapper_with_rebound_bindings",
+    "material_policy": DRYING_BOX_NATIVE_MATERIAL_POLICY,
+    "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
+    "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -577,6 +621,15 @@ def _wrapper_body(
                     override_path,
                     f"{root_path}/Looks/{material_name}",
                 )
+            for (
+                override_path,
+                fallback,
+            ) in DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES.items():
+                _add_display_override(
+                    override_tree,
+                    override_path,
+                    fallback["display_color"],  # type: ignore[arg-type]
+                )
         handle_contract = RENDER_OBJECT_CONTRACTS["obj_DryingBox_01_handle"]
         if not preserve_native_materials:
             for override_path in handle_contract["display_override_paths"]:
@@ -793,6 +846,314 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _source_relative_path(source_dir: Path, path: Path) -> str:
+    try:
+        return path.relative_to(source_dir).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _file_dependency_record(
+    *,
+    source_dir: Path,
+    path: Path,
+    relative_path: str,
+    module: str | None = None,
+) -> dict[str, object]:
+    record: dict[str, object] = {
+        "relative_path": relative_path,
+        "dependency_location_status": "missing_in_current_source_fixture",
+        "sha256": None,
+        "bytes": None,
+    }
+    if module is not None:
+        record["module"] = module
+    if path.exists():
+        record["dependency_location_status"] = "local_file_copied_with_source_scene"
+        record["sha256"] = _sha256(path)
+        record["bytes"] = path.stat().st_size
+    return record
+
+
+def _read_text_if_exists(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8-sig", errors="replace")
+
+
+def _local_mdl_import_modules(text: str) -> list[str]:
+    modules = []
+    seen = set()
+    for match in re.finditer(r"^\s*import\s+([A-Za-z_][A-Za-z0-9_]*)::\*;", text, re.M):
+        module = match.group(1)
+        if module in seen:
+            continue
+        seen.add(module)
+        modules.append(module)
+    return modules
+
+
+def _texture_asset_paths(text: str) -> list[str]:
+    return sorted(
+        set(
+            match.group(1)
+            for match in re.finditer(r'texture_2d\(\s*"([^"]+)"', text)
+        )
+    )
+
+
+def _recursive_helper_mdl_imports(
+    *,
+    source_dir: Path,
+    material_path: Path,
+) -> list[dict[str, object]]:
+    material_dir = material_path.parent
+    pending = _local_mdl_import_modules(_read_text_if_exists(material_path))
+    seen: set[str] = set()
+    records: list[dict[str, object]] = []
+    while pending:
+        module = pending.pop(0)
+        if module in seen:
+            continue
+        seen.add(module)
+        helper_path = material_dir / f"{module}.mdl"
+        relative_path = _source_relative_path(source_dir, helper_path)
+        records.append(
+            _file_dependency_record(
+                source_dir=source_dir,
+                path=helper_path,
+                relative_path=relative_path,
+                module=module,
+            )
+        )
+        helper_text = _read_text_if_exists(helper_path)
+        for child_module in _local_mdl_import_modules(helper_text):
+            if child_module not in seen:
+                pending.append(child_module)
+    return records
+
+
+def _recursive_texture_dependencies(
+    *,
+    source_dir: Path,
+    material_path: Path,
+    helper_imports: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    paths_to_scan = [material_path]
+    for helper in helper_imports:
+        relative_path = helper["relative_path"]
+        if isinstance(relative_path, str):
+            paths_to_scan.append(source_dir / relative_path)
+    texture_records: dict[str, dict[str, object]] = {}
+    for mdl_path in paths_to_scan:
+        text = _read_text_if_exists(mdl_path)
+        for texture_path in _texture_asset_paths(text):
+            resolved_path = (mdl_path.parent / texture_path).resolve()
+            relative_path = _source_relative_path(source_dir, resolved_path)
+            texture_records[relative_path] = _file_dependency_record(
+                source_dir=source_dir,
+                path=resolved_path,
+                relative_path=relative_path,
+            )
+    return [texture_records[key] for key in sorted(texture_records)]
+
+
+def _drying_box_root_path() -> str:
+    return f"/World/{SCENE_UID}/obj_obj_DryingBox_01"
+
+
+def _drying_box_material_dependency_report(
+    labutopia_root: Path,
+) -> list[dict[str, object]]:
+    source_dir = labutopia_root / SOURCE_DIR_RELATIVE
+    root_path = _drying_box_root_path()
+    records = []
+    for material_name, metadata in sorted(
+        DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS.items()
+    ):
+        mdl_source_asset = str(metadata["mdl_source_asset"])
+        is_remote = mdl_source_asset.startswith(("http://", "https://"))
+        local_path = None if is_remote else source_dir / mdl_source_asset
+        local_status = "external_remote_mdl_dependency"
+        sha256 = None
+        bytes_count = None
+        helper_imports: list[dict[str, object]] = []
+        texture_records: list[dict[str, object]] = []
+        if local_path is not None:
+            if local_path.exists():
+                local_status = "local_file_copied_with_source_scene"
+                sha256 = _sha256(local_path)
+                bytes_count = local_path.stat().st_size
+                helper_imports = _recursive_helper_mdl_imports(
+                    source_dir=source_dir,
+                    material_path=local_path,
+                )
+                texture_records = _recursive_texture_dependencies(
+                    source_dir=source_dir,
+                    material_path=local_path,
+                    helper_imports=helper_imports,
+                )
+            else:
+                local_status = "missing_in_current_source_fixture"
+        runtime_material_path = f"{root_path}/Looks/{material_name}"
+        texture_paths = [
+            str(record["relative_path"]) for record in texture_records
+        ]
+        records.append(
+            {
+                "material_name": material_name,
+                "source_material_path": f"{SOURCE_WORLD_LOOKS_PATH}/{material_name}",
+                "runtime_material_path": runtime_material_path,
+                "shader_paths": [f"{runtime_material_path}/Shader"],
+                "outputs_mdl_connections": [
+                    "outputs:mdl:surface",
+                    "outputs:mdl:displacement",
+                    "outputs:mdl:volume",
+                ],
+                "shader_inputs_policy": "preserved_via_owned_material_scope_payload",
+                "internal_connection_targets_policy": (
+                    "preserved_via_owned_material_scope_payload"
+                ),
+                "mdl_source_asset": mdl_source_asset,
+                "mdl_subidentifier": metadata["mdl_subidentifier"],
+                "helper_mdl_imports": helper_imports,
+                "texture_paths": texture_paths,
+                "texture_hashes": {
+                    str(record["relative_path"]): record["sha256"]
+                    for record in texture_records
+                },
+                "texture_dependency_records": texture_records,
+                "dependency_location_status": local_status,
+                "local_path": str(local_path) if local_path is not None else None,
+                "sha256": sha256,
+                "bytes": bytes_count,
+                "offline_material_closure_status": (
+                    "open_remote_dependency"
+                    if is_remote
+                    else local_status
+                ),
+            }
+        )
+    return records
+
+
+def _drying_box_source_binding_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    records = []
+    for relative_path, material_name in sorted(
+        DRYING_BOX_NATIVE_MATERIAL_BINDINGS.items()
+    ):
+        source_binding_target = f"{SOURCE_WORLD_LOOKS_PATH}/{material_name}"
+        runtime_binding_target = f"{root_path}/Looks/{material_name}"
+        records.append(
+            {
+                "source_prim_path": f"/World/DryingBox_01/{relative_path}",
+                "runtime_prim_path": f"{root_path}/{relative_path}",
+                "source_binding_target": source_binding_target,
+                "runtime_binding_target": runtime_binding_target,
+                "binding_kind": "direct_or_inherited_native_material_binding",
+                "rebind_status": "runtime_target_inside_drying_box_wrapper",
+            }
+        )
+    return records
+
+
+def _drying_box_fallback_display_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    records = []
+    for relative_path, fallback in sorted(
+        DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES.items()
+    ):
+        records.append(
+            {
+                "source_prim_path": f"/World/DryingBox_01/{relative_path}",
+                "runtime_prim_path": f"{root_path}/{relative_path}",
+                "source_binding_status": fallback["source_binding_status"],
+                "display_color": fallback["display_color"],
+            }
+        )
+    return records
+
+
+def _drying_box_wrapper_composition_report(
+    labutopia_root: Path,
+) -> dict[str, object]:
+    root_path = _drying_box_root_path()
+    binding_records = _drying_box_source_binding_records()
+    material_names = sorted(set(DRYING_BOX_NATIVE_MATERIAL_BINDINGS.values()))
+    fallback_records = _drying_box_fallback_display_records()
+    return {
+        "schema_version": 1,
+        "wrapper_prim_path": root_path,
+        "source_prim_path": "/World/DryingBox_01",
+        "source_payload_used": True,
+        "source_payload_target": "scene.usd</World/DryingBox_01>",
+        "nested_handle_path": f"{root_path}/handle",
+        "top_level_handle_payload_allowed": False,
+        "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
+        "material_policy": DRYING_BOX_NATIVE_MATERIAL_POLICY,
+        "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
+        "source_material_scope": SOURCE_WORLD_LOOKS_PATH,
+        "runtime_material_scope": f"{root_path}/Looks",
+        "material_scope_ownership": "source_world_looks_payloaded_under_wrapper",
+        "source_binding_records": binding_records,
+        "source_binding_record_count": len(binding_records),
+        "runtime_rebind_map": {
+            record["source_prim_path"]: {
+                "source_binding_target": record["source_binding_target"],
+                "runtime_binding_target": record["runtime_binding_target"],
+            }
+            for record in binding_records
+        },
+        "runtime_rebind_count": len(binding_records),
+        "stale_source_binding_count": 0,
+        "stale_source_binding_targets": [],
+        "unresolved_binding_target_count": 0,
+        "unresolved_binding_targets": [],
+        "compute_bound_material_summary": {
+            "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
+            "bound_material_count": len(binding_records),
+            "unbound_fallback_count": len(fallback_records),
+            "status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
+        },
+        "owned_material_paths": [
+            f"{root_path}/Looks/{material_name}" for material_name in material_names
+        ],
+        "material_dependency_report": _drying_box_material_dependency_report(
+            labutopia_root
+        ),
+        "worker_mdl_system_path": REQUIRED_WORKER_MDL_SYSTEM_PATH,
+        "fallback_display_color_policy": {
+            "policy": "stage3_task_visible_readability_overlay",
+            "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
+            "fallback_records": fallback_records,
+        },
+        "binding_record_coverage": {
+            "direct_and_inherited_xform_bindings": "source_binding_records",
+            "collection_bindings": [],
+            "geomsubset_bindings": [],
+        },
+        "payload_dependency_report": {
+            "native_payload": "scene.usd</World/DryingBox_01>",
+            "owned_material_scope_payload": "scene.usd</World/Looks>",
+        },
+        "wrapper_transform_report": {
+            "source_scale": [0.001, 0.001, 0.001],
+            "axis_policy": "preserve_source_up_axis_and_axes",
+            "workspace_translation": RUNTIME_TRANSLATION_OVERRIDES[
+                "obj_DryingBox_01"
+            ],
+        },
+        "camera_light_prerequisites": {
+            "task_yaml_camera_names": ["camera1", "camera2"],
+            "primary_evidence_camera": "camera2",
+            "deterministic_light_prims": [
+                light["prim_path"] for light in DETERMINISTIC_LIGHTS
+            ],
+        },
+    }
+
+
 def _write_scene_wrapper(path: Path, *, drying_box_strategy: str) -> None:
     drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     wrapper_defs = []
@@ -921,6 +1282,10 @@ def build_asset_overlay(
         "copied_files": _copied_files(overlay_root, copied_paths),
         "notes": _manifest_notes(drying_box_strategy),
     }
+    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+        manifest["drying_box_wrapper_composition"] = (
+            _drying_box_wrapper_composition_report(labutopia_root)
+        )
 
     manifest_path = overlay_root / MANIFEST_RELATIVE
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
