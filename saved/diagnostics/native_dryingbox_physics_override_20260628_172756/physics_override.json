@@ -1,0 +1,261 @@
+{
+  "active_rigid_bodies": [
+    {
+      "center_of_mass": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "diagonal_inertia": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "mass": 0.5,
+      "principal_axes": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh",
+      "source_relative_path": "body/Group/door/mesh"
+    },
+    {
+      "center_of_mass": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "diagonal_inertia": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "mass": 2.0,
+      "principal_axes": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh",
+      "source_relative_path": "body/body/mesh"
+    },
+    {
+      "center_of_mass": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "diagonal_inertia": [
+        0.001,
+        0.001,
+        0.001
+      ],
+      "mass": 0.05,
+      "principal_axes": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+      "source_relative_path": "button"
+    },
+    {
+      "center_of_mass": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "diagonal_inertia": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "mass": 0.1,
+      "principal_axes": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle/mesh",
+      "source_relative_path": "handle/mesh"
+    }
+  ],
+  "additive_override_policy": "wrapper_scene_authors_only_additive_opinions",
+  "collision_override_summary": {
+    "collision_api_changes": [],
+    "root_scale_assumption": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "scale_compensation_policy": "preserve_native_collision_shapes_under_recorded_root_scale"
+  },
+  "dof_map": {
+    "button_prismatic_joint": {
+      "joint_name": "PrismaticJoint",
+      "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button/PrismaticJoint",
+      "joint_type": "PhysicsPrismaticJoint"
+    },
+    "door_revolute_joint": {
+      "joint_name": "RevoluteJoint",
+      "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint",
+      "joint_type": "PhysicsRevoluteJoint"
+    },
+    "ignored_dofs": [
+      {
+        "joint_name": "PrismaticJoint",
+        "joint_type": "PhysicsPrismaticJoint",
+        "policy": "ignored_by_open_door_metric"
+      }
+    ],
+    "metric_dof": {
+      "joint_name": "RevoluteJoint",
+      "joint_type": "PhysicsRevoluteJoint",
+      "metric": "open_door_angle_deg"
+    }
+  },
+  "drive_parameters": {
+    "RevoluteJoint": {
+      "authored": false,
+      "damping": null,
+      "max_force": null,
+      "policy": "metric_readback_joint; runtime drive may be configured by eval harness",
+      "stiffness": null,
+      "target_position_deg": 0.0,
+      "units": {
+        "damping": "stage_authored_or_runtime_default",
+        "max_force": "stage_authored_or_runtime_default",
+        "stiffness": "stage_authored_or_runtime_default",
+        "target_position": "degrees"
+      }
+    }
+  },
+  "generated_wrapper_stage_path": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda",
+  "joint_body_targets": [
+    {
+      "after": {
+        "physics:body0": null,
+        "physics:body1": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh"
+      },
+      "before": {
+        "physics:body0": "/World/DryingBox_01/Group_02/group/mesh",
+        "physics:body1": "/World/DryingBox_01/body/body/mesh"
+      },
+      "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/FixedJoint_01",
+      "joint_type": "PhysicsFixedJoint",
+      "override_policy": "delete_world_fixed_body0_target"
+    },
+    {
+      "after": {
+        "physics:body0": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh",
+        "physics:body1": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh"
+      },
+      "before": {
+        "physics:body0": "/World/DryingBox_01/body/body/mesh",
+        "physics:body1": "/World/DryingBox_01/body/Group/door/mesh"
+      },
+      "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint",
+      "joint_type": "PhysicsRevoluteJoint",
+      "override_policy": "preserve_native_door_joint_targets"
+    },
+    {
+      "after": {
+        "physics:body0": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh",
+        "physics:body1": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+      },
+      "before": {
+        "physics:body0": "/World/DryingBox_01/body/body/mesh",
+        "physics:body1": "/World/DryingBox_01/button"
+      },
+      "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button/PrismaticJoint",
+      "joint_type": "PhysicsPrismaticJoint",
+      "override_policy": "preserve_native_button_joint_but_ignore_for_metric"
+    }
+  ],
+  "material_closure_kept_open": true,
+  "material_validator_summary": {
+    "fallback_surface_count": 3,
+    "native_material_closure_open": true,
+    "remote_aluminum_disposition": "explicit_waiver",
+    "remote_only_dependency_count": 1,
+    "unresolved_binding_target_count": 0,
+    "waiver_count": 1
+  },
+  "override_layer_path": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda",
+  "packaged_physics_override_json": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/native_dryingbox_physics_override.json",
+  "physics_override_json": "saved/diagnostics/native_dryingbox_physics_override_20260628_172756/physics_override.json",
+  "physx_warning_diff": {
+    "collected": false,
+    "reason": "static Stage 4 report; runtime warning diff is collected in Stage 5"
+  },
+  "remote_aluminum_disposition": "explicit_waiver",
+  "remote_aluminum_waiver": {
+    "affected_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+    "affected_task_visible_surfaces": [
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_01",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_02",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_03",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_04",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_05",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_06",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_07",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_08",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_09",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_10",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_11",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_12",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_13",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_14",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_15",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_16",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_17",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_01/mesh_18",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_01",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_04",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group_02/group_05",
+      "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel/mesh_02"
+    ],
+    "material_closure_kept_open": true,
+    "waiver_date": "2026-06-29",
+    "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+    "waiver_owner": "LabUtopia EBench POC",
+    "waiver_reason": "remote source is intentionally not mirrored in this package revision"
+  },
+  "schema_version": 1,
+  "source_prim_path": "/World/DryingBox_01",
+  "source_repo": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia",
+  "source_usd_path": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/assets/chemistry_lab/lab_001/lab_001.usd",
+  "source_usd_sha256": "26212d40a78cd28f2bc3a38b2e06f05875b3096501c7d6dd5ccbe9a6e9019983",
+  "stage": "acceptance_stage_4",
+  "static_material_dependency_gate": {
+    "local_mirror_count": 0,
+    "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
+    "remote_dependency_records": [
+      {
+        "closure_claim_allowed": false,
+        "local_mirror_bytes": null,
+        "local_mirror_path": null,
+        "local_mirror_sha256": null,
+        "material_name": "Aluminum_Anodized_Charcoal",
+        "resolution_mode": "explicit_waiver",
+        "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+        "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+        "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+        "waiver_reason": "remote source is intentionally not mirrored in this package revision",
+        "worker_resolved_path": null
+      }
+    ],
+    "remote_unmirrored_unwaived_count": 0,
+    "remote_waiver_count": 1,
+    "status": "passed"
+  },
+  "status": "passed",
+  "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+}

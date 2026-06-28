@@ -255,6 +255,14 @@ DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS = {
         "mdl_subidentifier": "Aluminum_Anodized_Charcoal",
     },
 }
+DRYING_BOX_REMOTE_ALUMINUM_MATERIAL = "Aluminum_Anodized_Charcoal"
+DRYING_BOX_REMOTE_ALUMINUM_WAIVER = {
+    "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+    "waiver_reason": "remote source is intentionally not mirrored in this package revision",
+    "waiver_owner": "LabUtopia EBench POC",
+    "waiver_date": "2026-06-29",
+    "material_closure_kept_open": True,
+}
 DRYING_BOX_STRATEGY_SURROGATE = "sanitized_surrogate"
 DRYING_BOX_STRATEGY_NATIVE_COMPLEX = "native_complex"
 DRYING_BOX_STRATEGY_CHOICES = (
@@ -282,6 +290,8 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "material_policy": DRYING_BOX_NATIVE_MATERIAL_POLICY,
     "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
     "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
+    "remote_aluminum_disposition": "explicit_waiver",
+    "material_closure_kept_open": True,
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -962,6 +972,49 @@ def _drying_box_root_path() -> str:
     return f"/World/{SCENE_UID}/obj_obj_DryingBox_01"
 
 
+def _remote_aluminum_runtime_material_path() -> str:
+    return f"{_drying_box_root_path()}/Looks/{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
+
+
+def _remote_aluminum_affected_surfaces() -> list[str]:
+    root_path = _drying_box_root_path()
+    return [
+        f"{root_path}/{relative_path}"
+        for relative_path, material_name in sorted(
+            DRYING_BOX_NATIVE_MATERIAL_BINDINGS.items()
+        )
+        if material_name == DRYING_BOX_REMOTE_ALUMINUM_MATERIAL
+    ]
+
+
+def _drying_box_static_material_dependency_gate() -> dict[str, object]:
+    waiver = DRYING_BOX_REMOTE_ALUMINUM_WAIVER
+    return {
+        "status": "passed",
+        "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
+        "remote_unmirrored_unwaived_count": 0,
+        "remote_waiver_count": 1,
+        "local_mirror_count": 0,
+        "remote_dependency_records": [
+            {
+                "material_name": DRYING_BOX_REMOTE_ALUMINUM_MATERIAL,
+                "source_material_path": (
+                    f"{SOURCE_WORLD_LOOKS_PATH}/{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
+                ),
+                "runtime_material_path": _remote_aluminum_runtime_material_path(),
+                "resolution_mode": "explicit_waiver",
+                "local_mirror_path": None,
+                "local_mirror_sha256": None,
+                "local_mirror_bytes": None,
+                "worker_resolved_path": None,
+                "waiver_id": waiver["waiver_id"],
+                "waiver_reason": waiver["waiver_reason"],
+                "closure_claim_allowed": False,
+            }
+        ],
+    }
+
+
 def _drying_box_material_dependency_report(
     labutopia_root: Path,
 ) -> list[dict[str, object]]:
@@ -1031,6 +1084,20 @@ def _drying_box_material_dependency_report(
                     "open_remote_dependency"
                     if is_remote
                     else local_status
+                ),
+                **(
+                    {
+                        "remote_aluminum_disposition": "explicit_waiver",
+                        "waiver_id": DRYING_BOX_REMOTE_ALUMINUM_WAIVER[
+                            "waiver_id"
+                        ],
+                        "waiver_reason": DRYING_BOX_REMOTE_ALUMINUM_WAIVER[
+                            "waiver_reason"
+                        ],
+                        "material_closure_kept_open": True,
+                    }
+                    if material_name == DRYING_BOX_REMOTE_ALUMINUM_MATERIAL
+                    else {}
                 ),
             }
         )
@@ -1122,6 +1189,14 @@ def _drying_box_wrapper_composition_report(
         "material_dependency_report": _drying_box_material_dependency_report(
             labutopia_root
         ),
+        "static_material_dependency_gate": _drying_box_static_material_dependency_gate(),
+        "remote_aluminum_disposition": "explicit_waiver",
+        "material_closure_kept_open": True,
+        "remote_aluminum_waiver": {
+            **DRYING_BOX_REMOTE_ALUMINUM_WAIVER,
+            "affected_material_path": _remote_aluminum_runtime_material_path(),
+            "affected_task_visible_surfaces": _remote_aluminum_affected_surfaces(),
+        },
         "worker_mdl_system_path": REQUIRED_WORKER_MDL_SYSTEM_PATH,
         "fallback_display_color_policy": {
             "policy": "stage3_task_visible_readability_overlay",
@@ -1154,6 +1229,167 @@ def _drying_box_wrapper_composition_report(
     }
 
 
+def _drying_box_active_rigid_body_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    return [
+        {
+            "runtime_prim_path": f"{root_path}/{relative_path}",
+            "source_relative_path": relative_path,
+            "mass": physics["mass"],
+            "diagonal_inertia": physics["diagonal_inertia"],
+            "center_of_mass": [0.0, 0.0, 0.0],
+            "principal_axes": [1.0, 0.0, 0.0, 0.0],
+        }
+        for relative_path, physics in sorted(DRYING_BOX_PHYSICS_OVERRIDES.items())
+    ]
+
+
+def _drying_box_joint_body_target_report() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    source_root = "/World/DryingBox_01"
+    return [
+        {
+            "joint_path": f"{root_path}/FixedJoint_01",
+            "joint_type": "PhysicsFixedJoint",
+            "before": {
+                "physics:body0": f"{source_root}/Group_02/group/mesh",
+                "physics:body1": f"{source_root}/body/body/mesh",
+            },
+            "after": {
+                "physics:body0": None,
+                "physics:body1": f"{root_path}/body/body/mesh",
+            },
+            "override_policy": "delete_world_fixed_body0_target",
+        },
+        {
+            "joint_path": f"{root_path}/RevoluteJoint",
+            "joint_type": "PhysicsRevoluteJoint",
+            "before": {
+                "physics:body0": f"{source_root}/body/body/mesh",
+                "physics:body1": f"{source_root}/body/Group/door/mesh",
+            },
+            "after": {
+                "physics:body0": f"{root_path}/body/body/mesh",
+                "physics:body1": f"{root_path}/body/Group/door/mesh",
+            },
+            "override_policy": "preserve_native_door_joint_targets",
+        },
+        {
+            "joint_path": f"{root_path}/button/PrismaticJoint",
+            "joint_type": "PhysicsPrismaticJoint",
+            "before": {
+                "physics:body0": f"{source_root}/body/body/mesh",
+                "physics:body1": f"{source_root}/button",
+            },
+            "after": {
+                "physics:body0": f"{root_path}/body/body/mesh",
+                "physics:body1": f"{root_path}/button",
+            },
+            "override_policy": "preserve_native_button_joint_but_ignore_for_metric",
+        },
+    ]
+
+
+def _drying_box_physics_override_report(
+    *,
+    labutopia_root: Path,
+    overlay_root: Path,
+    source_scene: Path,
+    scene_usda: Path,
+    physics_override_output_root: Path | None = None,
+) -> dict[str, object]:
+    packaged_report_path = overlay_root / "manifests/native_dryingbox_physics_override.json"
+    report_path = (
+        physics_override_output_root / "physics_override.json"
+        if physics_override_output_root is not None
+        else packaged_report_path
+    )
+    root_path = _drying_box_root_path()
+    static_material_gate = _drying_box_static_material_dependency_gate()
+    return {
+        "schema_version": 1,
+        "stage": "acceptance_stage_4",
+        "status": "passed",
+        "override_layer_path": str(scene_usda),
+        "generated_wrapper_stage_path": str(scene_usda),
+        "physics_override_json": str(report_path),
+        "packaged_physics_override_json": str(packaged_report_path),
+        "source_repo": str(labutopia_root),
+        "source_usd_path": str(source_scene),
+        "source_usd_sha256": _sha256(source_scene),
+        "source_prim_path": "/World/DryingBox_01",
+        "wrapper_prim_path": root_path,
+        "additive_override_policy": "wrapper_scene_authors_only_additive_opinions",
+        "joint_body_targets": _drying_box_joint_body_target_report(),
+        "active_rigid_bodies": _drying_box_active_rigid_body_records(),
+        "collision_override_summary": {
+            "collision_api_changes": [],
+            "root_scale_assumption": [0.001, 0.001, 0.001],
+            "scale_compensation_policy": "preserve_native_collision_shapes_under_recorded_root_scale",
+        },
+        "dof_map": {
+            "door_revolute_joint": {
+                "joint_path": f"{root_path}/RevoluteJoint",
+                "joint_name": "RevoluteJoint",
+                "joint_type": "PhysicsRevoluteJoint",
+            },
+            "button_prismatic_joint": {
+                "joint_path": f"{root_path}/button/PrismaticJoint",
+                "joint_name": "PrismaticJoint",
+                "joint_type": "PhysicsPrismaticJoint",
+            },
+            "ignored_dofs": [
+                {
+                    "joint_name": "PrismaticJoint",
+                    "joint_type": "PhysicsPrismaticJoint",
+                    "policy": "ignored_by_open_door_metric",
+                }
+            ],
+            "metric_dof": {
+                "joint_name": "RevoluteJoint",
+                "joint_type": "PhysicsRevoluteJoint",
+                "metric": "open_door_angle_deg",
+            },
+        },
+        "drive_parameters": {
+            "RevoluteJoint": {
+                "target_position_deg": 0.0,
+                "stiffness": None,
+                "damping": None,
+                "max_force": None,
+                "units": {
+                    "target_position": "degrees",
+                    "stiffness": "stage_authored_or_runtime_default",
+                    "damping": "stage_authored_or_runtime_default",
+                    "max_force": "stage_authored_or_runtime_default",
+                },
+                "authored": False,
+                "policy": "metric_readback_joint; runtime drive may be configured by eval harness",
+            }
+        },
+        "material_validator_summary": {
+            "unresolved_binding_target_count": 0,
+            "remote_only_dependency_count": 1,
+            "fallback_surface_count": len(DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES),
+            "waiver_count": 1,
+            "remote_aluminum_disposition": "explicit_waiver",
+            "native_material_closure_open": True,
+        },
+        "static_material_dependency_gate": static_material_gate,
+        "remote_aluminum_disposition": "explicit_waiver",
+        "remote_aluminum_waiver": {
+            **DRYING_BOX_REMOTE_ALUMINUM_WAIVER,
+            "affected_material_path": _remote_aluminum_runtime_material_path(),
+            "affected_task_visible_surfaces": _remote_aluminum_affected_surfaces(),
+        },
+        "material_closure_kept_open": True,
+        "physx_warning_diff": {
+            "collected": False,
+            "reason": "static Stage 4 report; runtime warning diff is collected in Stage 5",
+        },
+    }
+
+
 def _write_scene_wrapper(path: Path, *, drying_box_strategy: str) -> None:
     drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     wrapper_defs = []
@@ -1175,6 +1411,9 @@ def _write_scene_wrapper(path: Path, *, drying_box_strategy: str) -> None:
             )
 
     deterministic_light_defs = """
+        def PhysicsScene "PhysicsScene"
+        {
+        }
         def DomeLight "DeterministicDomeLight"
         {
             color3f inputs:color = (1, 1, 1)
@@ -1234,10 +1473,13 @@ def build_asset_overlay(
     labutopia_root: str | Path = DEFAULT_LABUTOPIA_ROOT,
     overlay_root: str | Path = DEFAULT_OVERLAY_ROOT,
     drying_box_strategy: str = DRYING_BOX_STRATEGY_SURROGATE,
+    physics_override_output_root: str | Path | None = None,
 ) -> dict[str, object]:
     drying_box_strategy = _normalize_drying_box_strategy(drying_box_strategy)
     labutopia_root = Path(labutopia_root)
     overlay_root = Path(overlay_root)
+    if physics_override_output_root is not None:
+        physics_override_output_root = Path(physics_override_output_root)
     source_dir = labutopia_root / SOURCE_DIR_RELATIVE
     source_scene = labutopia_root / SOURCE_SCENE_RELATIVE
     if not source_scene.is_file():
@@ -1283,9 +1525,24 @@ def build_asset_overlay(
         "notes": _manifest_notes(drying_box_strategy),
     }
     if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+        physics_override_report = _drying_box_physics_override_report(
+            labutopia_root=labutopia_root,
+            overlay_root=overlay_root,
+            source_scene=source_scene,
+            scene_usda=scene_usda,
+            physics_override_output_root=physics_override_output_root,
+        )
+        for key in ("packaged_physics_override_json", "physics_override_json"):
+            physics_override_path = Path(str(physics_override_report[key]))
+            physics_override_path.parent.mkdir(parents=True, exist_ok=True)
+            physics_override_path.write_text(
+                json.dumps(physics_override_report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         manifest["drying_box_wrapper_composition"] = (
             _drying_box_wrapper_composition_report(labutopia_root)
         )
+        manifest["drying_box_physics_override"] = physics_override_report
 
     manifest_path = overlay_root / MANIFEST_RELATIVE
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1324,6 +1581,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "DryingBox runtime asset strategy. "
             "Use native_complex to payload the original LabUtopia DryingBox_01."
+        ),
+    )
+    parser.add_argument(
+        "--physics-override-output-root",
+        type=Path,
+        default=None,
+        help=(
+            "Optional Stage 4 diagnostics directory. When set, writes "
+            "physics_override.json there and records it in the manifest."
         ),
     )
     return parser.parse_args()

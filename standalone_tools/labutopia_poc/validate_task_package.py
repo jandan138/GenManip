@@ -145,6 +145,8 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
     "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
     "material_scope_policy": "preserve_owned_world_looks",
     "material_status": "mixed_native_and_fallback",
+    "remote_aluminum_disposition": "explicit_waiver",
+    "material_closure_kept_open": True,
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -160,6 +162,7 @@ EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     "float state:angular:physics:position = 0",
     'def Scope "Looks" (',
     "prepend payload = @scene.usd@</World/Looks>",
+    'def PhysicsScene "PhysicsScene"',
 ]
 FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     'def Cube "body_link"',
@@ -193,6 +196,86 @@ EXPECTED_DRYING_BOX_TEXTURE_PATHS = {
     "mdl_0008": ["SubUSDs/textures/image4.jpg"],
     "mdl_0009": ["SubUSDs/textures/image1.JPG"],
 }
+EXPECTED_DRYING_BOX_REMOTE_ALUMINUM_GATE = {
+    "status": "passed",
+    "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
+    "remote_unmirrored_unwaived_count": 0,
+    "remote_waiver_count": 1,
+    "local_mirror_count": 0,
+    "remote_dependency_records": [
+        {
+            "material_name": "Aluminum_Anodized_Charcoal",
+            "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+            "runtime_material_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                "Aluminum_Anodized_Charcoal"
+            ),
+            "resolution_mode": "explicit_waiver",
+            "local_mirror_path": None,
+            "local_mirror_sha256": None,
+            "local_mirror_bytes": None,
+            "worker_resolved_path": None,
+            "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+            "waiver_reason": (
+                "remote source is intentionally not mirrored in this package revision"
+            ),
+            "closure_claim_allowed": False,
+        }
+    ],
+}
+EXPECTED_DRYING_BOX_JOINT_BODY_TARGETS = [
+    {
+        "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/FixedJoint_01",
+        "joint_type": "PhysicsFixedJoint",
+        "before": {
+            "physics:body0": "/World/DryingBox_01/Group_02/group/mesh",
+            "physics:body1": "/World/DryingBox_01/body/body/mesh",
+        },
+        "after": {
+            "physics:body0": None,
+            "physics:body1": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh"
+            ),
+        },
+        "override_policy": "delete_world_fixed_body0_target",
+    },
+    {
+        "joint_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint",
+        "joint_type": "PhysicsRevoluteJoint",
+        "before": {
+            "physics:body0": "/World/DryingBox_01/body/body/mesh",
+            "physics:body1": "/World/DryingBox_01/body/Group/door/mesh",
+        },
+        "after": {
+            "physics:body0": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh"
+            ),
+            "physics:body1": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh"
+            ),
+        },
+        "override_policy": "preserve_native_door_joint_targets",
+    },
+    {
+        "joint_path": (
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button/PrismaticJoint"
+        ),
+        "joint_type": "PhysicsPrismaticJoint",
+        "before": {
+            "physics:body0": "/World/DryingBox_01/body/body/mesh",
+            "physics:body1": "/World/DryingBox_01/button",
+        },
+        "after": {
+            "physics:body0": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh"
+            ),
+            "physics:body1": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+            ),
+        },
+        "override_policy": "preserve_native_button_joint_but_ignore_for_metric",
+    },
+]
 EXPECTED_FRANKA_CAMERA_AXES = {
     "camera1": "usd",
     "camera2": "usd",
@@ -428,6 +511,7 @@ def _validate_assets_manifest() -> None:
         f"{runtime_scene}: missing task object displayColor overrides",
     )
     _validate_drying_box_wrapper_composition(path, manifest, runtime_scene_text)
+    _validate_drying_box_physics_override_report(path, manifest, runtime_scene)
 
     generated_manifest = manifest.get("generated_manifest")
     _assert(
@@ -451,6 +535,7 @@ def _validate_assets_manifest() -> None:
         "render_object_contracts": "render_object_contracts",
         "drying_box_runtime_asset": "drying_box_runtime_asset",
         "drying_box_wrapper_composition": "drying_box_wrapper_composition",
+        "drying_box_physics_override": "drying_box_physics_override",
     }.items():
         _assert(
             manifest.get(common_key) == generated.get(generated_key),
@@ -717,6 +802,36 @@ def _validate_drying_box_wrapper_composition(
         f"{manifest_path}: Aluminum material must remain labelled as an external remote MDL dependency",
     )
     _assert(
+        aluminum.get("remote_aluminum_disposition") == "explicit_waiver"
+        and aluminum.get("waiver_id") == "ALUMINUM_REMOTE_MDL_001"
+        and aluminum.get("material_closure_kept_open") is True,
+        f"{manifest_path}: Aluminum material must record explicit remote dependency waiver",
+    )
+    _validate_drying_box_static_material_dependency_gate(
+        manifest_path,
+        report.get("static_material_dependency_gate"),
+        report.get("material_status"),
+    )
+    _assert(
+        report.get("remote_aluminum_disposition") == "explicit_waiver",
+        f"{manifest_path}: wrapper report must record remote_aluminum_disposition=explicit_waiver",
+    )
+    _assert(
+        report.get("material_closure_kept_open") is True,
+        f"{manifest_path}: wrapper report must keep material closure open for remote Aluminum waiver",
+    )
+    waiver = report.get("remote_aluminum_waiver")
+    _assert(isinstance(waiver, dict), f"{manifest_path}: missing remote Aluminum waiver")
+    _assert(
+        waiver.get("waiver_id") == "ALUMINUM_REMOTE_MDL_001"
+        and waiver.get("affected_material_path")
+        == "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal"
+        and waiver.get("material_closure_kept_open") is True
+        and isinstance(waiver.get("affected_task_visible_surfaces"), list)
+        and waiver.get("affected_task_visible_surfaces"),
+        f"{manifest_path}: remote Aluminum waiver must record id, affected material, surfaces, and open closure",
+    )
+    _assert(
         report.get("worker_mdl_system_path")
         == EXPECTED_DRYING_BOX_WORKER_MDL_SYSTEM_PATH,
         f"{manifest_path}: worker_mdl_system_path must document required MDL search path",
@@ -745,6 +860,231 @@ def _validate_drying_box_wrapper_composition(
         and camera_light.get("deterministic_light_prims")
         == ["/World/labutopia_level1_poc/DeterministicDomeLight"],
         f"{manifest_path}: camera_light_prerequisites missing task camera/light metadata",
+    )
+
+
+def _validate_drying_box_static_material_dependency_gate(
+    manifest_path: Path,
+    gate: Any,
+    material_status: Any,
+) -> None:
+    _assert(
+        isinstance(gate, dict),
+        f"{manifest_path}: static_material_dependency_gate must be a mapping",
+    )
+    _assert(
+        gate.get("status") == "passed"
+        and gate.get("remote_dependency_policy")
+        == "local_mirror_required_or_explicit_waiver"
+        and gate.get("remote_unmirrored_unwaived_count") == 0,
+        f"{manifest_path}: static_material_dependency_gate must pass with no unmirrored/unwaived remotes",
+    )
+    records = gate.get("remote_dependency_records")
+    _assert(
+        isinstance(records, list) and len(records) == 1,
+        f"{manifest_path}: static_material_dependency_gate must record exactly one Aluminum dependency",
+    )
+    record = records[0]
+    _assert(
+        isinstance(record, dict)
+        and record.get("material_name") == "Aluminum_Anodized_Charcoal"
+        and record.get("source_material_path")
+        == "/World/Looks/Aluminum_Anodized_Charcoal"
+        and record.get("runtime_material_path")
+        == (
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+            "Aluminum_Anodized_Charcoal"
+        ),
+        f"{manifest_path}: static_material_dependency_gate must target Aluminum material",
+    )
+    if record.get("resolution_mode") == "explicit_waiver":
+        _assert(
+            gate.get("remote_waiver_count") == 1
+            and gate.get("local_mirror_count") == 0,
+            f"{manifest_path}: explicit Aluminum waiver count mismatch",
+        )
+        _assert(
+            record.get("local_mirror_path") is None
+            and record.get("local_mirror_sha256") is None
+            and record.get("local_mirror_bytes") is None
+            and record.get("worker_resolved_path") is None,
+            f"{manifest_path}: explicit Aluminum waiver must not claim local mirror evidence",
+        )
+        _assert(
+            record.get("waiver_id") == "ALUMINUM_REMOTE_MDL_001"
+            and isinstance(record.get("waiver_reason"), str)
+            and bool(record.get("waiver_reason")),
+            f"{manifest_path}: explicit Aluminum waiver must record waiver id and reason",
+        )
+        _assert(
+            material_status != "resolved_native_material",
+            f"{manifest_path}: explicit remote Aluminum waiver cannot be resolved_native_material",
+        )
+        _assert(
+            record.get("closure_claim_allowed") is False,
+            f"{manifest_path}: explicit remote Aluminum waiver must keep closure claim disallowed",
+        )
+    elif record.get("resolution_mode") == "local_mirror":
+        _assert(
+            gate.get("remote_waiver_count") == 0
+            and gate.get("local_mirror_count") == 1,
+            f"{manifest_path}: local Aluminum mirror count mismatch",
+        )
+        source_url = record.get("source_url")
+        _assert(
+            isinstance(source_url, str) and source_url.startswith(("http://", "https://")),
+            f"{manifest_path}: local_mirror missing source_url",
+        )
+        mirror_path = record.get("local_mirror_path")
+        _assert(
+            isinstance(mirror_path, str) and mirror_path and not Path(mirror_path).is_absolute(),
+            f"{manifest_path}: local_mirror_path must be package-relative",
+        )
+        sha256 = record.get("local_mirror_sha256")
+        _assert(
+            isinstance(sha256, str) and len(sha256) == 64,
+            f"{manifest_path}: local_mirror_sha256 must be recorded",
+        )
+        _assert(
+            isinstance(record.get("local_mirror_bytes"), int)
+            and record.get("local_mirror_bytes", 0) > 0,
+            f"{manifest_path}: local_mirror_bytes must be positive",
+        )
+        _assert(
+            isinstance(record.get("worker_resolved_path"), str)
+            and bool(record.get("worker_resolved_path"))
+            and record.get("worker_mdl_system_path_covered") is True,
+            f"{manifest_path}: local_mirror must record worker MDL_SYSTEM_PATH coverage",
+        )
+        _assert(
+            record.get("waiver_id") is None
+            and record.get("waiver_reason") is None
+            and record.get("closure_claim_allowed") is True,
+            f"{manifest_path}: local_mirror must not keep a remote waiver open",
+        )
+    else:
+        raise AssertionError(
+            f"{manifest_path}: Aluminum resolution_mode must be explicit_waiver or local_mirror"
+        )
+
+
+def _validate_drying_box_physics_override_report(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    runtime_scene: Path,
+) -> None:
+    report = manifest.get("drying_box_physics_override")
+    _assert(
+        isinstance(report, dict),
+        f"{manifest_path}: drying_box_physics_override must record Stage 4 evidence",
+    )
+    _assert(
+        report.get("schema_version") == 1
+        and report.get("stage") == "acceptance_stage_4"
+        and report.get("status") == "passed",
+        f"{manifest_path}: drying_box_physics_override must be passed Stage 4 schema v1",
+    )
+    for path_key in ("override_layer_path", "generated_wrapper_stage_path"):
+        path_value = report.get(path_key)
+        _assert(
+            isinstance(path_value, str) and Path(path_value) == runtime_scene,
+            f"{manifest_path}: {path_key} must point to the generated runtime scene",
+        )
+    report_path = report.get("physics_override_json")
+    _assert(
+        isinstance(report_path, str) and Path(report_path).exists(),
+        f"{manifest_path}: physics_override_json must point to an existing report file",
+    )
+    saved_report = _load_json(Path(report_path))
+    _assert(
+        saved_report == report,
+        f"{manifest_path}: physics_override_json contents must match manifest report",
+    )
+    source_path = report.get("source_usd_path")
+    _assert(
+        isinstance(source_path, str) and Path(source_path).exists(),
+        f"{manifest_path}: source_usd_path must point to the LabUtopia source USD",
+    )
+    _assert(
+        isinstance(report.get("source_usd_sha256"), str)
+        and bool(report.get("source_usd_sha256")),
+        f"{manifest_path}: source_usd_sha256 must be recorded",
+    )
+    _assert(
+        report.get("wrapper_prim_path")
+        == EXPECTED_WRAPPER_PRIM_PATHS["obj_DryingBox_01"],
+        f"{manifest_path}: physics override wrapper_prim_path mismatch",
+    )
+    _assert(
+        report.get("static_material_dependency_gate")
+        == manifest["drying_box_wrapper_composition"].get(
+            "static_material_dependency_gate"
+        ),
+        f"{manifest_path}: Stage 4 material gate must match wrapper report",
+    )
+    _validate_drying_box_static_material_dependency_gate(
+        manifest_path,
+        report.get("static_material_dependency_gate"),
+        manifest["drying_box_runtime_asset"].get("material_status"),
+    )
+    _assert(
+        report.get("remote_aluminum_disposition") == "explicit_waiver"
+        and report.get("material_closure_kept_open") is True,
+        f"{manifest_path}: physics override must record explicit Aluminum waiver with open material closure",
+    )
+    material_summary = report.get("material_validator_summary")
+    _assert(
+        material_summary
+        == {
+            "unresolved_binding_target_count": 0,
+            "remote_only_dependency_count": 1,
+            "fallback_surface_count": 3,
+            "waiver_count": 1,
+            "remote_aluminum_disposition": "explicit_waiver",
+            "native_material_closure_open": True,
+        },
+        f"{manifest_path}: material_validator_summary must record Stage 4 material boundary",
+    )
+    dof_map = report.get("dof_map")
+    _assert(isinstance(dof_map, dict), f"{manifest_path}: dof_map must be a mapping")
+    metric_dof = dof_map.get("metric_dof")
+    _assert(
+        isinstance(metric_dof, dict)
+        and metric_dof.get("joint_name") == "RevoluteJoint"
+        and metric_dof.get("joint_type") == "PhysicsRevoluteJoint",
+        f"{manifest_path}: metric_dof must bind the door RevoluteJoint",
+    )
+    ignored_dofs = dof_map.get("ignored_dofs")
+    _assert(
+        ignored_dofs
+        == [
+            {
+                "joint_name": "PrismaticJoint",
+                "joint_type": "PhysicsPrismaticJoint",
+                "policy": "ignored_by_open_door_metric",
+            }
+        ],
+        f"{manifest_path}: button PrismaticJoint must be explicitly ignored by metric",
+    )
+    body_records = report.get("active_rigid_bodies")
+    _assert(
+        isinstance(body_records, list) and len(body_records) >= 4,
+        f"{manifest_path}: active_rigid_bodies must record mass/inertia overrides",
+    )
+    for body in body_records:
+        _assert(
+            isinstance(body, dict)
+            and body.get("runtime_prim_path")
+            and isinstance(body.get("mass"), (int, float))
+            and float(body.get("mass")) > 0.0
+            and isinstance(body.get("diagonal_inertia"), list)
+            and all(float(value) > 0.0 for value in body["diagonal_inertia"]),
+            f"{manifest_path}: active rigid body records must have finite positive mass and inertia",
+        )
+    joint_records = report.get("joint_body_targets")
+    _assert(
+        joint_records == EXPECTED_DRYING_BOX_JOINT_BODY_TARGETS,
+        f"{manifest_path}: joint_body_targets must exactly record before/after body targets for every DryingBox joint",
     )
 
 
@@ -981,6 +1321,10 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     native_handle_path = EXPECTED_ARTICULATION_PART_PATHS["obj_DryingBox_01_handle"]
     native_handle = stage.GetPrimAtPath(native_handle_path)
     native_handle_path_exists = bool(native_handle and native_handle.IsValid())
+    physics_scene_paths = [
+        str(prim.GetPath()) for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene)
+    ]
+    physics_scene_ready = len(physics_scene_paths) == 1
 
     def _attr_value(prim: Any, attr_name: str) -> Any:
         attr = prim.GetAttribute(attr_name)
@@ -1051,11 +1395,14 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     zero_inertia_links: list[str] = []
     invalid_center_of_mass_links: list[str] = []
     invalid_principal_axes_links: list[str] = []
+    missing_collision_api_links: list[str] = []
     for prim in Usd.PrimRange(root):
         if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
             continue
         path = str(prim.GetPath())
         rigid_link_paths.append(path)
+        if not prim.HasAPI(UsdPhysics.CollisionAPI):
+            missing_collision_api_links.append(path)
         mass_api = UsdPhysics.MassAPI(prim)
         mass_attr = mass_api.GetMassAttr()
         mass = mass_attr.Get() if mass_attr and mass_attr.IsValid() else None
@@ -1084,6 +1431,7 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
             invalid_principal_axes_links.append(path)
 
     duplicate_rigid_link_names: dict[str, int] = {}
+    collision_shapes_ready = not missing_collision_api_links
 
     expected_joint_types = {
         "PhysicsFixedJoint",
@@ -1150,6 +1498,7 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     runtime_topology_ready = not any(
         [
             not root_has_articulation_api,
+            not physics_scene_ready,
             not native_handle_path_exists,
             not root_unit_scale_ready,
             not task_visible_workspace_ready,
@@ -1160,6 +1509,7 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
             zero_inertia_links,
             invalid_center_of_mass_links,
             invalid_principal_axes_links,
+            not collision_shapes_ready,
             invalid_joint_body_targets,
             unexpected_joint_types,
             not world_fixed_base_joint_paths,
@@ -1172,6 +1522,8 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
     return {
         "root_path": root_path,
         "root_has_articulation_api": root_has_articulation_api,
+        "physics_scene_paths": physics_scene_paths,
+        "physics_scene_ready": physics_scene_ready,
         "native_handle_path_exists": native_handle_path_exists,
         "root_scale": rounded_root_scale,
         "non_identity_root_scale": non_identity_root_scale,
@@ -1186,6 +1538,8 @@ def _inspect_drying_box_articulation_physics(runtime_scene: Path) -> dict[str, A
         "zero_inertia_links": zero_inertia_links,
         "invalid_center_of_mass_links": invalid_center_of_mass_links,
         "invalid_principal_axes_links": invalid_principal_axes_links,
+        "missing_collision_api_links": missing_collision_api_links,
+        "collision_shapes_ready": collision_shapes_ready,
         "joint_paths": joint_paths,
         "world_fixed_base_joint_paths": world_fixed_base_joint_paths,
         "door_revolute_joint_paths": door_revolute_joint_paths,

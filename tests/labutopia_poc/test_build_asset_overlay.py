@@ -553,6 +553,99 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     ] == "external_remote_mdl_dependency"
 
 
+def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_report(
+    tmp_path,
+):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    source_scene = source_dir / "lab_001.usd"
+    source_scene.write_text("#usda 1.0\n", encoding="utf-8")
+    _write_native_material_fixture(source_dir)
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    diagnostics_root = (
+        tmp_path
+        / "saved"
+        / "diagnostics"
+        / "native_dryingbox_physics_override_20260629_000000"
+    )
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+        physics_override_output_root=diagnostics_root,
+    )
+
+    manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    report = manifest["drying_box_physics_override"]
+    report_path = build_overlay.Path(report["physics_override_json"])
+    packaged_report_path = build_overlay.Path(report["packaged_physics_override_json"])
+    assert report_path == diagnostics_root / "physics_override.json"
+    assert report_path.exists()
+    assert packaged_report_path.exists()
+    assert report["stage"] == "acceptance_stage_4"
+    assert report["status"] == "passed"
+    assert report["override_layer_path"].endswith(
+        "scene_usds/labutopia/level1_poc/lab_001/scene.usda"
+    )
+    assert report["generated_wrapper_stage_path"] == report["override_layer_path"]
+    assert report["source_usd_path"] == str(source_scene)
+    assert report["source_usd_sha256"] == build_overlay._sha256(source_scene)
+    assert report["remote_aluminum_disposition"] == "explicit_waiver"
+    assert report["material_closure_kept_open"] is True
+
+    gate = report["static_material_dependency_gate"]
+    assert gate["status"] == "passed"
+    assert gate["remote_unmirrored_unwaived_count"] == 0
+    assert gate["remote_waiver_count"] == 1
+    assert gate["local_mirror_count"] == 0
+    assert gate["remote_dependency_records"] == [
+        {
+            "material_name": "Aluminum_Anodized_Charcoal",
+            "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+            "runtime_material_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                "Aluminum_Anodized_Charcoal"
+            ),
+            "resolution_mode": "explicit_waiver",
+            "local_mirror_path": None,
+            "local_mirror_sha256": None,
+            "local_mirror_bytes": None,
+            "worker_resolved_path": None,
+            "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+            "waiver_reason": (
+                "remote source is intentionally not mirrored in this package revision"
+            ),
+            "closure_claim_allowed": False,
+        }
+    ]
+
+    saved_report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert saved_report == report
+    assert saved_report["dof_map"]["metric_dof"] == {
+        "joint_name": "RevoluteJoint",
+        "joint_type": "PhysicsRevoluteJoint",
+        "metric": "open_door_angle_deg",
+    }
+    assert saved_report["dof_map"]["ignored_dofs"] == [
+        {
+            "joint_name": "PrismaticJoint",
+            "joint_type": "PhysicsPrismaticJoint",
+            "policy": "ignored_by_open_door_metric",
+        }
+    ]
+    assert saved_report["material_validator_summary"] == {
+        "unresolved_binding_target_count": 0,
+        "remote_only_dependency_count": 1,
+        "fallback_surface_count": 3,
+        "waiver_count": 1,
+        "remote_aluminum_disposition": "explicit_waiver",
+        "native_material_closure_open": True,
+    }
+
+
 def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):
     monkeypatch.setattr(
         sys,

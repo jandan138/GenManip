@@ -70,9 +70,33 @@ def _write_minimal_native_drying_box_scene(
     path,
     *,
     include_button_joint=True,
+    include_physics_scene=True,
+    duplicate_physics_scene=False,
+    include_collision_api=True,
     door_diagonal_inertia=(0.01, 0.01, 0.01),
 ):
     root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    physics_scene = (
+        """
+        def PhysicsScene "PhysicsScene"
+        {
+        }"""
+        if include_physics_scene
+        else ""
+    )
+    duplicate_scene = (
+        """
+        def PhysicsScene "PhysicsSceneExtra"
+        {
+        }"""
+        if duplicate_physics_scene
+        else ""
+    )
+    rigid_schemas = (
+        '"PhysicsRigidBodyAPI", "PhysicsCollisionAPI", "PhysicsMassAPI"'
+        if include_collision_api
+        else '"PhysicsRigidBodyAPI", "PhysicsMassAPI"'
+    )
     button_joint = (
         f"""
                     def PhysicsPrismaticJoint "PrismaticJoint"
@@ -90,6 +114,8 @@ def Xform "World"
 {{
     def Xform "labutopia_level1_poc"
     {{
+{physics_scene}
+{duplicate_scene}
         def Xform "obj_obj_DryingBox_01" (
             prepend apiSchemas = ["PhysicsArticulationRootAPI"]
         )
@@ -100,7 +126,7 @@ def Xform "World"
                 def Xform "body"
                 {{
                     def Mesh "mesh" (
-                        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                        prepend apiSchemas = [{rigid_schemas}]
                     )
                     {{
                         float physics:mass = 2
@@ -114,7 +140,7 @@ def Xform "World"
                     def Xform "door"
                     {{
                         def Mesh "mesh" (
-                            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                            prepend apiSchemas = [{rigid_schemas}]
                         )
                         {{
                             float physics:mass = 0.5
@@ -128,7 +154,7 @@ def Xform "World"
             def Xform "handle"
             {{
                 def Mesh "mesh" (
-                    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                    prepend apiSchemas = [{rigid_schemas}]
                 )
                 {{
                     float physics:mass = 0.1
@@ -138,7 +164,7 @@ def Xform "World"
                 }}
             }}
             def Mesh "button" (
-                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                prepend apiSchemas = [{rigid_schemas}]
             )
             {{
                 float physics:mass = 0.05
@@ -178,6 +204,9 @@ def Xform "World"
 {{
     def Xform "labutopia_level1_poc"
     {{
+        def PhysicsScene "PhysicsScene"
+        {{
+        }}
         def Xform "obj_obj_DryingBox_01" (
             prepend payload = @scene.usd@</World/DryingBox_01>
         )
@@ -242,6 +271,10 @@ def _write_generated_manifest_from_common(manifest):
     if "drying_box_wrapper_composition" in manifest:
         generated["drying_box_wrapper_composition"] = manifest[
             "drying_box_wrapper_composition"
+        ]
+    if "drying_box_physics_override" in manifest:
+        generated["drying_box_physics_override"] = manifest[
+            "drying_box_physics_override"
         ]
     _write_json(validate_task_package.Path(manifest["generated_manifest"]), generated)
 
@@ -564,6 +597,132 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert 'def Cube "body_link"' not in scene_text
     assert 'def Cube "door_link"' not in scene_text
     assert 'def Cube "handle"' not in scene_text
+
+
+def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
+    manifest_path = (
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = validate_task_package._load_json(manifest_path)
+
+    runtime_asset = manifest["drying_box_runtime_asset"]
+    assert runtime_asset["remote_aluminum_disposition"] == "explicit_waiver"
+    assert runtime_asset["material_closure_kept_open"] is True
+
+    wrapper_gate = manifest["drying_box_wrapper_composition"][
+        "static_material_dependency_gate"
+    ]
+    report = manifest["drying_box_physics_override"]
+    assert report["stage"] == "acceptance_stage_4"
+    assert report["status"] == "passed"
+    assert report["generated_wrapper_stage_path"] == report["override_layer_path"]
+    assert report["remote_aluminum_disposition"] == "explicit_waiver"
+    assert report["material_closure_kept_open"] is True
+    assert report["static_material_dependency_gate"] == wrapper_gate
+
+    report_path = validate_task_package.Path(report["physics_override_json"])
+    assert report_path.exists()
+    assert "saved/diagnostics/native_dryingbox_physics_override_" in report_path.as_posix()
+    assert report_path.name == "physics_override.json"
+    assert validate_task_package.Path(report["packaged_physics_override_json"]).exists()
+    saved_report = validate_task_package._load_json(report_path)
+    assert saved_report == report
+
+    gate = report["static_material_dependency_gate"]
+    assert gate["status"] == "passed"
+    assert gate["remote_dependency_policy"] == (
+        "local_mirror_required_or_explicit_waiver"
+    )
+    assert gate["remote_unmirrored_unwaived_count"] == 0
+    assert gate["remote_waiver_count"] == 1
+    assert gate["local_mirror_count"] == 0
+    aluminum_records = gate["remote_dependency_records"]
+    assert len(aluminum_records) == 1
+    assert aluminum_records[0]["material_name"] == "Aluminum_Anodized_Charcoal"
+    assert aluminum_records[0]["resolution_mode"] == "explicit_waiver"
+    assert aluminum_records[0]["waiver_id"] == "ALUMINUM_REMOTE_MDL_001"
+    assert aluminum_records[0]["closure_claim_allowed"] is False
+    assert report["material_validator_summary"][
+        "remote_aluminum_disposition"
+    ] == "explicit_waiver"
+    assert report["material_validator_summary"][
+        "native_material_closure_open"
+    ] is True
+    assert report["dof_map"]["metric_dof"]["joint_name"] == "RevoluteJoint"
+    assert report["dof_map"]["ignored_dofs"][0]["joint_name"] == "PrismaticJoint"
+
+
+def test_stage4_validator_rejects_wrong_joint_body_target_evidence(tmp_path):
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    report = manifest["drying_box_physics_override"]
+    report["joint_body_targets"][1]["after"]["physics:body1"] = (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+    )
+    report_path = tmp_path / "physics_override.json"
+    packaged_path = tmp_path / "packaged_physics_override.json"
+    report["physics_override_json"] = str(report_path)
+    report["packaged_physics_override_json"] = str(packaged_path)
+    _write_json(report_path, report)
+    _write_json(packaged_path, report)
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+
+    with pytest.raises(AssertionError, match="joint_body_targets"):
+        validate_task_package._validate_drying_box_physics_override_report(
+            tmp_path / "assets_manifest.json",
+            manifest,
+            runtime_scene,
+        )
+
+
+def test_static_material_dependency_gate_accepts_local_mirror_disposition(tmp_path):
+    gate = {
+        "status": "passed",
+        "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
+        "remote_unmirrored_unwaived_count": 0,
+        "remote_waiver_count": 0,
+        "local_mirror_count": 1,
+        "remote_dependency_records": [
+            {
+                "material_name": "Aluminum_Anodized_Charcoal",
+                "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+                "runtime_material_path": (
+                    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                    "Aluminum_Anodized_Charcoal"
+                ),
+                "source_url": (
+                    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+                    "Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl"
+                ),
+                "resolution_mode": "local_mirror",
+                "local_mirror_path": (
+                    "miscs/mdl/labutopia/Aluminum_Anodized_Charcoal.mdl"
+                ),
+                "local_mirror_sha256": "a" * 64,
+                "local_mirror_bytes": 12345,
+                "worker_resolved_path": (
+                    "{ASSETS_DIR}/miscs/mdl/labutopia/"
+                    "Aluminum_Anodized_Charcoal.mdl"
+                ),
+                "worker_mdl_system_path_covered": True,
+                "waiver_id": None,
+                "waiver_reason": None,
+                "closure_claim_allowed": True,
+            }
+        ],
+    }
+
+    validate_task_package._validate_drying_box_static_material_dependency_gate(
+        tmp_path / "assets_manifest.json",
+        gate,
+        "resolved_native_material",
+    )
 
 
 def test_franka_tasks_define_render_validation_contract():
@@ -1022,6 +1181,56 @@ def test_drying_box_physics_rejects_nonpositive_inertia_component(tmp_path):
         in report["zero_inertia_links"]
     )
     assert report["sanitized_for_physx"] is False
+
+
+def test_drying_box_topology_requires_exactly_one_physics_scene(tmp_path):
+    runtime_scene = tmp_path / "scene.usda"
+    _write_minimal_native_drying_box_scene(
+        runtime_scene,
+        include_physics_scene=False,
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert report["physics_scene_paths"] == []
+    assert report["physics_scene_ready"] is False
+    assert report["runtime_topology_ready"] is False
+
+    _write_minimal_native_drying_box_scene(
+        runtime_scene,
+        duplicate_physics_scene=True,
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert len(report["physics_scene_paths"]) == 2
+    assert report["physics_scene_ready"] is False
+    assert report["runtime_topology_ready"] is False
+
+
+def test_drying_box_topology_requires_collision_api_on_rigid_bodies(tmp_path):
+    runtime_scene = tmp_path / "scene.usda"
+    _write_minimal_native_drying_box_scene(
+        runtime_scene,
+        include_collision_api=False,
+    )
+
+    report = validate_task_package._inspect_drying_box_articulation_physics(
+        runtime_scene
+    )
+
+    assert sorted(report["missing_collision_api_links"]) == [
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/Group/door/mesh",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/body/body/mesh",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle/mesh",
+    ]
+    assert report["collision_shapes_ready"] is False
+    assert report["runtime_topology_ready"] is False
 
 
 def test_drying_box_articulation_topology_is_ready_for_runtime():
