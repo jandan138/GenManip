@@ -30,7 +30,7 @@
     }
 
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
     body {
       margin: 0;
       background: var(--bg);
@@ -38,6 +38,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
       font-size: 16px;
       line-height: 1.65;
+      overflow-x: hidden;
     }
     a { color: var(--blue); text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -134,6 +135,7 @@
       border-radius: 8px;
       box-shadow: var(--shadow);
       padding: 22px;
+      overflow: hidden;
     }
     h2 {
       margin: 0 0 14px;
@@ -214,6 +216,8 @@
     .panel.warn { background: var(--amber-soft); border-color: #e3c178; }
     .panel.blocked { background: var(--red-soft); border-color: #e3aaa5; }
     .table-wrap {
+      contain: paint;
+      max-width: 100%;
       overflow-x: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -409,7 +413,7 @@
       <div>
         <p class="eyebrow">Weekly report · 2026-06-22 · PM-facing evidence page</p>
         <h1><span>LabUtopia x EBench</span><span>接入周报</span></h1>
-          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。P2 进一步把 <code>open_door</code> 从 P1 <code>sanitized_surrogate</code> 对照组推进到 LabUtopia native complex <code>DryingBox_01</code>：原生 visual/hierarchy/handle 保留，蓝色门、白色侧面、控制面板和观察窗已在 EBench readback 中恢复可见，runtime 读数稳定。当前仍不能宣称官方 Lift2 baseline 可评，因为 Lift2 复合资产和官方 runner 还没验证。</p>
+          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。当前仍不能宣称 official Lift2 baseline 可评，也不能宣称 full native MDL/texture material closure，因为 Lift2 contract 尚未过，Aluminum 材质仍是 explicit waiver。</p>
         <div class="pill-row">
           <span class="pill ok">wiring smoke complete</span>
           <span class="pill ok">3/3 episodes finalized</span>
@@ -417,12 +421,14 @@
           <span class="pill warn">score=0.0 expected</span>
             <span class="pill ok">3/3 task render gate pass</span>
             <span class="pill ok">native DryingBox Franka gate pass</span>
+            <span class="pill ok">Stage 5 eval readback pass</span>
+            <span class="pill warn">material closure open</span>
             <span class="pill warn">official baseline blocked</span>
         </div>
       </div>
       <aside class="hero-note">
         <b>给产品经理的一句话</b>
-          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，P2 retake 图证明原生复杂 <code>DryingBox_01</code> 不是倒置，而是 upright，并且 native material、handle、control panel 都能通过 EBench readback 看见。现在可以汇报“Franka POC native DryingBox gate 已过”，但还不能汇报“官方 Lift2 baseline 已经可评”。
+          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，Stage 5 证明原生复杂 <code>DryingBox_01</code> 已通过 Franka/native eval-path readback。现在可以汇报“原生 DryingBox 的任务可读性、runtime 稳定性和门 <code>RevoluteJoint</code> metric 证据已过”，但还不能汇报“official Lift2 baseline 已经可评”或“full native MDL/texture material closure 已完成”。
       </aside>
     </div>
   </header>
@@ -779,7 +785,7 @@
 
     <section id="renders">
       <h2>EBench 加载后的三任务渲染图</h2>
-        <p>2026-06-23 到 2026-06-24 复核结论：旧图、P1 对照图、旧 P2 native 图和 P2 retake 图都放在这里，方便做前后对照。旧图是历史失败样例，用来说明最开始“相机拍不到、资产位置不对、任务目标看不懂”的问题；P1 图来自正常 EBench/evaluator camera readback，用来说明我们已经把底层链路推进到“能拍到真实场景、能看懂任务目标”；P2 retake 图进一步证明 <code>open_door</code> 已经回到 LabUtopia native complex <code>DryingBox_01</code>，并且蓝色正门、白色侧面、把手、观察窗和控制面板都可读。当前结论是 Franka POC native gate 已通过；官方 Lift2 baseline 仍未验证，所以不能把这些图直接说成 baseline 成绩证据。</p>
+        <p>2026-06-23 到 2026-06-28 复核结论：旧图、P1 对照图、旧 P2 native 图、P2 retake 图和 Stage 5 eval-path 图都放在这里，方便做前后对照。旧图是历史失败样例，用来说明最开始“相机拍不到、资产位置不对、任务目标看不懂”的问题；P1 图来自正常 EBench/evaluator camera readback，用来说明我们已经把底层链路推进到“能拍到真实场景、能看懂任务目标”；P2 retake 图证明 <code>open_door</code> 已经回到 LabUtopia native complex <code>DryingBox_01</code>；Stage 5 图证明同一原生资产可以通过 Franka/native eval-path reset/render/step/metric/readback。当前结论是 native eval readback 已通过；official Lift2 baseline 仍未验证，所以不能把这些图直接说成 baseline 成绩证据。</p>
         <div class="split" style="margin-top: 16px;">
           <div class="panel warn">
             <h3>旧图要表达的问题</h3>
@@ -792,7 +798,7 @@
         </div>
         <div class="panel warn">
           <h3>渲染证据状态</h3>
-          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 P2 native complex <code>DryingBox_01</code> readback，retake 图中原生箱体 upright，蓝色门、白色侧面和 nested handle 可见。最新 native retake 诊断为 <code>render_validation.passed=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>，但 <code>official_baseline_evaluable=false</code>。</p>
+          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 native complex <code>DryingBox_01</code> eval-path readback。Stage 5 最终诊断为 <code>native_eval_readback_ready=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>metric_reads_door_revolute_joint=true</code>，但 <code>lift2_contract_ready=false</code>、<code>native_material_closure_status=open_remote_dependency_waived</code>。</p>
       </div>
 
       <div class="panel warn">
@@ -881,8 +887,8 @@
         </figure>
       </div>
 
-      <h3 style="margin-top: 18px;">open_door：旧图、P1 surrogate、旧 P2 native、P2 retake</h3>
-      <p>这组图只回答“资产和任务图是否能被 EBench 看懂”。旧图说明早期失败在哪里；P1 图证明我们把 eval readback、门关节和把手可读性稳定下来；旧 P2 native 图说明“只把原生复杂资产塞进 wrapper 还不够”，材质和证据视角不对会让箱子看起来像倒了；P2 retake 图证明同一条链路已经回到 LabUtopia native complex <code>DryingBox_01</code>，不是继续依赖 cube-based surrogate。</p>
+      <h3 style="margin-top: 18px;">open_door：旧图、P1 surrogate、旧 P2 native、P2 retake、Stage 5 eval</h3>
+      <p>这组图只回答“资产和任务图是否能被 EBench 看懂，以及机器评测链路是否能读回”。旧图说明早期失败在哪里；P1 图证明我们把 eval readback、门关节和把手可读性稳定下来；旧 P2 native 图说明“只把原生复杂资产塞进 wrapper 还不够”，材质和证据视角不对会让箱子看起来像倒了；P2 retake 图证明同一条链路已经回到 LabUtopia native complex <code>DryingBox_01</code>；Stage 5 图证明 reset/render/step/metric/readback 通过，但它的视觉审阅是 <code>WARN</code>，应标成诊断证据，不应当作 polished PM showcase。</p>
       <div class="render-grid">
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-open-door.jpg" alt="old level1_open_door render with unclear DryingBox door">
@@ -899,6 +905,10 @@
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-open-door-native-retake-p2.png" alt="P2 retake native complex DryingBox_01 evaluator readback with blue door and white side">
           <figcaption><b>P2 retake · native complex DryingBox_01 PASS</b>修复 wrapper-local <code>Looks</code> 和 native <code>material:binding</code> 后重拍：箱体 upright，蓝色门、白色侧面、把手、观察窗和控制面板可读；诊断为 <code>render_validation.passed=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>task_render_accepted=true</code>。<span class="source-path">source: saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/readback_after_get_eval_camera_data/camera2/00000.png</span></figcaption>
+        </figure>
+        <figure class="render-card">
+          <img src="assets/labutopia-franka-level1-open-door-native-eval-stage5.png" alt="Stage 5 native DryingBox_01 eval-path diagnostic readback">
+          <figcaption><b>Stage 5 eval · 诊断证据 WARN</b>原生箱体、蓝色门边和把手可辨认，支持 <code>native_eval_readback_ready=true</code> 和门 <code>RevoluteJoint</code> metric 证据；但大面积桌面/上方平面占主视野，独立视觉审阅为 <code>WARN</code>，正式展示前建议补拍更好的 PM-facing 视角。<span class="source-path">source: saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/readback_after_get_eval_camera_data/camera2/00000.png · sha256 f9c2fb18...</span></figcaption>
         </figure>
       </div>
     </section>
@@ -953,22 +963,37 @@
             <tr>
               <td>Native DryingBox audit</td>
               <td class="status-ok"><code>audit PASS</code></td>
-              <td><code>saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json</code>，SHA256 <code>e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d</code>。用途是确认原生 <code>DryingBox_01</code> 的 hierarchy、joint、handle 和物理风险点。</td>
+              <td>Acceptance Stage 1：<code>saved/diagnostics/native_dryingbox_audit_20260628_102604/audit.json</code>，SHA256 <code>43f7a3589f6db59382687ba2d5bab768b78f4fe38a1ebd0f0bc3917fc8580f85</code>。用途是确认原生 <code>DryingBox_01</code> 的 hierarchy、joint、handle 和物理风险点。</td>
             </tr>
             <tr>
               <td>Native-only Isaac smoke</td>
               <td class="status-ok"><code>runtime stable</code></td>
-              <td><code>saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json</code>，SHA256 <code>fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4</code>。用途是在进入 EBench 前确认 native DryingBox runtime 物理状态有限稳定。</td>
+              <td>Acceptance Stage 2：<code>saved/diagnostics/native_dryingbox_smoke_20260628_143638/smoke.json</code>，SHA256 <code>1c5270e45abc164ed26111eeb684310e84da992bdbe01b2cb8ff6a5aa7a96e79</code>。用途是在进入 EBench wrapper 前确认 native DryingBox runtime 物理状态有限稳定。</td>
+            </tr>
+            <tr>
+              <td>Native physics override</td>
+              <td class="status-ok"><code>Stage 4 passed</code></td>
+              <td><code>saved/diagnostics/native_dryingbox_physics_override_20260628_172756/physics_override.json</code>，SHA256 <code>b4942edfe3519938834aca9c137141880746fe80772a8ae481da716708bc87dc</code>。这一步用 additive USD override 修 physics/articulation closure，并记录 <code>remote_aluminum_disposition=explicit_waiver</code>，但不升级为 full material closure。</td>
             </tr>
             <tr>
               <td>Native open_door eval readback</td>
               <td class="status-ok"><code>native_complex_dryingbox_ready=true</code></td>
-              <td><code>saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json</code>，SHA256 <code>d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6</code>。正式结论：<code>boundary_classification=readback_visible</code>、<code>render_validation.passed=true</code>、<code>task_render_accepted=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>official_baseline_evaluable=false</code>。旧 <code>native_dryingbox_open_door_eval_explicit_20260624_093156</code> 图保留为“材质/视角未闭环”的反例。</td>
+              <td>Acceptance Stage 5：<code>saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json</code>。正式结论：<code>native_eval_readback_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>eval_step_contract.passed=true</code>、<code>metric_reads_door_revolute_joint=true</code>、<code>lift2_contract_ready=false</code>。旧 P2 retake 仍作为 PM 可读对照图保留。</td>
+            </tr>
+            <tr>
+              <td>Stage 6 acceptance manifest</td>
+              <td class="status-ok"><code>claim boundary recorded</code></td>
+              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">native_dryingbox_acceptance_20260628_183219.json</a> 绑定 GenManip SHA、LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、Stage 1-5 commands/artifacts/hash、三张 frame hash、Aluminum waiver 和 PM claim boundary。</td>
+            </tr>
+            <tr>
+              <td>Material closure</td>
+              <td class="status-warn"><code>open_remote_dependency_waived</code></td>
+              <td>Stage 5 完成 runtime material readback 分类，但 <code>Aluminum_Anodized_Charcoal.mdl</code> 仍是 explicit waiver <code>ALUMINUM_REMOTE_MDL_001</code>，<code>native_material_closure_claim_allowed=false</code>。可以说任务可读性和 eval readback 通过，不能说 full native MDL/texture material closure 已完成。</td>
             </tr>
             <tr>
               <td>visual QA</td>
-              <td class="status-ok"><code>PASS / PASS / PASS</code></td>
-              <td><code>pick</code> 目标瓶清楚，<code>place</code> 烧杯和目标托盘关系可读；<code>open_door</code> 已有 P1 surrogate、旧 P2 native 反例和 P2 retake native PASS 证据。独立图像审阅判定 retake 为 <code>PASS</code>、confidence high：箱体 upright，蓝色门、白色侧面、把手、观察窗和控制面板可见。这个 PASS 只覆盖任务渲染图，不等于策略得分或官方 baseline 成绩。</td>
+              <td class="status-warn"><code>P1/P2 PASS, Stage 5 WARN</code></td>
+              <td><code>pick</code> 目标瓶清楚，<code>place</code> 烧杯和目标托盘关系可读；<code>open_door</code> 已有 P1 surrogate、旧 P2 native 反例和 P2 retake native PASS 证据。Stage 5 最新图可作为机器 readback 证据，箱体、蓝色门边和把手可辨认，但大面积桌面/上方平面占主视野，独立视觉审阅为 <code>WARN</code>，不建议作为 polished PM showcase。</td>
             </tr>
             <tr>
               <td>report display QA</td>
@@ -1092,19 +1117,23 @@
               <li>P1 后，三任务 eval <code>camera2</code> 都已从纯黑变为非黑 readback。</li>
               <li>静态 USD 坐标和门把手层级已经明显推进，handle 不再作为独立飞走物体。</li>
               <li>任务级隐藏后，<code>pick</code> 和 <code>place</code> 的当前诊断图已经能让 PM 看懂目标和关系。</li>
-              <li>P1 最新正式诊断中三任务 <code>render_validation.passed=true</code>，可以说任务渲染门禁已通过。</li>
-              <li>可以说 <code>open_door</code> 的 P1 <code>sanitized_surrogate</code> 对照组稳定了关节读数和 readback 证据。</li>
-              <li>可以说 P2 已把 <code>open_door</code> 回到 LabUtopia native complex <code>DryingBox_01</code>，原生 visual/hierarchy/nested handle 保留，并且 retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，<code>native_complex_dryingbox_ready=true</code>。</li>
+	              <li>P1 最新正式诊断中三任务 <code>render_validation.passed=true</code>，可以说任务渲染门禁已通过。</li>
+	              <li>可以说 <code>open_door</code> 的 P1 <code>sanitized_surrogate</code> 对照组稳定了关节读数和 readback 证据。</li>
+	              <li>可以说 P2 已把 <code>open_door</code> 回到 LabUtopia native complex <code>DryingBox_01</code>，原生 visual/hierarchy/nested handle 保留，并且 retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，<code>native_complex_dryingbox_ready=true</code>。</li>
+	              <li>可以说 Stage 5 已通过 Franka/native eval-path readback：<code>native_eval_readback_ready=true</code>、<code>eval_step_contract.passed=true</code>，metric 读取门的 <code>RevoluteJoint</code>，并显式忽略按钮 <code>PrismaticJoint</code>。</li>
+	              <li>可以说 Stage 6 已记录证据边界：Aluminum remote dependency 使用 explicit waiver，native MDL/texture material closure 仍 open。</li>
           </ul>
         </div>
         <div class="panel blocked">
           <h3>现在不能说</h3>
           <ul>
-            <li>不能说任务已经求解成功，当前默认动作得分是 <code>0.0</code>。</li>
-            <li>不能说官方 Lift2 baseline 已经可评，Lift2 复合资产和官方 runner 还没闭环。</li>
-              <li>不能把当前任务渲染 PASS 或 native gate PASS 等同于策略成功率、官方分数或官方 baseline 成绩。</li>
-              <li>不能说当前 P2 native readback 复现了 LabUtopia viewer 的原生展示视角；它是 evaluator camera 的任务证据图。</li>
-            <li>不能说已经跑过 EBench 官方 Lift2 baseline；当前闭环的是 GenManip/EBench 本地任务渲染门禁和 Franka POC native DryingBox gate。</li>
+	            <li>不能说任务已经求解成功，当前默认动作得分是 <code>0.0</code>。</li>
+	            <li>不能说官方 Lift2 baseline 已经可评，Lift2 复合资产和官方 runner 还没闭环。</li>
+	              <li>不能把当前任务渲染 PASS 或 native gate PASS 等同于策略成功率、官方分数或官方 baseline 成绩。</li>
+	              <li>不能说当前 P2 native readback 复现了 LabUtopia viewer 的原生展示视角；它是 evaluator camera 的任务证据图。</li>
+	            <li>不能说已经跑过 EBench 官方 Lift2 baseline；当前闭环的是 GenManip/EBench 本地任务渲染门禁和 Franka/native DryingBox eval readback。</li>
+	            <li>不能说 full native MDL/texture material closure 已完成；当前状态是 <code>open_remote_dependency_waived</code>，waiver id 为 <code>ALUMINUM_REMOTE_MDL_001</code>。</li>
+	            <li>不能把 Stage 5 最新截图称为 polished PM showcase；它是诊断图，视觉审阅为 <code>WARN</code>。</li>
           </ul>
         </div>
       </div>
@@ -1138,26 +1167,26 @@
           <h3>Eval-path 重拍验收</h3>
             <p>已用正常 evaluator/readback 路径重新抓关键帧，写入 evidence manifest；三任务任务渲染门禁已通过。后续只做展示级 polish 或复验，不再作为 P1 阻断项。</p>
         </div>
-        <div class="milestone">
-          <span class="tag">P2</span>
-          <h3>Native complex DryingBox gate</h3>
-          <p>已完成 <code>asset audit</code>、native-only Isaac smoke、EBench wrapper、<code>additive physics override</code>、wrapper-local <code>Looks</code>/<code>material:binding</code> 修复和 open_door native retake；当前 evidence boundary 是 <code>native_complex_dryingbox_ready=true</code>、<code>official_baseline_evaluable=false</code>。</p>
-        </div>
-        <div class="milestone">
-          <span class="tag">P3</span>
-          <h3>Lift2 资产预检</h3>
-          <p>下一步构建复合资产根目录：LabUtopia scene overlay + 默认 <code>robot_usds/lift2</code> + 默认 <code>miscs/curobo</code>，并留下 preflight JSON/hash。</p>
-        </div>
-        <div class="milestone">
-          <span class="tag">P4</span>
-          <h3>Lift2 dry smoke</h3>
-          <p>在独立端口运行 <code>lift2_candidate</code>，要求 3/3 complete，但仍保持 <code>official_baseline_execution=false</code>。</p>
-        </div>
-        <div class="milestone">
-          <span class="tag">P5</span>
-          <h3>官方 runner 发现</h3>
-          <p>定位官方 EBench/OpenPI/Lift2 runner 文件，记录路径、hash 和入口，不直接执行策略。</p>
-        </div>
+	        <div class="milestone">
+	          <span class="tag">Stage 5</span>
+	          <h3>Native eval readback</h3>
+	          <p>已完成 <code>asset audit</code>、native-only Isaac smoke、EBench wrapper、<code>additive physics override</code> 和 open_door eval-path readback；当前 evidence boundary 是 <code>native_eval_readback_ready=true</code>、<code>native_material_closure_status=open_remote_dependency_waived</code>、<code>lift2_contract_ready=false</code>。</p>
+	        </div>
+	        <div class="milestone">
+	          <span class="tag">Stage 6</span>
+	          <h3>Evidence package</h3>
+	          <p>已新增 acceptance manifest，记录 GenManip/LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、frame hash、Aluminum waiver 和 PM claim boundary。</p>
+	        </div>
+	        <div class="milestone">
+	          <span class="tag">Stage 7</span>
+	          <h3>Lift2 contract check</h3>
+	          <p>下一步验证 Lift2 candidate 的 observation/action/camera/reward/logging contract。只有 Stage 7 通过后，才重新讨论 official baseline evaluability。</p>
+	        </div>
+	        <div class="milestone">
+	          <span class="tag">Showcase</span>
+	          <h3>展示视角补拍</h3>
+	          <p>Stage 5 图是诊断证据且视觉审阅 <code>WARN</code>。如需对外展示，应补拍更低、更正面、更聚焦门和把手的 PM-facing image。</p>
+	        </div>
         <div class="milestone">
           <span class="tag">P6</span>
           <h3>官方式本地尝试</h3>
@@ -1213,14 +1242,19 @@
               <td>camera axes/pose、deterministic light 和 pick/place 非黑 readback 证据。</td>
               <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_p0a_p0b_20260623.json">打开</a></td>
             </tr>
-            <tr>
-              <td>P1 asset/layout manifest</td>
-                <td>三任务 eval readback 图、静态 USD 坐标、任务级隐藏、open_door 关闭位、细把手正面诊断和 official baseline 未验证边界。</td>
-              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json">打开</a></td>
-            </tr>
-            <tr>
-              <td>Render/layout closure plan</td>
-              <td>P0-P2 修复计划：camera 诊断、reset 布局、eval-path 重拍和视觉 QA。</td>
+	            <tr>
+	              <td>P1 asset/layout manifest</td>
+	                <td>三任务 eval readback 图、静态 USD 坐标、任务级隐藏、open_door 关闭位、细把手正面诊断和 official baseline 未验证边界。</td>
+	              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json">打开</a></td>
+	            </tr>
+	            <tr>
+	              <td>Stage 6 acceptance manifest</td>
+	              <td>最新原生 DryingBox acceptance evidence package：Stage 1-5 artifact/hash、Git SHA、推荐 conda env、材质 waiver、frame hash、claim boundary。</td>
+	              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">打开</a></td>
+	            </tr>
+	            <tr>
+	              <td>Render/layout closure plan</td>
+	              <td>P0-P2 修复计划：camera 诊断、reset 布局、eval-path 重拍和视觉 QA。</td>
               <td><a href="../../../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md">打开</a></td>
             </tr>
             <tr>
@@ -1248,7 +1282,7 @@
       </div>
     </section>
 
-    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, and P2 native DryingBox gate; official Lift2 baseline remains unverified.</p>
+    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, native DryingBox Stage 5 eval readback, and Stage 6 claim boundary; official Lift2 baseline and full native MDL/texture material closure remain unverified.</p>
   </main>
 </body>
 </html>

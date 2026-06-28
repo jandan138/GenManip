@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "stage": "acceptance_stage_6_evidence_package",
+  "status": "passed",
+  "created_utc": "2026-06-28T18:32:19Z",
+  "scope": "LabUtopia native DryingBox_01 acceptance stages 1-5 evidence package and PM claim boundary",
+  "source_eval_manifest": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260628_183219.json",
+  "repositories": {
+    "genmanip": {
+      "branch": "labutopia-stage5-eval-readback",
+      "commit": "f743d034aedd867147ea630d0686dd2abfe1d7b5",
+      "remote": "https://github.com/jandan138/GenManip.git"
+    },
+    "labutopia": {
+      "branch": "main",
+      "commit": "3d42bbcacb3138ca404228ee5d9654fa03dfe178",
+      "remote": "https://github.com/jandan138/labutopia.git"
+    }
+  },
+  "git": {
+    "genmanip_sha": "f743d034aedd867147ea630d0686dd2abfe1d7b5",
+    "labutopia_sha": "3d42bbcacb3138ca404228ee5d9654fa03dfe178"
+  },
+  "environment": {
+    "runtime_profile": "DSW default Isaac Kit Python",
+    "python_executable": "/isaac-sim/kit/python/bin/python3",
+    "python_version": "Python 3.10.15",
+    "conda_prefix": "",
+    "conda_env_path": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310",
+    "conda_environment_note": "The recommended reproducible test environment is the embodied-eval-os Isaac/GenManip env above. No active CONDA_PREFIX was present for the Stage 5/6 evidence commands in this worktree; the effective interpreter resolves from /usr/bin/python to /isaac-sim/kit/python/bin/python3.",
+    "asset_overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "ASSET_OVERLAY_ROOT": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "MDL_SYSTEM_PATH": "/isaac-sim/materials/:/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/miscs/mdl/labutopia/mdl",
+    "labutopia_root": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia",
+    "genmanip_worktree": "/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback"
+  },
+  "stage_evidence": {
+    "acceptance_stage_1_asset_audit": {
+      "status": "passed",
+      "genmanip_commit": "9568262",
+      "artifact": "saved/diagnostics/native_dryingbox_audit_20260628_102604/audit.json",
+      "artifact_sha256": "43f7a3589f6db59382687ba2d5bab768b78f4fe38a1ebd0f0bc3917fc8580f85",
+      "verification": [
+        "python -m pytest tests/labutopia_poc/test_native_dryingbox_audit.py -q -> 3 passed",
+        "python -m pytest tests/labutopia_poc -q -> 93 passed, 1 skipped"
+      ],
+      "claim_boundary": "Proves native DryingBox_01 hierarchy, joint, handle candidate, and risk flags are auditable; does not prove EBench wrapper, eval readback, or Lift2 readiness."
+    },
+    "acceptance_stage_2_native_isaac_smoke": {
+      "status": "passed",
+      "artifact": "saved/diagnostics/native_dryingbox_smoke_20260628_143638/smoke.json",
+      "artifact_sha256": "1c5270e45abc164ed26111eeb684310e84da992bdbe01b2cb8ff6a5aa7a96e79",
+      "verification": [
+        "python -m py_compile standalone_tools/labutopia_poc/run_native_dryingbox_smoke.py && python -m pytest tests/labutopia_poc -q -> 113 passed, 1 skipped"
+      ],
+      "claim_boundary": "Proves isolated native-only Isaac physics smoke stability for 120 steps; does not prove EBench wrapper packaging, eval scoring, or Lift2 readiness."
+    },
+    "acceptance_stage_3_native_wrapper": {
+      "status": "passed",
+      "genmanip_commit": "d45bc57",
+      "artifacts": [
+        "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda",
+        "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/labutopia_level1_poc.json"
+      ],
+      "verification": [
+        "python standalone_tools/labutopia_poc/validate_task_package.py -> LabUtopia task package validation OK",
+        "python -m pytest tests/labutopia_poc -q -> 120 passed, 1 skipped"
+      ],
+      "claim_boundary": "Proves the native DryingBox wrapper topology and wrapper-local material binding map; known fallback surfaces remain labelled and are not full native material closure."
+    },
+    "acceptance_stage_4_physics_override": {
+      "status": "passed",
+      "genmanip_commit": "02f330e",
+      "artifacts": [
+        "saved/diagnostics/native_dryingbox_physics_override_20260628_172756/physics_override.json",
+        "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/native_dryingbox_physics_override.json"
+      ],
+      "artifact_sha256": "b4942edfe3519938834aca9c137141880746fe80772a8ae481da716708bc87dc",
+      "verification": [
+        "python -m pytest tests/labutopia_poc/test_validate_task_package.py tests/labutopia_poc/test_build_asset_overlay.py -q -> 47 passed",
+        "python standalone_tools/labutopia_poc/validate_task_package.py -> LabUtopia task package validation OK",
+        "python -m pytest tests/labutopia_poc -q -> 126 passed, 1 skipped",
+        "git diff --check -> clean"
+      ],
+      "material_disposition": {
+        "remote_aluminum_disposition": "explicit_waiver",
+        "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+        "material_closure_kept_open": true
+      },
+      "claim_boundary": "Proves additive physics/articulation override and dependency disposition; does not upgrade material status to resolved_native_material."
+    },
+    "acceptance_stage_5_eval_readback": {
+      "status": "passed",
+      "genmanip_commit": "f743d03",
+      "run_id": "labutopia_native_open_door_eval_20260628_183219",
+      "task_name": "ebench/labutopia_lab_poc/franka_poc/level1_open_door",
+      "seed": "000",
+      "worker_id": "local",
+      "episode_id": "ebench/labutopia_native_open_door_eval_20260628_183219/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000",
+      "artifacts": [
+        "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260628_183219.json"
+      ],
+      "diagnostic_logs": {
+        "stdout_log_path": "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/stdout.log",
+        "stderr_log_path": "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/stderr.log"
+      },
+      "verification": [
+        "python -m pytest tests/labutopia_poc -q -> 151 passed, 1 skipped",
+        "python standalone_tools/labutopia_poc/validate_task_package.py -> LabUtopia task package validation OK"
+      ],
+      "runtime_results": {
+        "native_eval_readback_ready": true,
+        "native_complex_dryingbox_ready": true,
+        "runtime_physics_stable": true,
+        "eval_step_contract_passed": true,
+        "metric_reads_door_revolute_joint": true,
+        "button_joint_ignored_by_metric": true,
+        "lift2_contract_ready": false
+      },
+      "camera_frames": [
+        {
+          "stage": "readback_after_get_eval_camera_data",
+          "camera_name": "camera2",
+          "path": "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/readback_after_get_eval_camera_data/camera2/00000.png",
+          "sha256": "f9c2fb18c2cd137192edbe3caecbead6e6bd5f8246abbeca45fcffcf4036e9e4",
+          "classification": "visible_frame",
+          "size": [512, 512]
+        },
+        {
+          "stage": "readback_after_get_eval_camera_data",
+          "camera_name": "camera2",
+          "path": "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/readback_after_get_eval_camera_data/camera2/00001.png",
+          "sha256": "12bedb27daccb76a6f3f16aa8d0c8ad1479144553b04b2d246816a33962ddb4f",
+          "classification": "visible_frame",
+          "size": [512, 512]
+        },
+        {
+          "stage": "recorder_png",
+          "camera_name": "camera2",
+          "path": "saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/recorder_png/camera2/00000.png",
+          "sha256": "f9c2fb18c2cd137192edbe3caecbead6e6bd5f8246abbeca45fcffcf4036e9e4",
+          "classification": "visible_frame",
+          "size": [512, 512]
+        }
+      ],
+      "material_runtime_summary": {
+        "material_scope_policy": "preserve_owned_world_looks",
+        "native_material_closure_status": "open_remote_dependency_waived",
+        "runtime_material_dependency_status": "open_waived",
+        "material_closure_eligible": false,
+        "remote_aluminum_disposition": "explicit_waiver",
+        "remote_aluminum_waiver_id": "ALUMINUM_REMOTE_MDL_001",
+        "mirrored_mdl_path": null,
+        "mirrored_mdl_sha256": null,
+        "mdl_compiler_warnings": [],
+        "unresolved_dependency_list": [],
+        "waiver_list": [
+          {
+            "waiver_id": "ALUMINUM_REMOTE_MDL_001",
+            "owner": "LabUtopia native DryingBox acceptance lane",
+            "date_utc": "2026-06-28",
+            "reason": "remote source is intentionally not mirrored in this package revision",
+            "affected_source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+            "affected_runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+            "closure_claim_allowed": false
+          }
+        ],
+        "remote_only_dependency_count": 1,
+        "remote_waiver_count": 1,
+        "unresolved_binding_target_count": 0,
+        "stage4_fallback_surface_count": 3,
+        "runtime_fallback_surface_count": 30,
+        "runtime_compute_bound_material_invalid_paths": [
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+          "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+        ],
+        "runtime_task_visible_material_record_count": 32,
+        "closure_claim_allowed": false
+      },
+      "claim_boundary": "Proves eval-path reset/render/step/metric readback for native DryingBox_01; does not prove full native MDL/texture material closure or official Lift2 baseline readiness."
+    }
+  },
+  "commands_used": [
+    "python -m pytest tests/labutopia_poc/test_native_dryingbox_audit.py -q",
+    "python -m pytest tests/labutopia_poc -q",
+    "python -m py_compile standalone_tools/labutopia_poc/run_native_dryingbox_smoke.py && python -m pytest tests/labutopia_poc -q",
+    "python standalone_tools/labutopia_poc/validate_task_package.py",
+    "python -m pytest tests/labutopia_poc/test_validate_task_package.py tests/labutopia_poc/test_build_asset_overlay.py -q",
+    "python standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py --task level1_open_door --mode native_dryingbox_eval",
+    "git diff --check"
+  ],
+  "visual_review": {
+    "verdict": "WARN",
+    "stage5_image": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-eval-stage5.png",
+    "stage5_image_sha256": "f9c2fb18c2cd137192edbe3caecbead6e6bd5f8246abbeca45fcffcf4036e9e4",
+    "summary": "The DryingBox body, blue door edge, and handle are identifiable enough for machine readback evidence, but the camera angle is not polished for PM showcase because a large overhead/table surface dominates the frame.",
+    "pm_wording_required": "Label this as Stage 5 machine evidence / visual WARN, or retake before using as a polished product showcase."
+  },
+  "claim_boundary": {
+    "native_asset_is_surrogate": false,
+    "native_eval_readback_ready": true,
+    "native_complex_dryingbox_ready": true,
+    "task_readability_and_metric_readback_claim_allowed": true,
+    "native_material_closure_claim_allowed": false,
+    "native_material_closure_status": "open_remote_dependency_waived",
+    "material_closure_blocker": "remote_aluminum_explicit_waiver",
+    "official_baseline_evaluable": false,
+    "lift2_contract_ready": false,
+    "pm_summary_cn": "原生 DryingBox_01 已经通过 EBench/GenManip eval path 的 native open-door readback：资产不是 surrogate cube，门、把手、RevoluteJoint metric 和画面都有证据。但 Aluminum 材质仍保留 remote dependency waiver，native MDL/texture material closure 继续保持 open；这仍然只是 Franka/native acceptance stage，不等于 official Lift2 baseline 已通过。"
+  },
+  "report_paths": {
+    "genmanip_weekly_markdown": "docs/records/2026-06-22-labutopia-ebench-weekly-report.md",
+    "genmanip_weekly_html": "docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html",
+    "labutopia_weekly_html": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/reports/2026-06-15-labutopia-weekly/index.html",
+    "labutopia_native_dryingbox_html": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/reports/2026-06-15-labutopia-weekly/native-dryingbox-task1.html",
+    "labutopia_stage_plan": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia/docs/superpowers/plans/2026-06-26-labutopia-native-dryingbox-acceptance-stages.md"
+  }
+}
