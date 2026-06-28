@@ -7,11 +7,12 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 
 DEFAULT_LABUTOPIA_ROOT = Path("/cpfs/shared/simulation/zhuzihou/dev/LabUtopia")
@@ -19,6 +20,9 @@ DEFAULT_SOURCE_SCENE_RELATIVE = Path("assets/chemistry_lab/lab_001/lab_001.usd")
 DEFAULT_SOURCE_PRIM_PATH = "/World/DryingBox_01"
 MOVABLE_JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"}
 EXPECTED_NATIVE_JOINT_TYPES = {"PhysicsFixedJoint", "PhysicsRevoluteJoint"}
+REMOTE_ASSET_PREFIXES = ("http://", "https://", "omniverse://")
+TEXTURE_REF_RE = re.compile(r'texture_2d\(\s*"([^"]+)"')
+MDL_IMPORT_RE = re.compile(r"^\s*import\s+([^;]+);", re.MULTILINE)
 
 
 def _sha256(path: Path) -> str:
@@ -96,6 +100,59 @@ def _attr_value(attr: Any) -> Any:
     return _json_value(attr.Get())
 
 
+def _asset_path_parts(value: Any) -> tuple[str | None, str | None]:
+    if value is None:
+        return None, None
+    authored = getattr(value, "path", None)
+    resolved = getattr(value, "resolvedPath", None)
+    if authored is None:
+        authored = str(value)
+    if resolved == "":
+        resolved = None
+    return str(authored), str(resolved) if resolved else None
+
+
+def _asset_dependency_report(
+    asset_path: Any,
+    *,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    authored_path, resolved_path = _asset_path_parts(asset_path)
+    report = {
+        "asset_path": authored_path,
+        "resolved_path": resolved_path,
+        "asset_location": "absent",
+        "sha256": None,
+    }
+    if not authored_path:
+        return report
+
+    if authored_path.startswith(REMOTE_ASSET_PREFIXES):
+        report["asset_location"] = "remote"
+        return report
+
+    candidates = []
+    if resolved_path:
+        candidates.append(Path(resolved_path))
+    authored_candidate = Path(authored_path)
+    if authored_candidate.is_absolute():
+        candidates.append(authored_candidate)
+    elif base_dir is not None:
+        candidates.append((base_dir / authored_candidate).resolve())
+
+    for candidate in candidates:
+        if candidate.exists():
+            report["asset_location"] = "local"
+            report["resolved_path"] = str(candidate)
+            report["sha256"] = _sha256(candidate)
+            return report
+
+    report["asset_location"] = "missing"
+    if candidates:
+        report["resolved_path"] = str(candidates[0])
+    return report
+
+
 def _xform_ops(prim: Usd.Prim) -> list[dict[str, Any]]:
     xformable = UsdGeom.Xformable(prim)
     if not xformable:
@@ -119,6 +176,39 @@ def _visibility(prim: Usd.Prim) -> Any:
     return _attr_value(imageable.GetVisibilityAttr())
 
 
+def _display_color_report(prim: Usd.Prim) -> dict[str, Any]:
+    attr = prim.GetAttribute("primvars:displayColor")
+    value = _attr_value(attr)
+    authored = bool(attr and attr.HasAuthoredValueOpinion())
+    report = {
+        "authored": authored,
+        "value": value,
+        "fallback_status": "absent",
+    }
+    if value is None:
+        return report
+
+    colors = value if isinstance(value, list) else [value]
+    flattened = []
+    for color in colors:
+        if isinstance(color, list):
+            flattened.extend(
+                float(channel)
+                for channel in color
+                if isinstance(channel, (int, float))
+            )
+        elif isinstance(color, (int, float)):
+            flattened.append(float(color))
+
+    if not flattened:
+        report["fallback_status"] = "invalid"
+    elif max(abs(channel) for channel in flattened) <= 0.05:
+        report["fallback_status"] = "black_or_low_contrast"
+    else:
+        report["fallback_status"] = "usable"
+    return report
+
+
 def _prim_report(prim: Usd.Prim) -> dict[str, Any]:
     return {
         "path": str(prim.GetPath()),
@@ -126,6 +216,267 @@ def _prim_report(prim: Usd.Prim) -> dict[str, Any]:
         "applied_api_schemas": list(prim.GetAppliedSchemas()),
         "xformOps": _xform_ops(prim),
         "visibility": _visibility(prim),
+    }
+
+
+def _binding_scope_status(
+    *,
+    source_prim_path: str,
+    source_binding_target: str | None,
+    composed_binding_target: str | None,
+) -> str:
+    target = source_binding_target or composed_binding_target
+    if target is None:
+        return "unbound"
+    if target == source_prim_path or target.startswith(f"{source_prim_path}/"):
+        return "in_source_subtree"
+    return "out_of_source_subtree"
+
+
+def _read_mdl_text(path: str | None) -> str | None:
+    if path is None:
+        return None
+    mdl_path = Path(path)
+    if not mdl_path.exists():
+        return None
+    return mdl_path.read_text(encoding="utf-8-sig", errors="replace")
+
+
+def _helper_import_reports(mdl_path: str | None) -> list[dict[str, Any]]:
+    mdl_text = _read_mdl_text(mdl_path)
+    if mdl_text is None or mdl_path is None:
+        return []
+    mdl_dir = Path(mdl_path).parent
+    reports = []
+    seen = set()
+    for match in MDL_IMPORT_RE.finditer(mdl_text):
+        module_expr = match.group(1).strip()
+        if module_expr in seen:
+            continue
+        seen.add(module_expr)
+        if module_expr.startswith("::"):
+            reports.append(
+                {
+                    "module": module_expr,
+                    "asset_path": None,
+                    "resolved_path": None,
+                    "asset_location": "builtin",
+                    "sha256": None,
+                }
+            )
+            continue
+        module_name = module_expr.replace("::*", "").split("::", 1)[0]
+        helper_path = f"{module_name}.mdl"
+        dependency = _asset_dependency_report(helper_path, base_dir=mdl_dir)
+        reports.append({"module": module_expr, **dependency})
+    return reports
+
+
+def _texture_dependency_reports(mdl_path: str | None) -> list[dict[str, Any]]:
+    mdl_text = _read_mdl_text(mdl_path)
+    if mdl_text is None or mdl_path is None:
+        return []
+    mdl_dir = Path(mdl_path).parent
+    reports = []
+    seen = set()
+    for index, texture_path in enumerate(TEXTURE_REF_RE.findall(mdl_text)):
+        if texture_path in seen:
+            continue
+        seen.add(texture_path)
+        dependency = _asset_dependency_report(texture_path, base_dir=mdl_dir)
+        reports.append(
+            {
+                "attribute_path": f"{mdl_path}:texture_2d:{index}",
+                **dependency,
+            }
+        )
+    return reports
+
+
+def _material_shader_report(material_prim: Usd.Prim | None) -> dict[str, Any]:
+    empty = {
+        "source_asset": None,
+        "sub_identifier": None,
+        "resolved_path": None,
+        "asset_location": "absent",
+        "sha256": None,
+        "helper_imports": [],
+    }
+    if material_prim is None or not material_prim.IsValid():
+        return empty
+
+    material = UsdShade.Material(material_prim)
+    surface_shader, _, _ = material.ComputeSurfaceSource("mdl")
+    shader_prims = []
+    if surface_shader and surface_shader.GetPrim().IsValid():
+        shader_prims.append(surface_shader.GetPrim())
+    shader_prims.extend(
+        prim
+        for prim in Usd.PrimRange(material_prim)
+        if prim.IsA(UsdShade.Shader) and prim not in shader_prims
+    )
+    for prim in shader_prims:
+        source_attr = prim.GetAttribute("info:mdl:sourceAsset")
+        if not source_attr:
+            continue
+        source_asset = source_attr.Get()
+        if source_asset is None:
+            continue
+        source_report = _asset_dependency_report(
+            source_asset,
+            base_dir=Path(material_prim.GetStage().GetRootLayer().realPath).parent,
+        )
+        mdl_path = source_report["resolved_path"]
+        return {
+            "shader_path": str(prim.GetPath()),
+            "source_asset": source_report["asset_path"],
+            "sub_identifier": _attr_value(
+                prim.GetAttribute("info:mdl:sourceAsset:subIdentifier")
+            ),
+            "resolved_path": mdl_path,
+            "asset_location": source_report["asset_location"],
+            "sha256": source_report["sha256"],
+            "helper_imports": _helper_import_reports(mdl_path),
+        }
+    return empty
+
+
+def _mesh_material_report(
+    prim: Usd.Prim,
+    *,
+    source_prim_path: str,
+) -> dict[str, Any]:
+    binding_api = UsdShade.MaterialBindingAPI(prim)
+    direct_rel = binding_api.GetDirectBindingRel()
+    direct_targets = [str(target) for target in direct_rel.GetTargets()]
+    material, binding_rel = binding_api.ComputeBoundMaterial()
+    computed_binding_targets = (
+        [str(target) for target in binding_rel.GetTargets()] if binding_rel else []
+    )
+    material_prim = material.GetPrim() if material else None
+    material_path = (
+        str(material_prim.GetPath())
+        if material_prim is not None and material_prim.IsValid()
+        else None
+    )
+    source_binding_targets = direct_targets or computed_binding_targets
+    source_binding_target = source_binding_targets[0] if source_binding_targets else None
+    binding_scope_status = _binding_scope_status(
+        source_prim_path=source_prim_path,
+        source_binding_target=source_binding_target,
+        composed_binding_target=material_path,
+    )
+    mdl_report = _material_shader_report(material_prim)
+    texture_reports = _texture_dependency_reports(mdl_report["resolved_path"])
+    return {
+        "mesh_path": str(prim.GetPath()),
+        "direct_binding_targets": direct_targets,
+        "source_binding_targets": source_binding_targets,
+        "source_binding_target": source_binding_target,
+        "source_binding_relationship_path": str(binding_rel.GetPath())
+        if binding_rel
+        else None,
+        "composed_binding_target": material_path,
+        "compute_bound_material": {
+            "success": bool(material_path),
+            "material_path": material_path,
+            "relationship_path": str(binding_rel.GetPath()) if binding_rel else None,
+        },
+        "binding_scope_status": binding_scope_status,
+        "material_prim_valid": bool(
+            material_prim is not None and material_prim.IsValid()
+        ),
+        "material_prim_type": material_prim.GetTypeName()
+        if material_prim is not None and material_prim.IsValid()
+        else None,
+        "mdl": mdl_report,
+        "textures": texture_reports,
+        "displayColor": _display_color_report(prim),
+    }
+
+
+def _dedupe_reports(
+    reports: list[dict[str, Any]], keys: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    deduped = {}
+    for report in reports:
+        dedupe_key = tuple(report.get(key) for key in keys)
+        if all(item is None for item in dedupe_key):
+            dedupe_key = json.dumps(report, sort_keys=True)
+        deduped.setdefault(dedupe_key, report)
+    return list(deduped.values())
+
+
+def _material_closure_report(
+    source_prim: Usd.Prim,
+    *,
+    source_prim_path: str,
+) -> dict[str, Any]:
+    mesh_materials = [
+        _mesh_material_report(prim, source_prim_path=source_prim_path)
+        for prim in Usd.PrimRange(source_prim)
+        if prim.IsA(UsdGeom.Mesh)
+    ]
+    bound_meshes = [
+        item for item in mesh_materials if item["compute_bound_material"]["success"]
+    ]
+    texture_dependencies = _dedupe_reports(
+        [
+            texture
+            for item in mesh_materials
+            for texture in item.get("textures", [])
+        ],
+        ("asset_path", "resolved_path", "attribute_path"),
+    )
+    helper_mdl_dependencies = _dedupe_reports(
+        [
+            helper
+            for item in mesh_materials
+            for helper in item["mdl"].get("helper_imports", [])
+        ],
+        ("module", "asset_path", "resolved_path"),
+    )
+    mdl_dependencies = _dedupe_reports(
+        [
+            {
+                "asset_path": item["mdl"]["source_asset"],
+                "resolved_path": item["mdl"]["resolved_path"],
+                "asset_location": item["mdl"]["asset_location"],
+                "sha256": item["mdl"]["sha256"],
+                "sub_identifier": item["mdl"]["sub_identifier"],
+            }
+            for item in mesh_materials
+            if item["mdl"]["source_asset"]
+        ],
+        ("asset_path", "resolved_path", "sub_identifier"),
+    )
+    return {
+        "source_prim_path": source_prim_path,
+        "mesh_count": len(mesh_materials),
+        "bound_mesh_count": len(bound_meshes),
+        "out_of_scope_binding_count": sum(
+            1
+            for item in bound_meshes
+            if item["binding_scope_status"] == "out_of_source_subtree"
+        ),
+        "unique_source_binding_targets": sorted(
+            {
+                target
+                for item in mesh_materials
+                for target in item["source_binding_targets"]
+            }
+        ),
+        "unique_composed_binding_targets": sorted(
+            {
+                item["composed_binding_target"]
+                for item in bound_meshes
+                if item["composed_binding_target"]
+            }
+        ),
+        "mdl_dependencies": mdl_dependencies,
+        "helper_mdl_dependencies": helper_mdl_dependencies,
+        "texture_dependencies": texture_dependencies,
+        "mesh_materials": mesh_materials,
     }
 
 
@@ -317,6 +668,104 @@ def _joint_risks(joints: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]
     }
 
 
+def _material_risks(
+    material_closure: dict[str, Any]
+) -> dict[str, list[dict[str, Any]]]:
+    out_of_scope_material_binding = []
+    missing_mdl = []
+    remote_only_mdl = []
+    black_or_low_contrast_fallback = []
+
+    for item in material_closure["mesh_materials"]:
+        if item["binding_scope_status"] == "out_of_source_subtree":
+            out_of_scope_material_binding.append(
+                {
+                    "mesh_path": item["mesh_path"],
+                    "source_binding_target": item["source_binding_target"],
+                    "composed_binding_target": item["composed_binding_target"],
+                }
+            )
+        mdl = item["mdl"]
+        if mdl["source_asset"] and mdl["asset_location"] == "missing":
+            missing_mdl.append(
+                {
+                    "mesh_path": item["mesh_path"],
+                    "source_asset": mdl["source_asset"],
+                    "resolved_path": mdl["resolved_path"],
+                    "sub_identifier": mdl["sub_identifier"],
+                }
+            )
+        elif mdl["source_asset"] and mdl["asset_location"] == "remote":
+            remote_only_mdl.append(
+                {
+                    "mesh_path": item["mesh_path"],
+                    "source_asset": mdl["source_asset"],
+                    "sub_identifier": mdl["sub_identifier"],
+                }
+            )
+
+        display_color = item["displayColor"]
+        if display_color["fallback_status"] in {
+            "absent",
+            "black_or_low_contrast",
+            "invalid",
+        }:
+            black_or_low_contrast_fallback.append(
+                {
+                    "mesh_path": item["mesh_path"],
+                    "fallback_status": display_color["fallback_status"],
+                    "value": display_color["value"],
+                }
+            )
+
+    for helper in material_closure["helper_mdl_dependencies"]:
+        if helper["asset_location"] == "missing":
+            missing_mdl.append(
+                {
+                    "mesh_path": None,
+                    "module": helper["module"],
+                    "source_asset": helper["asset_path"],
+                    "resolved_path": helper["resolved_path"],
+                    "sub_identifier": None,
+                }
+            )
+        elif helper["asset_location"] == "remote":
+            remote_only_mdl.append(
+                {
+                    "mesh_path": None,
+                    "module": helper["module"],
+                    "source_asset": helper["asset_path"],
+                    "sub_identifier": None,
+                }
+            )
+
+    missing_texture = [
+        {
+            "attribute_path": texture["attribute_path"],
+            "asset_path": texture["asset_path"],
+            "resolved_path": texture["resolved_path"],
+        }
+        for texture in material_closure["texture_dependencies"]
+        if texture["asset_location"] == "missing"
+    ]
+    remote_only_texture = [
+        {
+            "attribute_path": texture["attribute_path"],
+            "asset_path": texture["asset_path"],
+        }
+        for texture in material_closure["texture_dependencies"]
+        if texture["asset_location"] == "remote"
+    ]
+    return {
+        "out_of_scope_material_binding": out_of_scope_material_binding,
+        "missing_mdl": missing_mdl,
+        "missing_texture": missing_texture,
+        "remote_only_mdl": remote_only_mdl,
+        "remote_only_texture": remote_only_texture,
+        "black_or_low_contrast_fallback": black_or_low_contrast_fallback,
+    }
+
+
 def audit_native_dryingbox(
     *,
     labutopia_root: str | Path = DEFAULT_LABUTOPIA_ROOT,
@@ -352,11 +801,15 @@ def audit_native_dryingbox(
         for prim in Usd.PrimRange(source_prim)
         if "handle" in str(prim.GetPath()).lower()
     ]
+    material_closure = _material_closure_report(
+        source_prim, source_prim_path=source_prim_path
+    )
 
     risk_flags = {
         "non_identity_root_scale": _root_scale_risks(source_prim),
         **_rigid_body_risks(rigid_bodies),
         **_joint_risks(joints),
+        **_material_risks(material_closure),
     }
     report = {
         "schema_version": 1,
@@ -364,6 +817,7 @@ def audit_native_dryingbox(
         "stage_path": str(stage_file),
         "stage_sha256": _sha256(stage_file),
         "source_prim_path": source_prim_path,
+        "material_closure": material_closure,
         "prims": prims,
         "articulation_roots": articulation_roots,
         "rigid_bodies": rigid_bodies,
