@@ -1,0 +1,6 @@
+╭────────────────────────────────────────────────╮
+│           GenManip Evaluation Client           │
+╰────────────────────────────────────────────────╯
+
+→ Results directory: /tmp/labutopia_lift2_schema_client_results
+→ Client UID: 6e409a8f

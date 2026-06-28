@@ -11,6 +11,8 @@ HTML 版产品汇报页：
 
 2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。同时必须保留两个边界：`lift2_contract_ready=false`，所以不能说 official Lift2 baseline 已可评；`native_material_closure_status=open_remote_dependency_waived`，所以不能说 full native MDL/texture material closure 已完成。最新 Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。
 
+2026-06-28 Stage 7 补充：Lift2 official-baseline-style contract check 已尝试并生成 evidence bundle。静态 contract 已补到 `lift2_candidate` 三任务，`action dialects` 行为 `PASS`；但 live reset/step/metric 没有通过，因为当前 composite asset preflight 仍缺 `robot_usds/lift2/robot.usd`、`miscs/curobo/R5a/r5a_left_arm.yml` 和 seed `meta_info.pkl`，因此没有启动长时 Isaac eval server。结论是 `Stage 7 attempted, blocked`，继续保持 `lift2_contract_ready=false`、`official_baseline_evaluable=false`。
+
 ## 本周完成了什么
 
 ### 1. LabUtopia POC 任务包已可运行
@@ -281,6 +283,8 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - P2 native EBench retake diagnostics: `saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json`, SHA256 `d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6`; boundary is `render_validation.passed=true`, `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
 - Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
 - Stage 6 acceptance evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
+- Stage 7 Lift2 readiness report: [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
+- Stage 7 machine evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -298,7 +302,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
 6. P2 / Acceptance Stage 5：已完成 LabUtopia native complex `DryingBox_01` eval-path readback：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、runtime material readback、door `RevoluteJoint` metric 和 frame hash 都有证据。
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。Aluminum remote waiver 仍然 open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
-8. Acceptance Stage 7：下一步进入 Lift2 contract check；这是 official baseline 可评前的下一道硬门槛。
+8. Acceptance Stage 7：已尝试 Lift2 contract check，当前结论是 `attempted, blocked`。下一步先补 Lift2 composite asset root（默认 `robot_usds/lift2` + `miscs/curobo/R5a` + LabUtopia overlay）和 seed/meta_info，再启动隔离 eval server，重跑 `gmp submit/eval/status` 和 `lift2_eval_contract_probe --live`。
 
 ## 新增调研和计划文档
 
@@ -308,3 +312,5 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - [docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html](evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html)
 - [docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json)
 - [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
+- [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
+- [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json)

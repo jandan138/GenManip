@@ -52,6 +52,34 @@ BASE_LIFT2_CAMERAS = {
         "position": [0.0, 0.0, 0.0],
         "orientation": [1.0, 0.0, 0.0, 0.0],
         **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+    "left_camera": {
+        "exists": True,
+        "prim_path": "/lift2/lift2/lift2/fl/link6/Camera",
+        "camera_axes": "usd",
+        "resolution": [640, 480],
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+    "right_camera": {
+        "exists": True,
+        "prim_path": "/lift2/lift2/lift2/fr/link6/Camera",
+        "camera_axes": "usd",
+        "resolution": [640, 480],
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+    "top_camera": {
+        "exists": True,
+        "prim_path": "/lift2/lift2/lift2/h_link6/Camera",
+        "camera_axes": "usd",
+        "resolution": [1280, 720],
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
+    },
+    "overlook_camera": {
+        "exists": True,
+        "prim_path": "/lift2/lift2/lift2/base_link/Camera_overlook",
+        "camera_axes": "usd",
+        "resolution": [1280, 720],
+        **{flag: False for flag in CAMERA_CLEANUP_FLAGS},
     }
 }
 
@@ -914,6 +942,90 @@ def test_open_door_initializes_drying_box_closed_for_eval_start():
         drying_box = cfg["object_config"]["obj_DryingBox_01"]
 
         assert drying_box["target_positions"] == [0.0], str(path)
+
+
+def test_lift2_candidate_tasks_declare_stage7_contract_boundary():
+    expected_observation_keys = [
+        "instruction",
+        "state.joints",
+        "state.gripper",
+        "state.base",
+        "state.ee_pose",
+        "video.overlook_camera_view",
+        "video.left_camera_view",
+        "video.right_camera_view",
+        "timestep",
+        "reset",
+        "robot_id",
+    ]
+    expected_action_contract = {
+        "required_fields": [
+            "action",
+            "base_motion",
+            "control_type",
+            "is_rel",
+            "base_is_rel",
+        ],
+        "action_shape": [16],
+        "base_motion_shape": [3],
+        "control_type": "joint_position",
+    }
+
+    for task_name in EXPECTED_TASKS:
+        path = validate_task_package.PACKAGE_ROOT / "lift2_candidate" / f"{task_name}.yml"
+        cfg = validate_task_package._load_yaml(path)["evaluation_configs"][0]
+        contract = cfg["labutopia_lift2_contract"]
+
+        assert contract["schema_version"] == 1
+        assert contract["baseline_robot"] == "manip/lift2/R5a"
+        assert contract["required_observation_keys"] == expected_observation_keys
+        assert contract["baseline_camera_input_keys"] == [
+            "video.overlook_camera_view",
+            "video.left_camera_view",
+            "video.right_camera_view",
+        ]
+        assert contract["camera_config_to_observation_key"] == {
+            "overlook_camera": "video.overlook_camera_view",
+            "left_camera": "video.left_camera_view",
+            "right_camera": "video.right_camera_view",
+        }
+        assert contract["action_contract"] == expected_action_contract
+        assert contract["reward_success_source"] == "genmanip_ebench_metric_output"
+        assert contract["material_boundary"] == "stage7_consumes_stage5_6_material_status_only"
+
+
+def test_lift2_contract_validator_rejects_action_contract_drift():
+    path = (
+        validate_task_package.PACKAGE_ROOT
+        / "lift2_candidate"
+        / "level1_open_door.yml"
+    )
+    cfg = validate_task_package._load_yaml(path)["evaluation_configs"][0]
+    cfg["labutopia_lift2_contract"]["action_contract"]["required_fields"].remove(
+        "base_is_rel"
+    )
+
+    with pytest.raises(AssertionError, match="action_contract"):
+        validate_task_package._validate_lift2_baseline_contract(cfg, path)
+
+
+def test_lift2_camera_config_declares_baseline_input_views():
+    path = validate_task_package.ROOT / "configs/cameras/fixed_camera_lift2_simbox.yml"
+    cameras = validate_task_package._load_yaml(path)
+
+    for camera_name, obs_key in {
+        "overlook_camera": "video.overlook_camera_view",
+        "left_camera": "video.left_camera_view",
+        "right_camera": "video.right_camera_view",
+    }.items():
+        camera = cameras[camera_name]
+        assert camera["exists"] is True
+        assert camera["camera_axes"] == "usd"
+        assert camera["prim_path"].startswith("/lift2/lift2/lift2/")
+        assert camera["resolution"]
+        assert validate_task_package.LIFT2_CAMERA_CONFIG_TO_OBSERVATION_KEY[
+            camera_name
+        ] == obs_key
 
 
 def test_drying_box_articulation_physics_is_sanitized_for_runtime():

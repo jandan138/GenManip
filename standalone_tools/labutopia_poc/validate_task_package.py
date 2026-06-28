@@ -292,6 +292,39 @@ PROFILE_EXPECTATIONS = {
         "camera_config": "configs/cameras/fixed_camera_lift2_simbox.yml",
     },
 }
+LIFT2_CAMERA_CONFIG_TO_OBSERVATION_KEY = {
+    "overlook_camera": "video.overlook_camera_view",
+    "left_camera": "video.left_camera_view",
+    "right_camera": "video.right_camera_view",
+}
+LIFT2_ADDITIONAL_OBSERVATION_CAMERA_KEYS = {
+    "top_camera": "video.top_camera_view",
+}
+EXPECTED_LIFT2_OBSERVATION_KEYS = [
+    "instruction",
+    "state.joints",
+    "state.gripper",
+    "state.base",
+    "state.ee_pose",
+    "video.overlook_camera_view",
+    "video.left_camera_view",
+    "video.right_camera_view",
+    "timestep",
+    "reset",
+    "robot_id",
+]
+EXPECTED_LIFT2_ACTION_CONTRACT = {
+    "required_fields": [
+        "action",
+        "base_motion",
+        "control_type",
+        "is_rel",
+        "base_is_rel",
+    ],
+    "action_shape": [16],
+    "base_motion_shape": [3],
+    "control_type": "joint_position",
+}
 CAMERA_CLEANUP_FLAGS = {
     "with_bbox2d",
     "with_bbox3d",
@@ -1640,6 +1673,33 @@ def _validate_camera_config_file(path: Path, profile: str, task_name: str | None
                 camera2.get("task_view") == task_name,
                 f"{path}:camera2 task_view must be {task_name!r}",
             )
+    elif profile == "lift2_candidate":
+        expected_cameras = set(LIFT2_CAMERA_CONFIG_TO_OBSERVATION_KEY)
+        missing_lift2_cameras = expected_cameras - set(data)
+        _assert(
+            not missing_lift2_cameras,
+            f"{path}: lift2_candidate camera config missing {missing_lift2_cameras}",
+        )
+        for camera_name in sorted(expected_cameras):
+            camera = data[camera_name]
+            _assert(
+                camera.get("exists") is True,
+                f"{path}:{camera_name}: Lift2 baseline camera must exist",
+            )
+            _assert(
+                camera.get("camera_axes") == "usd",
+                f"{path}:{camera_name}: camera_axes must be 'usd'",
+            )
+            prim_path = camera.get("prim_path")
+            _assert(
+                isinstance(prim_path, str) and prim_path.startswith("/lift2/lift2/lift2/"),
+                f"{path}:{camera_name}: prim_path must target the Lift2 robot camera tree",
+            )
+            resolution = camera.get("resolution")
+            _assert(
+                isinstance(resolution, list) and len(resolution) == 2,
+                f"{path}:{camera_name}: resolution must be a two-element list",
+            )
 
 
 def _walk_goal_dicts(value: Any, path: Path) -> list[dict[str, Any]]:
@@ -1839,6 +1899,75 @@ def _validate_open_door_articulation_contract(cfg: dict[str, Any], path: Path) -
         )
 
 
+def _validate_lift2_baseline_contract(cfg: dict[str, Any], path: Path) -> None:
+    if path.parent.name != "lift2_candidate":
+        return
+    contract = cfg.get("labutopia_lift2_contract")
+    _assert(
+        isinstance(contract, dict),
+        f"{path}: missing labutopia_lift2_contract",
+    )
+    _assert(
+        contract.get("schema_version") == 1,
+        f"{path}: labutopia_lift2_contract.schema_version must be 1",
+    )
+    _assert(
+        contract.get("baseline_robot") == PROFILE_EXPECTATIONS["lift2_candidate"]["robot_type"],
+        f"{path}: baseline_robot must be manip/lift2/R5a",
+    )
+    _assert(
+        contract.get("required_observation_keys") == EXPECTED_LIFT2_OBSERVATION_KEYS,
+        f"{path}: required_observation_keys must match Stage 7 Lift2 contract",
+    )
+    _assert(
+        contract.get("baseline_camera_input_keys")
+        == list(LIFT2_CAMERA_CONFIG_TO_OBSERVATION_KEY.values()),
+        f"{path}: baseline_camera_input_keys must list required Lift2 video inputs",
+    )
+    _assert(
+        contract.get("camera_config_to_observation_key")
+        == LIFT2_CAMERA_CONFIG_TO_OBSERVATION_KEY,
+        f"{path}: camera_config_to_observation_key mismatch",
+    )
+    additional = contract.get("additional_observation_camera_keys")
+    if additional is not None:
+        _assert(
+            additional == LIFT2_ADDITIONAL_OBSERVATION_CAMERA_KEYS,
+            f"{path}: additional_observation_camera_keys mismatch",
+        )
+    _assert(
+        contract.get("action_contract") == EXPECTED_LIFT2_ACTION_CONTRACT,
+        f"{path}: action_contract must match 16D Lift2 joint/base action contract",
+    )
+    _assert(
+        contract.get("reward_success_source") == "genmanip_ebench_metric_output",
+        f"{path}: reward_success_source must be GenManip/EBench metric output",
+    )
+    _assert(
+        contract.get("logging_required_fields")
+        == [
+            "run_id",
+            "worker_id",
+            "episode_id",
+            "seed",
+            "result_path",
+            "stdout_path",
+            "stderr_path",
+        ],
+        f"{path}: logging_required_fields mismatch",
+    )
+    _assert(
+        contract.get("material_boundary")
+        == "stage7_consumes_stage5_6_material_status_only",
+        f"{path}: Stage 7 must not claim material closure",
+    )
+    _assert(
+        contract.get("readiness_rule")
+        == "all_rows_pass_required_for_lift2_contract_ready",
+        f"{path}: readiness_rule must require every row to PASS",
+    )
+
+
 def _validate_runtime_task(path: Path) -> None:
     sys.path.insert(0, str(ROOT))
     from genmanip.core.scene.scene_config import SceneConfig
@@ -1884,6 +2013,7 @@ def _validate_runtime_task(path: Path) -> None:
     camera_names = set(_load_yaml(camera_path))
     _validate_render_validation(cfg, path, camera_names)
     _validate_open_door_articulation_contract(cfg, path)
+    _validate_lift2_baseline_contract(cfg, path)
 
     generation_config = cfg.get("generation_config")
     _assert(

@@ -1,0 +1,238 @@
+{
+  "action_dialect_matrix": [
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": true,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "zero_action"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": true,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "openpi_relative_base_motion"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": false,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "xvla_absolute_base_motion"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": true,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "internvla_a1_single_step_relative_base_motion"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": false,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "internvla_a1_chunk_absolute_base_motion"
+    }
+  ],
+  "claim_boundary": {
+    "blocked_rows": [
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "observation keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "camera input keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no GenManip/EBench step response was provided",
+        "name": "reward/success fields",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no run logging metadata was provided",
+        "name": "logging fields",
+        "status": "BLOCKED"
+      }
+    ],
+    "failed_rows": [],
+    "lift2_contract_ready": false,
+    "local_official_baseline_style_contract_ready": false,
+    "native_material_closure_claim_allowed": false,
+    "official_baseline_evaluable": false,
+    "stage7_status": "Stage 7 attempted, blocked"
+  },
+  "live_probe": {
+    "exception_message": "Cannot connect to server at http://127.0.0.1:18088. Ensure the evaluation server is running. Error: HTTPConnectionPool(host='127.0.0.1', port=18088): Max retries exceeded with url: /docs?run_id=labutopia_lift2_schema_smoke_20260628_191421 (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=18088): Failed to establish a new connection: [Errno 111] Connection refused\"))",
+    "exception_stack": "Traceback (most recent call last):\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connection.py\", line 204, in _new_conn\n    sock = connection.create_connection(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/util/connection.py\", line 85, in create_connection\n    raise err\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/util/connection.py\", line 73, in create_connection\n    sock.connect(sa)\nConnectionRefusedError: [Errno 111] Connection refused\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connectionpool.py\", line 788, in urlopen\n    response = self._make_request(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connectionpool.py\", line 493, in _make_request\n    conn.request(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connection.py\", line 500, in request\n    self.endheaders()\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/http/client.py\", line 1298, in endheaders\n    self._send_output(message_body, encode_chunked=encode_chunked)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/http/client.py\", line 1058, in _send_output\n    self.send(msg)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/http/client.py\", line 996, in send\n    self.connect()\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connection.py\", line 331, in connect\n    self.sock = self._new_conn()\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connection.py\", line 219, in _new_conn\n    raise NewConnectionError(\nurllib3.exceptions.NewConnectionError: HTTPConnection(host='127.0.0.1', port=18088): Failed to establish a new connection: [Errno 111] Connection refused\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/adapters.py\", line 696, in send\n    resp = conn.urlopen(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/connectionpool.py\", line 842, in urlopen\n    retries = retries.increment(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/urllib3/util/retry.py\", line 543, in increment\n    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]\nurllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='127.0.0.1', port=18088): Max retries exceeded with url: /docs?run_id=labutopia_lift2_schema_smoke_20260628_191421 (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=18088): Failed to establish a new connection: [Errno 111] Connection refused\"))\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 700, in _health_check\n    resp = requests.get(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/api.py\", line 87, in get\n    return request(\"get\", url, params=params, **kwargs)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/api.py\", line 71, in request\n    return session.request(method=method, url=url, **kwargs)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/sessions.py\", line 651, in request\n    resp = self.send(prep, **send_kwargs)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/sessions.py\", line 784, in send\n    r = adapter.send(request, **kwargs)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/requests/adapters.py\", line 729, in send\n    raise ConnectionError(e, request=request)\nrequests.exceptions.ConnectionError: HTTPConnectionPool(host='127.0.0.1', port=18088): Max retries exceeded with url: /docs?run_id=labutopia_lift2_schema_smoke_20260628_191421 (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=18088): Failed to establish a new connection: [Errno 111] Connection refused\"))\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback/standalone_tools/labutopia_poc/lift2_eval_contract_probe.py\", line 536, in run_live_probe\n    client = client_factory()\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback/standalone_tools/labutopia_poc/lift2_eval_contract_probe.py\", line 604, in _client_factory\n    return EvalClient(\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 663, in __init__\n    self._health_check()\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 711, in _health_check\n    raise RuntimeError(\nRuntimeError: Cannot connect to server at http://127.0.0.1:18088. Ensure the evaluation server is running. Error: HTTPConnectionPool(host='127.0.0.1', port=18088): Max retries exceeded with url: /docs?run_id=labutopia_lift2_schema_smoke_20260628_191421 (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=18088): Failed to establish a new connection: [Errno 111] Connection refused\"))\n",
+    "exception_type": "RuntimeError",
+    "status": "blocked",
+    "worker_id": "0"
+  },
+  "logging": null,
+  "observation_schema": {
+    "camera_keys": [],
+    "entries": {},
+    "keys": [],
+    "present": false
+  },
+  "required_tasks": [
+    "level1_pick",
+    "level1_place",
+    "level1_open_door"
+  ],
+  "schema_rows": [
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "observation keys",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "camera input keys",
+      "status": "BLOCKED"
+    },
+    {
+      "details": {
+        "dialects": [
+          "zero_action",
+          "openpi_relative_base_motion",
+          "xvla_absolute_base_motion",
+          "internvla_a1_single_step_relative_base_motion",
+          "internvla_a1_chunk_absolute_base_motion"
+        ]
+      },
+      "finding": "all supplied action dialects match the Lift2 action contract",
+      "name": "action dialects",
+      "status": "PASS"
+    },
+    {
+      "finding": "no GenManip/EBench step response was provided",
+      "name": "reward/success fields",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "no run logging metadata was provided",
+      "name": "logging fields",
+      "status": "BLOCKED"
+    }
+  ],
+  "schema_version": 1,
+  "stage": "acceptance_stage_7_lift2_contract_probe",
+  "step_response_summary": null,
+  "task_name": "level1_open_door"
+}

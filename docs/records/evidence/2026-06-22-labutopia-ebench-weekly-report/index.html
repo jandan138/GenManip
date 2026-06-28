@@ -413,7 +413,7 @@
       <div>
         <p class="eyebrow">Weekly report · 2026-06-22 · PM-facing evidence page</p>
         <h1><span>LabUtopia x EBench</span><span>接入周报</span></h1>
-          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。当前仍不能宣称 official Lift2 baseline 可评，也不能宣称 full native MDL/texture material closure，因为 Lift2 contract 尚未过，Aluminum 材质仍是 explicit waiver。</p>
+          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。Stage 7 已尝试 Lift2 contract check，但因为缺 <code>robot_usds/lift2</code>、<code>miscs/curobo/R5a</code> 和 seed <code>meta_info.pkl</code>，没有 live reset/step 证据，结论是 attempted/blocked。当前仍不能宣称 official Lift2 baseline 可评，也不能宣称 full native MDL/texture material closure，因为 Aluminum 材质仍是 explicit waiver。</p>
         <div class="pill-row">
           <span class="pill ok">wiring smoke complete</span>
           <span class="pill ok">3/3 episodes finalized</span>
@@ -421,14 +421,15 @@
           <span class="pill warn">score=0.0 expected</span>
             <span class="pill ok">3/3 task render gate pass</span>
             <span class="pill ok">native DryingBox Franka gate pass</span>
-            <span class="pill ok">Stage 5 eval readback pass</span>
-            <span class="pill warn">material closure open</span>
-            <span class="pill warn">official baseline blocked</span>
+	            <span class="pill ok">Stage 5 eval readback pass</span>
+	            <span class="pill warn">material closure open</span>
+	            <span class="pill warn">Stage 7 attempted/blocked</span>
+	            <span class="pill warn">official baseline blocked</span>
         </div>
       </div>
       <aside class="hero-note">
         <b>给产品经理的一句话</b>
-          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，Stage 5 证明原生复杂 <code>DryingBox_01</code> 已通过 Franka/native eval-path readback。现在可以汇报“原生 DryingBox 的任务可读性、runtime 稳定性和门 <code>RevoluteJoint</code> metric 证据已过”，但还不能汇报“official Lift2 baseline 已经可评”或“full native MDL/texture material closure 已完成”。
+	          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，Stage 5 证明原生复杂 <code>DryingBox_01</code> 已通过 Franka/native eval-path readback。Stage 7 也已经尝试并定位到 blocker：Lift2 复合资产根目录还缺默认 robot/curobo 文件，所以没有 live reset/step 证据。现在可以汇报“原生 DryingBox 的任务可读性、runtime 稳定性和门 <code>RevoluteJoint</code> metric 证据已过”，但还不能汇报“official Lift2 baseline 已经可评”或“full native MDL/texture material closure 已完成”。
       </aside>
     </div>
   </header>
@@ -463,9 +464,9 @@
             <div class="detail">pick/place/open_door 的任务渲染均已通过；open_door native DryingBox Franka gate 已过。</div>
         </div>
         <div class="metric">
-          <div class="label">官方 Lift2 baseline</div>
-          <div class="value status-blocked">不可宣称</div>
-          <div class="detail">native Franka gate 已过；Lift2 复合资产和官方 runner 还没闭环。</div>
+	          <div class="label">官方 Lift2 baseline</div>
+	          <div class="value status-blocked">不可宣称</div>
+	          <div class="detail">Stage 7 已 attempted/blocked；Lift2 robot/curobo 复合资产和 live reset 证据还没闭环。</div>
         </div>
       </div>
     </section>
@@ -1177,11 +1178,11 @@
 	          <h3>Evidence package</h3>
 	          <p>已新增 acceptance manifest，记录 GenManip/LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、frame hash、Aluminum waiver 和 PM claim boundary。</p>
 	        </div>
-	        <div class="milestone">
-	          <span class="tag">Stage 7</span>
-	          <h3>Lift2 contract check</h3>
-	          <p>下一步验证 Lift2 candidate 的 observation/action/camera/reward/logging contract。只有 Stage 7 通过后，才重新讨论 official baseline evaluability。</p>
-	        </div>
+		        <div class="milestone">
+		          <span class="tag">Stage 7</span>
+		          <h3>Lift2 contract check</h3>
+		          <p>已尝试验证 Lift2 candidate 的 observation/action/camera/reward/logging contract。静态 action dialect matrix 为 <code>PASS</code>，但 live reset/step/reward/logging 为 <code>BLOCKED</code>，因为 composite asset preflight 仍缺 Lift2 robot/curobo 文件。只有 Stage 7 全部 <code>PASS</code> 后，才重新讨论 official baseline evaluability。</p>
+		        </div>
 	        <div class="milestone">
 	          <span class="tag">Showcase</span>
 	          <h3>展示视角补拍</h3>
@@ -1247,11 +1248,21 @@
 	                <td>三任务 eval readback 图、静态 USD 坐标、任务级隐藏、open_door 关闭位、细把手正面诊断和 official baseline 未验证边界。</td>
 	              <td><a href="../../../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json">打开</a></td>
 	            </tr>
-	            <tr>
-	              <td>Stage 6 acceptance manifest</td>
-	              <td>最新原生 DryingBox acceptance evidence package：Stage 1-5 artifact/hash、Git SHA、推荐 conda env、材质 waiver、frame hash、claim boundary。</td>
-	              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">打开</a></td>
-	            </tr>
+		            <tr>
+		              <td>Stage 6 acceptance manifest</td>
+		              <td>最新原生 DryingBox acceptance evidence package：Stage 1-5 artifact/hash、Git SHA、推荐 conda env、材质 waiver、frame hash、claim boundary。</td>
+		              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">打开</a></td>
+		            </tr>
+		            <tr>
+		              <td>Stage 7 Lift2 readiness report</td>
+		              <td>Stage 7 attempted/blocked 归档：gmp submit/eval/status 输出、probe JSON、per-task matrix、schema matrix 和 claim boundary。</td>
+		              <td><a href="../../../labutopia_lab_poc/lift2_readiness.md">打开</a></td>
+		            </tr>
+		            <tr>
+		              <td>Stage 7 machine manifest</td>
+		              <td>机器可读证据：preflight blocker、probe hash、gmp log hash、schema rows 和 forbidden claims。</td>
+		              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json">打开</a></td>
+		            </tr>
 	            <tr>
 	              <td>Render/layout closure plan</td>
 	              <td>P0-P2 修复计划：camera 诊断、reset 布局、eval-path 重拍和视觉 QA。</td>
@@ -1282,7 +1293,7 @@
       </div>
     </section>
 
-    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, native DryingBox Stage 5 eval readback, and Stage 6 claim boundary; official Lift2 baseline and full native MDL/texture material closure remain unverified.</p>
+    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, native DryingBox Stage 5 eval readback, Stage 6 claim boundary, and Stage 7 attempted/blocked Lift2 contract evidence; official Lift2 baseline and full native MDL/texture material closure remain unverified.</p>
   </main>
 </body>
 </html>

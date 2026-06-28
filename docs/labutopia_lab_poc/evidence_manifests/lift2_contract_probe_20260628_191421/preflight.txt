@@ -1,0 +1,10 @@
+timestamp_utc=20260628_191421
+run_id=labutopia_lift2_schema_smoke_20260628_191421
+port=18088
+python=/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/bin/python
+PYTHONPATH=/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10:/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages:/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src:/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback
+MISSING saved/assets/robot_usds/lift2/robot.usd
+MISSING saved/assets/miscs/curobo/R5a/r5a_left_arm.yml
+MISSING saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl
+MISSING /cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/robot_usds/lift2/robot.usd
+EXISTS /cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda

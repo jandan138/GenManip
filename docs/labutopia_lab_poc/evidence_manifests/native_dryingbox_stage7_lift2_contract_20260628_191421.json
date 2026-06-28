@@ -1,0 +1,178 @@
+{
+  "artifacts": {
+    "gmp_eval_log": {
+      "exit_code": 1,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_eval.txt",
+      "sha256": "d75ae9f49fa291f9172e741aa87ae658be89a713bafb7384580240ecbac8a7c8"
+    },
+    "gmp_status_log": {
+      "exit_code": 1,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_status.txt",
+      "sha256": "008c5becb8569e19283f224bb7d6a53c2cd2affa5fc17374d7d105771c892017"
+    },
+    "gmp_submit_log": {
+      "exit_code": 1,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_submit.txt",
+      "sha256": "ff13e6a6ccff4a631357730968022b502e967ea875c2b98fa0b2fc6bd1d857d5"
+    },
+    "preflight": {
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/preflight.txt",
+      "sha256": "1fd7f5711ab38bb70279c538ab2c595a89be28c831c4260ff1c4c08cb101a24b"
+    },
+    "probe_json": {
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.json",
+      "sha256": "da85c1599195fb3dd312a777abffc1effc22cf19785756cf84677c0d67fdfe17"
+    },
+    "probe_stderr": {
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "probe_stdout": {
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.stdout.txt",
+      "sha256": "ddc12231e0ef5ae0b967e451123e87c3cff4eff6e05ff549063692b279845f6a"
+    }
+  },
+  "claim_boundary": {
+    "blocked_rows": [
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "observation keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "camera input keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no GenManip/EBench step response was provided",
+        "name": "reward/success fields",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no run logging metadata was provided",
+        "name": "logging fields",
+        "status": "BLOCKED"
+      }
+    ],
+    "failed_rows": [],
+    "lift2_contract_ready": false,
+    "local_official_baseline_style_contract_ready": false,
+    "native_material_closure_claim_allowed": false,
+    "official_baseline_evaluable": false,
+    "stage7_status": "Stage 7 attempted, blocked"
+  },
+  "created_utc": "2026-06-28T19:14:21Z",
+  "environment": {
+    "asset_overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets",
+    "genmanip_client_src": "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src",
+    "python": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/bin/python"
+  },
+  "evidence_bundle": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421",
+  "forbidden_claims": [
+    "official leaderboard reproduction",
+    "official EBench score release",
+    "official_baseline_evaluable=true",
+    "local_official_baseline_style_contract_ready=true",
+    "lift2_contract_ready=true",
+    "native material closure closed by Stage 7"
+  ],
+  "next_engineering_items": [
+    "Build composite Lift2 asset root with robot_usds/lift2 and miscs/curobo/R5a.",
+    "Start isolated eval server with explicit ASSETS_DIR after preflight passes.",
+    "Rerun gmp submit/eval/status and lift2_eval_contract_probe --live.",
+    "Upgrade Stage 7 only when every task and schema row is PASS."
+  ],
+  "port": 18088,
+  "preflight_blockers": [
+    "saved/assets/robot_usds/lift2/robot.usd missing",
+    "saved/assets/miscs/curobo/R5a/r5a_left_arm.yml missing",
+    "saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl missing",
+    "overlay robot_usds/lift2/robot.usd missing"
+  ],
+  "readiness_report": "docs/labutopia_lab_poc/lift2_readiness.md",
+  "repositories": {
+    "genmanip_sha_before_stage7_commit": "eb17930dab46dd1b272b217393c9498d3c029a67",
+    "genmanip_worktree": "/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback"
+  },
+  "run_id": "labutopia_lift2_schema_smoke_20260628_191421",
+  "schema_rows": [
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "observation keys",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "camera input keys",
+      "status": "BLOCKED"
+    },
+    {
+      "details": {
+        "dialects": [
+          "zero_action",
+          "openpi_relative_base_motion",
+          "xvla_absolute_base_motion",
+          "internvla_a1_single_step_relative_base_motion",
+          "internvla_a1_chunk_absolute_base_motion"
+        ]
+      },
+      "finding": "all supplied action dialects match the Lift2 action contract",
+      "name": "action dialects",
+      "status": "PASS"
+    },
+    {
+      "finding": "no GenManip/EBench step response was provided",
+      "name": "reward/success fields",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "no run logging metadata was provided",
+      "name": "logging fields",
+      "status": "BLOCKED"
+    }
+  ],
+  "schema_version": 1,
+  "source_acceptance_manifest": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json",
+  "source_eval_manifest": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260628_183219.json",
+  "stage": "acceptance_stage_7_lift2_official_baseline_contract_check",
+  "stage7_status": "Stage 7 attempted, blocked",
+  "static_verification": {
+    "franka_poc_json_tool": "PASS",
+    "git_diff_check": "PASS",
+    "lift2_candidate_json_tool": "PASS",
+    "pytest_tests_labutopia_poc": "165 passed, 1 skipped",
+    "validate_task_package": "LabUtopia task package validation OK"
+  },
+  "status": "attempted_blocked",
+  "task_rows": [
+    {
+      "Camera Framing": "BLOCKED",
+      "Finding": "Lift2 composite asset preflight blocked; no live reset evidence.",
+      "Metric": "BLOCKED",
+      "Reachability": "BLOCKED",
+      "Reset": "BLOCKED",
+      "Step": "BLOCKED",
+      "task": "level1_pick"
+    },
+    {
+      "Camera Framing": "BLOCKED",
+      "Finding": "Lift2 composite asset preflight blocked; no live reset evidence.",
+      "Metric": "BLOCKED",
+      "Reachability": "BLOCKED",
+      "Reset": "BLOCKED",
+      "Step": "BLOCKED",
+      "task": "level1_place"
+    },
+    {
+      "Camera Framing": "BLOCKED",
+      "Finding": "Live probe could not connect to isolated eval server; no reset/step evidence.",
+      "Metric": "BLOCKED",
+      "Reachability": "BLOCKED",
+      "Reset": "BLOCKED",
+      "Step": "BLOCKED",
+      "task": "level1_open_door"
+    }
+  ],
+  "worker_id": "0"
+}
