@@ -1,0 +1,20 @@
+→ Previous job completed (ebench / labutopia_lift2_composite_20260629_0404)
+  ↳ To view results: gmp submit ebench --run-id labutopia_lift2_composite_20260629_0404
+
+→ Starting job with config(s): ['ebench/labutopia_lab_poc/lift2_candidate/level1_open_door.yml']
+✓ Job started successfully!
+
+╭──────────────────────────────────────────────────╮
+│            GenManip Evaluation Status            │
+├──────────────────────────────────────────────────┤
+│  Status:        ◦ IDLE                           │
+│  Benchmark:     ebench                           │
+│  Run ID:        labutopia_lift2_contract_probe... │
+├──────────────────────────────────────────────────┤
+│  Progress:      ░░░░░░░░░░░░░░░░░░░░   0.0%      │
+│  Completed:     0                                │
+│  In Progress:   0                                │
+│  Workers:       none                             │
+├──────────────────────────────────────────────────┤
+│  No results yet                                  │
+╰──────────────────────────────────────────────────╯

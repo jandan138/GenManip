@@ -37,7 +37,7 @@ REQUIRED_ACTION_FIELDS = [
 ]
 EXPECTED_ACTION_SHAPE = [16]
 EXPECTED_BASE_MOTION_SHAPE = [3]
-TASK_ROW_STATUS_FIELDS = ["Reset", "Step", "Reachability", "Camera Framing", "Metric"]
+TASK_ROW_STATUS_FIELDS = ["Reset", "Step", "Reachability", "Camera Inputs", "Metric"]
 
 
 def _read_json(path: str | None) -> Any:
@@ -358,7 +358,7 @@ def classify_task_readiness_matrix(
         return _status_row(
             "task readiness matrix",
             "BLOCKED",
-            "no per-task reset/step/reachability/camera/metric matrix was provided",
+            "no per-task reset/step/reachability/camera input/metric matrix was provided",
         )
     rows_by_task = {str(row.get("task")): row for row in task_rows}
     missing_tasks = [task for task in REQUIRED_TASKS if task not in rows_by_task]
@@ -388,20 +388,20 @@ def classify_task_readiness_matrix(
         return _status_row(
             "task readiness matrix",
             "BLOCKED",
-            "one or more tasks lack reset, step, reachability, camera, or metric evidence",
+            "one or more tasks lack reset, step, reachability, camera input, or metric evidence",
             details={"task_rows": task_rows},
         )
     if "FAIL" in statuses:
         return _status_row(
             "task readiness matrix",
             "FAIL",
-            "one or more tasks failed reset, step, reachability, camera, or metric evidence",
+            "one or more tasks failed reset, step, reachability, camera input, or metric evidence",
             details={"task_rows": task_rows},
         )
     return _status_row(
         "task readiness matrix",
         "PASS",
-        "all required tasks passed reset, step, reachability, camera, and metric evidence",
+        "all required tasks passed reset, step, reachability, camera input, and metric evidence",
     )
 
 
@@ -412,9 +412,34 @@ def classify_stage7_readiness(
 ) -> dict[str, Any]:
     evaluated_rows = list(rows)
     schema_statuses = [row.get("status") for row in evaluated_rows]
-    if task_rows is not None or not any(
-        status in {"BLOCKED", "FAIL"} for status in schema_statuses
-    ):
+    if task_rows is None:
+        invalid = sorted(
+            {status for status in schema_statuses if status not in VALID_STATUSES}
+        )
+        if invalid:
+            raise ValueError(f"invalid Stage 7 statuses: {invalid}")
+        if "BLOCKED" in schema_statuses:
+            probe_status = "single-task live schema probe blocked"
+        elif "FAIL" in schema_statuses:
+            probe_status = "single-task live schema probe failed"
+        else:
+            probe_status = "single-task live schema probe passed"
+        return {
+            "stage7_status": "Stage 7 not evaluated by single-task live schema probe",
+            "claim_scope": "single_task_live_schema_probe_only",
+            "probe_status": probe_status,
+            "aggregate_stage7_manifest_required": True,
+            "lift2_contract_ready": None,
+            "local_official_baseline_style_contract_ready": None,
+            "official_baseline_evaluable": False,
+            "blocked_rows": [
+                row for row in evaluated_rows if row.get("status") == "BLOCKED"
+            ],
+            "failed_rows": [
+                row for row in evaluated_rows if row.get("status") == "FAIL"
+            ],
+        }
+    else:
         evaluated_rows.append(classify_task_readiness_matrix(task_rows))
     statuses = [row.get("status") for row in evaluated_rows]
     invalid = sorted({status for status in statuses if status not in VALID_STATUSES})

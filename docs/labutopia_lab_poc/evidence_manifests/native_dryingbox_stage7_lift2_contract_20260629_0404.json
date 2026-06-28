@@ -1,0 +1,663 @@
+{
+  "artifacts": {
+    "gmp_eval.txt": {
+      "bytes": 11938,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_eval.txt",
+      "sha256": "984dbe9bb0594f797bbf9615fb8932dd88808e70a943fbb7fb926199243b5795"
+    },
+    "gmp_status.txt": {
+      "bytes": 1659,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_status.txt",
+      "sha256": "7737666eb15859cdbfce3d8ba1786dc1798a82c34f474e105b7183dbb0eb6442"
+    },
+    "gmp_submit.txt": {
+      "bytes": 1450,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_submit.txt",
+      "sha256": "e1b04feffea49e5aca6ad86a47bdff81d52f18d768920858e88902fa0e4017c9"
+    },
+    "gmp_submit_live_probe.txt": {
+      "bytes": 1640,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_submit_live_probe.txt",
+      "sha256": "85c44298c92bb7dcb7a47756d9915d97b0c6d791e5cda52dce8eb77fc3efdf73"
+    },
+    "gmp_submit_live_probe_level1_pick.txt": {
+      "bytes": 1466,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_submit_live_probe_level1_pick.txt",
+      "sha256": "e4101843396e6988c070bcfee7e0d8fdf549791b739f07a0010e19f765257948"
+    },
+    "gmp_submit_live_probe_level1_place.txt": {
+      "bytes": 1467,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_submit_live_probe_level1_place.txt",
+      "sha256": "9bdf3fabf9a51625f132af3ee742c3d8375acf61e9a43ad22447bc1a7e5fab10"
+    },
+    "live_probe.stderr.txt": {
+      "bytes": 0,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "live_probe.stdout.txt": {
+      "bytes": 766,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe.stdout.txt",
+      "sha256": "b17eab9f9f7cce5bac1080b730679ce1940ec7a893222f060157a17e07782b5e"
+    },
+    "live_probe_level1_pick.stderr.txt": {
+      "bytes": 0,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_pick.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "live_probe_level1_pick.stdout.txt": {
+      "bytes": 766,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_pick.stdout.txt",
+      "sha256": "c9512e0dd574e8c3c4556c2d16bb83be5a46f9bd1736a9c9414d6ae86b0d18b5"
+    },
+    "live_probe_level1_place.stderr.txt": {
+      "bytes": 0,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_place.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "live_probe_level1_place.stdout.txt": {
+      "bytes": 766,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_place.stdout.txt",
+      "sha256": "2f1dd0bea3c879822948f78476c9fefbb6262ef9cb383fdb1f61249831d4a05f"
+    },
+    "live_probe_logging.json": {
+      "bytes": 548,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_logging.json",
+      "sha256": "255a269d3df021a1b46aa298eb7edd236ea1b16c47b2cb8cdea164bdb9c96c35"
+    },
+    "live_probe_logging_level1_pick.json": {
+      "bytes": 577,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_logging_level1_pick.json",
+      "sha256": "e29a556438001b38461f3861b0ec0a2a74079054783bc9d93e9d1b1326685c8b"
+    },
+    "live_probe_logging_level1_place.json": {
+      "bytes": 582,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_logging_level1_place.json",
+      "sha256": "b1f88c7fb540f62b52e70606aae31151a5970be49b84a8b987b0949306f61c6f"
+    },
+    "preflight.txt": {
+      "bytes": 1603,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/preflight.txt",
+      "sha256": "b22d0b13bc3a3877ae900b20be99f967e31fc3264ab555285c0691170c24b362"
+    },
+    "probe.json": {
+      "bytes": 10525,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe.json",
+      "sha256": "630e7719d13a665e99cd86eb10b11edc732b3118acb4a9d722ec066255574799"
+    },
+    "probe_level1_pick.json": {
+      "bytes": 10539,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_pick.json",
+      "sha256": "0d2561de5b821fdd78ba363d0b9df3f3a62cdc3e6892d35d37b959f5929887f0"
+    },
+    "probe_level1_place.json": {
+      "bytes": 10547,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_place.json",
+      "sha256": "cf1d098a7cb1e5ad0918383d4f76f39795a2e29befb3b9c9abd21420990dcd53"
+    },
+    "result_info_summary.txt": {
+      "bytes": 1422,
+      "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/result_info_summary.txt",
+      "sha256": "3ab08daff840d7e9b083baf25ddb3a0be9427a64f7774db0f11eced40264d764"
+    }
+  },
+  "claim_boundary": {
+    "blocked_rows": [],
+    "failed_rows": [],
+    "lift2_contract_ready": true,
+    "local_official_baseline_style_contract_ready": true,
+    "model_task_success_claim_allowed": false,
+    "native_material_closure_claim_allowed": false,
+    "official_baseline_evaluable": false,
+    "official_ebench_score_release_claim_allowed": false,
+    "official_leaderboard_reproduction_claim_allowed": false,
+    "pm_summary_cn": "Stage 7 \u5df2\u901a\u8fc7\u672c\u5730 official-baseline-style Lift2 contract\uff1a\u4e09\u6761 lift2_candidate \u4efb\u52a1\u90fd\u80fd\u901a\u8fc7 gmp eval \u5b8c\u6210 reset/step/result_info/metric logging\uff0c\u4e14\u6bcf\u6761\u4efb\u52a1\u7684 live probe \u90fd\u9a8c\u8bc1\u4e86 observation\u3001camera\u3001action\u3001reward/success \u548c logging schema\u3002\u5f53\u524d\u5206\u6570\u4ecd\u4e3a 0%\uff0c\u8fd9\u8bf4\u660e\u7b56\u7565\u6ca1\u6709\u5b8c\u6210\u4efb\u52a1\uff0c\u4e0d\u5f71\u54cd\u201c\u94fe\u8def\u53ef\u8bc4\u201d\u7684\u5408\u540c\u7ed3\u8bba\u3002\u8fd9\u4e0d\u662f official leaderboard \u590d\u73b0\uff0c\u4e5f\u4e0d\u4f1a\u5173\u95ed Stage 4-6 \u4fdd\u7559\u7684 native material closure open \u9879\u3002",
+    "stage7_status": "Stage 7 passed"
+  },
+  "created_utc": "2026-06-28T20:26:53Z",
+  "environment": {
+    "composite_assets_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets",
+    "conda_env": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310",
+    "curobo_src": "/cpfs/shared/simulation/mamengchen/curobo-wbc-backup/src",
+    "genmanip_client_src": "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src",
+    "labutopia_poc_assets_overlay_root": "/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback/saved/assets",
+    "python": "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/bin/python",
+    "saved_assets_symlink_target": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets"
+  },
+  "evidence_bundle": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404",
+  "forbidden_claims": [
+    "official leaderboard reproduction",
+    "official EBench score release",
+    "model quality or task-success claim from 0% score",
+    "native material closure closed by Stage 7"
+  ],
+  "material_boundary_carried_forward": {
+    "material_closure_blocker": "remote_aluminum_explicit_waiver",
+    "native_material_closure_claim_allowed": false,
+    "native_material_closure_status": "open_remote_dependency_waived",
+    "stage7_does_not_resolve_material_closure": true
+  },
+  "next_engineering_items": [
+    "Use this local official-baseline-style contract evidence to hand off the lift2_candidate lane for official Lift2 baseline execution.",
+    "Keep remote Aluminum/native material closure as a Stage 4-6 follow-up: mirror locally or retain explicit waiver before claiming full native material closure.",
+    "Improve policy/controller behavior separately; current Stage 7 score evidence is 0% success across the three candidate tasks."
+  ],
+  "per_task_schema_rows": {
+    "level1_open_door": [
+      {
+        "finding": "reset observation exposes required Lift2 baseline inputs",
+        "name": "observation keys",
+        "status": "PASS"
+      },
+      {
+        "finding": "required baseline camera inputs are present and image-shaped",
+        "name": "camera input keys",
+        "status": "PASS"
+      },
+      {
+        "details": {
+          "dialects": [
+            "zero_action",
+            "openpi_relative_base_motion",
+            "xvla_absolute_base_motion",
+            "internvla_a1_single_step_relative_base_motion",
+            "internvla_a1_chunk_absolute_base_motion"
+          ],
+          "step_results": [
+            {
+              "action_name": "zero_action",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "openpi_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "xvla_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_single_step_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_chunk_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            }
+          ]
+        },
+        "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+        "name": "action dialects",
+        "status": "PASS"
+      },
+      {
+        "finding": "reward/success fields are sourced from GenManip/EBench step output",
+        "name": "reward/success fields",
+        "status": "PASS"
+      },
+      {
+        "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+        "name": "logging fields",
+        "status": "PASS"
+      }
+    ],
+    "level1_pick": [
+      {
+        "finding": "reset observation exposes required Lift2 baseline inputs",
+        "name": "observation keys",
+        "status": "PASS"
+      },
+      {
+        "finding": "required baseline camera inputs are present and image-shaped",
+        "name": "camera input keys",
+        "status": "PASS"
+      },
+      {
+        "details": {
+          "dialects": [
+            "zero_action",
+            "openpi_relative_base_motion",
+            "xvla_absolute_base_motion",
+            "internvla_a1_single_step_relative_base_motion",
+            "internvla_a1_chunk_absolute_base_motion"
+          ],
+          "step_results": [
+            {
+              "action_name": "zero_action",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "openpi_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "xvla_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_single_step_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_chunk_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            }
+          ]
+        },
+        "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+        "name": "action dialects",
+        "status": "PASS"
+      },
+      {
+        "finding": "reward/success fields are sourced from GenManip/EBench step output",
+        "name": "reward/success fields",
+        "status": "PASS"
+      },
+      {
+        "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+        "name": "logging fields",
+        "status": "PASS"
+      }
+    ],
+    "level1_place": [
+      {
+        "finding": "reset observation exposes required Lift2 baseline inputs",
+        "name": "observation keys",
+        "status": "PASS"
+      },
+      {
+        "finding": "required baseline camera inputs are present and image-shaped",
+        "name": "camera input keys",
+        "status": "PASS"
+      },
+      {
+        "details": {
+          "dialects": [
+            "zero_action",
+            "openpi_relative_base_motion",
+            "xvla_absolute_base_motion",
+            "internvla_a1_single_step_relative_base_motion",
+            "internvla_a1_chunk_absolute_base_motion"
+          ],
+          "step_results": [
+            {
+              "action_name": "zero_action",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "openpi_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "xvla_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_single_step_relative_base_motion",
+              "done": false,
+              "response_present": true
+            },
+            {
+              "action_name": "internvla_a1_chunk_absolute_base_motion",
+              "done": false,
+              "response_present": true
+            }
+          ]
+        },
+        "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+        "name": "action dialects",
+        "status": "PASS"
+      },
+      {
+        "finding": "reward/success fields are sourced from GenManip/EBench step output",
+        "name": "reward/success fields",
+        "status": "PASS"
+      },
+      {
+        "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+        "name": "logging fields",
+        "status": "PASS"
+      }
+    ]
+  },
+  "port": 18188,
+  "probe_run_ids": {
+    "level1_open_door": "labutopia_lift2_contract_probe_live_20260629_0416",
+    "level1_pick": "labutopia_lift2_contract_probe_live_20260629_0416_pick",
+    "level1_place": "labutopia_lift2_contract_probe_live_20260629_0416_place"
+  },
+  "repositories": {
+    "genmanip_sha_before_stage7_commit": "6008285dba7b3bb5cc3d067798ea2a786431d072",
+    "genmanip_worktree": "/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback",
+    "labutopia_root": "/cpfs/shared/simulation/zhuzihou/dev/LabUtopia",
+    "labutopia_sha_before_stage7_commit": "4ff1d05f56e5a4c38e52bbd36f573493cc540997"
+  },
+  "result_info": {
+    "level1_open_door": {
+      "episode_end_time": "2026-06-29_04_11_46_176259",
+      "episode_start_time": "2026-06-29_04_10_28_735961",
+      "metric_score": [
+        [
+          [
+            0.0
+          ]
+        ]
+      ],
+      "path": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_open_door/000/result_info.json",
+      "score": 0.0,
+      "sha256": "c3e5877ec3d0b88db14a3a3aa101ca19be435cbbc6b401e58ef20c2940e9bfa1",
+      "success_rate": 0
+    },
+    "level1_pick": {
+      "episode_end_time": "2026-06-29_04_06_48_187095",
+      "episode_start_time": "2026-06-29_04_05_46_401784",
+      "metric_score": [
+        [
+          [
+            0.0
+          ]
+        ]
+      ],
+      "path": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/000/result_info.json",
+      "score": 0.0,
+      "sha256": "5414e8b9b3f5dd1c3deda3219b237d241270d2f9b2c0543a8e2bbcf045553c30",
+      "success_rate": 0
+    },
+    "level1_place": {
+      "episode_end_time": "2026-06-29_04_09_53_935648",
+      "episode_start_time": "2026-06-29_04_07_25_420402",
+      "metric_score": [
+        [
+          [
+            0.0
+          ]
+        ]
+      ],
+      "path": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_place/000/result_info.json",
+      "score": 0.0,
+      "sha256": "18e1631c54fe22ddf204282c19dce0c19765a7928178dbe4eee5db11c61b5083",
+      "success_rate": 0
+    }
+  },
+  "run_id": "labutopia_lift2_composite_20260629_0404",
+  "schema_rows": [
+    {
+      "details": {
+        "per_task": [
+          {
+            "finding": "reset observation exposes required Lift2 baseline inputs",
+            "status": "PASS",
+            "task": "level1_pick"
+          },
+          {
+            "finding": "reset observation exposes required Lift2 baseline inputs",
+            "status": "PASS",
+            "task": "level1_place"
+          },
+          {
+            "finding": "reset observation exposes required Lift2 baseline inputs",
+            "status": "PASS",
+            "task": "level1_open_door"
+          }
+        ]
+      },
+      "finding": "all required tasks passed observation keys live contract probe",
+      "name": "observation keys",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "per_task": [
+          {
+            "finding": "required baseline camera inputs are present and image-shaped",
+            "status": "PASS",
+            "task": "level1_pick"
+          },
+          {
+            "finding": "required baseline camera inputs are present and image-shaped",
+            "status": "PASS",
+            "task": "level1_place"
+          },
+          {
+            "finding": "required baseline camera inputs are present and image-shaped",
+            "status": "PASS",
+            "task": "level1_open_door"
+          }
+        ]
+      },
+      "finding": "all required tasks passed camera input keys live contract probe",
+      "name": "camera input keys",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "per_task": [
+          {
+            "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+            "status": "PASS",
+            "task": "level1_pick"
+          },
+          {
+            "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+            "status": "PASS",
+            "task": "level1_place"
+          },
+          {
+            "finding": "all supplied action dialects match the Lift2 action contract and produced live step responses",
+            "status": "PASS",
+            "task": "level1_open_door"
+          }
+        ]
+      },
+      "finding": "all required tasks passed action dialects live contract probe",
+      "name": "action dialects",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "per_task": [
+          {
+            "finding": "reward/success fields are sourced from GenManip/EBench step output",
+            "status": "PASS",
+            "task": "level1_pick"
+          },
+          {
+            "finding": "reward/success fields are sourced from GenManip/EBench step output",
+            "status": "PASS",
+            "task": "level1_place"
+          },
+          {
+            "finding": "reward/success fields are sourced from GenManip/EBench step output",
+            "status": "PASS",
+            "task": "level1_open_door"
+          }
+        ]
+      },
+      "finding": "all required tasks passed reward/success fields live contract probe",
+      "name": "reward/success fields",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "per_task": [
+          {
+            "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+            "status": "PASS",
+            "task": "level1_pick"
+          },
+          {
+            "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+            "status": "PASS",
+            "task": "level1_place"
+          },
+          {
+            "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+            "status": "PASS",
+            "task": "level1_open_door"
+          }
+        ]
+      },
+      "finding": "all required tasks passed logging fields live contract probe",
+      "name": "logging fields",
+      "status": "PASS"
+    }
+  ],
+  "schema_version": 1,
+  "score_boundary": {
+    "all_scores": {
+      "level1_open_door": 0.0,
+      "level1_pick": 0.0,
+      "level1_place": 0.0
+    },
+    "all_success_rates": {
+      "level1_open_door": 0,
+      "level1_pick": 0,
+      "level1_place": 0
+    },
+    "interpretation": "0% score means the tested zero/simple policy did not solve the tasks; Stage 7 evaluates runtime/data contracts, not policy quality."
+  },
+  "server_shutdown": {
+    "port_18188_open_after_shutdown": false,
+    "port_8087_open_external_task": true
+  },
+  "source_acceptance_manifest": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json",
+  "source_eval_manifest": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260628_183219.json",
+  "stage": "acceptance_stage_7_lift2_official_baseline_contract_check",
+  "stage7_status": "Stage 7 passed",
+  "status": "passed",
+  "task_rows": [
+    {
+      "Camera Inputs": "PASS",
+      "Finding": "Full gmp eval reached reset/step/result_info with metric_score; single-task live probe exposed image-shaped Lift2 camera inputs and produced step responses; this is camera input schema evidence, not polished visual framing evidence. score=0.0, success_rate=0",
+      "Metric": "PASS",
+      "Reachability": "PASS",
+      "Reset": "PASS",
+      "Step": "PASS",
+      "evidence": {
+        "full_eval_result_info": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/000/result_info.json",
+        "live_probe_json": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_pick.json",
+        "live_probe_step_results": [
+          {
+            "action_name": "zero_action",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "openpi_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "xvla_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_single_step_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_chunk_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          }
+        ]
+      },
+      "task": "level1_pick"
+    },
+    {
+      "Camera Inputs": "PASS",
+      "Finding": "Full gmp eval reached reset/step/result_info with metric_score; single-task live probe exposed image-shaped Lift2 camera inputs and produced step responses; this is camera input schema evidence, not polished visual framing evidence. score=0.0, success_rate=0",
+      "Metric": "PASS",
+      "Reachability": "PASS",
+      "Reset": "PASS",
+      "Step": "PASS",
+      "evidence": {
+        "full_eval_result_info": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_place/000/result_info.json",
+        "live_probe_json": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_place.json",
+        "live_probe_step_results": [
+          {
+            "action_name": "zero_action",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "openpi_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "xvla_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_single_step_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_chunk_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          }
+        ]
+      },
+      "task": "level1_place"
+    },
+    {
+      "Camera Inputs": "PASS",
+      "Finding": "Full gmp eval reached reset/step/result_info with metric_score; single-task live probe exposed image-shaped Lift2 camera inputs and produced step responses; this is camera input schema evidence, not polished visual framing evidence. score=0.0, success_rate=0",
+      "Metric": "PASS",
+      "Reachability": "PASS",
+      "Reset": "PASS",
+      "Step": "PASS",
+      "evidence": {
+        "full_eval_result_info": "saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_open_door/000/result_info.json",
+        "live_probe_json": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe.json",
+        "live_probe_step_results": [
+          {
+            "action_name": "zero_action",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "openpi_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "xvla_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_single_step_relative_base_motion",
+            "done": false,
+            "response_present": true
+          },
+          {
+            "action_name": "internvla_a1_chunk_absolute_base_motion",
+            "done": false,
+            "response_present": true
+          }
+        ]
+      },
+      "task": "level1_open_door"
+    }
+  ]
+}

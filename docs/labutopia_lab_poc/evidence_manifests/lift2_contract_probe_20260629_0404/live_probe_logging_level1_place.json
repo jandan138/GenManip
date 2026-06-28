@@ -1,0 +1,9 @@
+{
+  "run_id": "labutopia_lift2_contract_probe_live_20260629_0416_place",
+  "worker_id": "0",
+  "episode_id": "live_probe",
+  "seed": "000",
+  "result_path": "saved/eval_results/ebench/labutopia_lift2_contract_probe_live_20260629_0416_place/ebench/labutopia_lab_poc/lift2_candidate/level1_place/000/result_info.json",
+  "stdout_path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_place.stdout.txt",
+  "stderr_path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/live_probe_level1_place.stderr.txt"
+}

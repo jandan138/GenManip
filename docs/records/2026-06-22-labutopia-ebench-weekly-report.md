@@ -9,9 +9,9 @@ HTML 版产品汇报页：
 
 这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 到 2026-06-24 最新复核补充：三任务现在都能通过 EBench/evaluator 正常读回非黑渲染图，资产静态坐标也已经从“明显导错”修到合理工作区；最新正式诊断中 `pick`、`place`、`open_door` 均为 `render_validation.passed=true`、`task_render_accepted=true`。P2 又把 `open_door` 从 P1 `sanitized_surrogate` 对照组推进到 LabUtopia native complex `DryingBox_01`：原生 visual/hierarchy/nested handle 保留，wrapper-local `Looks` 和 native `material:binding` 已重连，retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，`native_complex_dryingbox_ready=true`。
 
-2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。同时必须保留两个边界：`lift2_contract_ready=false`，所以不能说 official Lift2 baseline 已可评；`native_material_closure_status=open_remote_dependency_waived`，所以不能说 full native MDL/texture material closure 已完成。最新 Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。
+2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。最新 Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。材质边界仍要保留：`native_material_closure_status=open_remote_dependency_waived`，所以不能说 full native MDL/texture material closure 已完成。
 
-2026-06-28 Stage 7 补充：Lift2 official-baseline-style contract check 已尝试并生成 evidence bundle。静态 contract 已补到 `lift2_candidate` 三任务，`action dialects` 行为 `PASS`；但 live reset/step/metric 没有通过，因为当前 composite asset preflight 仍缺 `robot_usds/lift2/robot.usd` 和 `miscs/curobo/R5a/r5a_left_arm.yml` 的组合资产根目录，因此没有启动长时 Isaac eval server。`meta_info.pkl` 不再视为硬 blocker：LabUtopia POC reset 已有 `load_or_build_labutopia_poc_meta_info` fallback，会在 live reset 时复核。结论是 `Stage 7 attempted, blocked`，继续保持 `lift2_contract_ready=false`、`official_baseline_evaluable=false`。
+2026-06-29 Stage 7 补充：Lift2 official-baseline-style contract check 已通过本地合同验证。我们先把官方/default `robot_usds/lift2`、`miscs/curobo/R5a` 和 LabUtopia overlay 合成 composite asset root，再用隔离端口 `18188` 跑完整三任务 `gmp submit/eval/status`，`level1_pick`、`level1_place`、`level1_open_door` 都完成 reset/step/result_info/metric logging；随后又对三条任务分别跑 live contract probe，observation keys、camera input keys、action dialects、reward/success fields、logging fields 全部为 `PASS`。结论升级为 `Stage 7 passed`、`lift2_contract_ready=true`、`local_official_baseline_style_contract_ready=true`。边界仍然明确：三任务分数都是 `0.0`，说明当前简单动作没有解任务；`official_baseline_evaluable=false`，因为这还不是 official leaderboard 复现或官方 EBench score release。
 
 ## 本周完成了什么
 
@@ -191,7 +191,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | --- | --- | --- | --- |
 | `level1_pick` | 抓取目标不明显，只看图无法判断“要抓哪个瓶子” | 修正 eval camera readback、相机朝向、光照，把瓶子归一到 Franka 工作区，并在 pick 任务里隐藏烧杯、托盘、干燥箱等非目标物体 | 当前新图已经能让 PM 看懂“抓这个蓝色瓶子”，并已通过任务渲染门禁 |
 | `level1_place` | 看不出源物体和目标托盘的关系，不像一个放置任务 | 修正托盘、烧杯、瓶子坐标和颜色标记，并在 place 任务里隐藏瓶子和干燥箱，只保留烧杯与目标托盘 | 当前新图能看懂“把烧杯放到黄色托盘附近”，并已通过任务渲染门禁 |
-| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题；旧 P2 native 图还因为材质和证据相机未闭环，看起来像箱子倒了 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 P1 `sanitized_surrogate` 对照组，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机；P2 回到 LabUtopia native complex `DryingBox_01`，只用 `additive physics override` 修 runtime 物理；随后修 wrapper-local `Looks` 和 native `material:binding`，用 retake camera 重拍；背景解释见 `docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html` | P1 证明门任务可读；P2 retake 证明原生 DryingBox_01 upright，蓝门、白侧面和 nested handle 能通过 EBench readback。下一步接 Lift2 baseline gate |
+| `level1_open_door` | 几乎只拍到黑色箱体角，门板、把手、铰链和动作目标都不清楚；中间版本又出现把手像大橙色面板的问题；旧 P2 native 图还因为材质和证据相机未闭环，看起来像箱子倒了 | 把门把手恢复为干燥箱内部子部件，不再作为独立物体飞走；生成 P1 `sanitized_surrogate` 对照组，固定底座并只保留一个门关节；再补关节初始目标回放、把手位置修正、删除重复橙色块、缩细把手和任务专用正面相机；P2 回到 LabUtopia native complex `DryingBox_01`，只用 `additive physics override` 修 runtime 物理；随后修 wrapper-local `Looks` 和 native `material:binding`，用 retake camera 重拍；背景解释见 `docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html` | P1 证明门任务可读；P2 retake 证明原生 DryingBox_01 upright，蓝门、白侧面和 nested handle 能通过 EBench readback；Stage 7 又补上本地 Lift2 contract。 |
 
 需要特别说明：
 
@@ -202,8 +202,8 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 - 已推进：`level1_open_door` 旧版本运行期关节读数曾出现 `1.573e13` 量级；P1 `sanitized_surrogate` 对照组最新诊断只暴露 `RevoluteJoint`，关节读数为 `0.0`，仿真能完成 readback，问题已经从“爆掉不可看/只看到黑箱角/把手像大橙色面板”收敛到“门板、框架和细橙色把手可识别”。
 - 已复核：独立视觉审阅认为当前 old-vs-current 对照可用于 PM 汇报；旧图确实支持“目标不清、放置关系缺失、看不到门把手”的问题描述，当前三张新图均可作为任务渲染通过证据。
 - 已推进：LabUtopia native complex `DryingBox_01` 已通过 Franka POC native gate；证据包括 `asset audit`、native-only Isaac smoke、EBench wrapper、`additive physics override`、wrapper-local `Looks`/`material:binding` 修复和 `open_door` native retake。
-- 仍 blocked：官方 Lift2 baseline 不能宣称可评，因为 Lift2 复合资产根目录和官方 runner 还没验证；当前 diagnostics claim boundary 是 `native_complex_dryingbox_ready=true`、`task_render_accepted=true`、`official_baseline_evaluable=false`。
-- 因此下一步不是继续修三张截图，也不是继续打磨 surrogate，而是把 Lift2 baseline 所需的复合资产和官方 runner gate 接上。
+- 已推进：本地 official-baseline-style Lift2 contract 已通过。完整三任务 `gmp eval` 能 reset、step、写 `result_info` 和 metric；三条单任务 live probe 都验证了 Lift2 observation/camera/action/reward/logging schema。仍不能宣称 official leaderboard 复现或官方 EBench score release；当前 `official_baseline_evaluable=false` 是边界，不是本地合同失败。
+- 因此下一步不是继续修三张截图，也不是继续打磨 surrogate；Stage 7 本地合同已补上，后续应转入真实 Lift2 baseline runner 的策略评测和官方成绩边界管理。
 
 ## 本周遇到的问题和解决方式
 
@@ -213,7 +213,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 缺少 `meta_info.pkl` | 传统 GenManip 任务依赖采集包里的元信息，LabUtopia POC 没有这份文件 | 针对 LabUtopia POC，从实时场景里自动生成最小可用元信息 | 已解决 |
 | camera cleanup 字段缺失 | 切换任务时 camera 清理报字段错误 | 补齐 camera 配置里的 cleanup flags | 已解决 |
 | eval recorder `camera2` 黑屏 | 保存过程帧时 `camera2` 输出纯黑 | P0a：修 GenManip Style 相机位姿生效 + 临时对准物体区域；P0b：overlay 补 `DeterministicDomeLight`；详见 [P0 章节](docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html#p0) | 黑屏解除（PM 可读任务图属 P1） |
-| 当前任务图验收边界 | `pick` 已清楚，`place` 关系可读；`open_door` 已能读回且关闭位正确，门板/框架/细把手可识别 | 三任务最新正式诊断均为 `render_validation.passed=true`；P2 又补上 native complex `DryingBox_01` 的 EBench readback 证据；继续接 Lift2 baseline 所需的复合资产/官方 runner gate | 任务渲染/native gate 通过 |
+| 当前任务图验收边界 | `pick` 已清楚，`place` 关系可读；`open_door` 已能读回且关闭位正确，门板/框架/细把手可识别 | 三任务最新正式诊断均为 `render_validation.passed=true`；P2 又补上 native complex `DryingBox_01` 的 EBench readback 证据；Stage 7 已补上本地 Lift2 contract | 任务渲染/native gate/Lift2 contract 通过 |
 | `open_door` 运行期物理不稳定 | 旧版本 runtime articulation joint position 爆到 `1.573e13`，并伴随 PhysX transform warning | P1 已用 DryingBox `sanitized_surrogate`、固定底座、对齐后的门铰链和关节目标回放修复；P2 已把稳定性迁移到 LabUtopia native complex `DryingBox_01`，并通过 `native_dryingbox_visual_retake_final_20260624_0002` 读回验证 | native gate 已通过 |
 | 资产导入/layout 静态坐标 | 之前任务物体在源 lab 坐标，handle 变成异常放大的独立物体 | P1 已把对象归一到 Franka 工作区，并把 handle 保留为 DryingBox 内部子路径 | 静态层已推进 |
 | 最终进度不 complete | 任务已跑完，但进度没有写入，导致客户端最后等待超时 | 任务结束时写最小 `result_info.json`，并修复进度统计 | 已解决 |
@@ -230,7 +230,8 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 渲染图/视频验收 | 任务渲染通过 | 三任务 eval readback 已非黑；pick 已清楚，place 关系可读，open_door 关闭位正确、门板/框架/细把手可识别；三任务最新正式诊断均为 `render_validation.passed=true` |
 | Native complex DryingBox | Franka POC gate 已通过 | P2 open_door 证据来自 LabUtopia native complex `DryingBox_01`；保留 native visual/hierarchy/nested handle，只用 `additive physics override` 修 runtime 物理 |
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
-| 官方 baseline | 不能宣称可评 | 任务渲染门禁和 native DryingBox gate 已过，但 Lift2 复合资产和官方 runner 还没闭环，diagnostics claim boundary 仍是 `official_baseline_evaluable=false` |
+| Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
+| 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
 
 ## 验证证据
 
@@ -284,7 +285,8 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
 - Stage 6 acceptance evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
 - Stage 7 Lift2 readiness report: [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
-- Stage 7 machine evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json)
+- Stage 7 machine evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json)
+- Stage 7 evidence bundle: [docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/](../labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -302,7 +304,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
 6. P2 / Acceptance Stage 5：已完成 LabUtopia native complex `DryingBox_01` eval-path readback：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、runtime material readback、door `RevoluteJoint` metric 和 frame hash 都有证据。
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。Aluminum remote waiver 仍然 open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
-8. Acceptance Stage 7：已尝试 Lift2 contract check，当前结论是 `attempted, blocked`。下一步先补 Lift2 composite asset root（默认 `robot_usds/lift2` + `miscs/curobo/R5a` + LabUtopia overlay）；`meta_info.pkl` 走 LabUtopia POC runtime fallback，作为 live reset watch item 复核。然后启动隔离 eval server，重跑 `gmp submit/eval/status` 和 `lift2_eval_contract_probe --live`。
+8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 Aluminum remote material waiver 边界。
 
 ## 新增调研和计划文档
 
@@ -313,4 +315,5 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - [docs/labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json](../labutopia_lab_poc/evidence_manifests/render_p1_asset_layout_20260623.json)
 - [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
 - [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
-- [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260628_191421.json)
+- [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json)
+- [docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/](../labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/)

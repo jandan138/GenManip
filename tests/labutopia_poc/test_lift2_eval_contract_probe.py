@@ -55,7 +55,7 @@ def _complete_task_rows():
             "Reset": "PASS",
             "Step": "PASS",
             "Reachability": "PASS",
-            "Camera Framing": "PASS",
+            "Camera Inputs": "PASS",
             "Metric": "PASS",
             "Finding": "live evidence passed",
         }
@@ -101,7 +101,23 @@ def test_stage7_readiness_passes_only_all_pass_rows():
     assert result["official_baseline_evaluable"] is False
 
 
-def test_stage7_readiness_does_not_pass_without_all_required_task_rows():
+def test_stage7_readiness_blocks_when_task_matrix_is_requested_but_missing():
+    rows = [
+        {"name": "observation keys", "status": "PASS"},
+        {"name": "camera input keys", "status": "PASS"},
+        {"name": "action dialects", "status": "PASS"},
+        {"name": "reward/success fields", "status": "PASS"},
+        {"name": "logging fields", "status": "PASS"},
+    ]
+
+    result = probe.classify_stage7_readiness(rows, task_rows=[])
+
+    assert result["stage7_status"] == "Stage 7 attempted, blocked"
+    assert result["lift2_contract_ready"] is False
+    assert result["blocked_rows"][0]["name"] == "task readiness matrix"
+
+
+def test_schema_only_probe_does_not_make_global_stage7_claim():
     rows = [
         {"name": "observation keys", "status": "PASS"},
         {"name": "camera input keys", "status": "PASS"},
@@ -112,9 +128,15 @@ def test_stage7_readiness_does_not_pass_without_all_required_task_rows():
 
     result = probe.classify_stage7_readiness(rows)
 
-    assert result["stage7_status"] == "Stage 7 attempted, blocked"
-    assert result["lift2_contract_ready"] is False
-    assert result["blocked_rows"][0]["name"] == "task readiness matrix"
+    assert result["stage7_status"] == (
+        "Stage 7 not evaluated by single-task live schema probe"
+    )
+    assert result["claim_scope"] == "single_task_live_schema_probe_only"
+    assert result["probe_status"] == "single-task live schema probe passed"
+    assert result["aggregate_stage7_manifest_required"] is True
+    assert result["lift2_contract_ready"] is None
+    assert result["local_official_baseline_style_contract_ready"] is None
+    assert result["blocked_rows"] == []
 
 
 def test_probe_accepts_complete_lift2_schema_snapshot():
@@ -140,8 +162,13 @@ def test_probe_accepts_complete_lift2_schema_snapshot():
     assert rows["action dialects"]["status"] == "PASS"
     assert rows["reward/success fields"]["status"] == "PASS"
     assert rows["logging fields"]["status"] == "PASS"
-    assert snapshot["claim_boundary"]["lift2_contract_ready"] is False
-    assert snapshot["claim_boundary"]["stage7_status"] == "Stage 7 attempted, blocked"
+    assert snapshot["claim_boundary"]["lift2_contract_ready"] is None
+    assert snapshot["claim_boundary"]["stage7_status"] == (
+        "Stage 7 not evaluated by single-task live schema probe"
+    )
+    assert snapshot["claim_boundary"]["probe_status"] == (
+        "single-task live schema probe passed"
+    )
     assert snapshot["claim_boundary"]["official_baseline_evaluable"] is False
     assert snapshot["claim_boundary"]["native_material_closure_claim_allowed"] is False
 
@@ -176,7 +203,12 @@ def test_probe_blocks_without_live_eval_observation_evidence():
     assert rows["camera input keys"]["status"] == "BLOCKED"
     assert rows["reward/success fields"]["status"] == "BLOCKED"
     assert rows["logging fields"]["status"] == "BLOCKED"
-    assert snapshot["claim_boundary"]["stage7_status"] == "Stage 7 attempted, blocked"
+    assert snapshot["claim_boundary"]["stage7_status"] == (
+        "Stage 7 not evaluated by single-task live schema probe"
+    )
+    assert snapshot["claim_boundary"]["probe_status"] == (
+        "single-task live schema probe blocked"
+    )
     assert snapshot["claim_boundary"]["official_baseline_evaluable"] is False
 
 
@@ -305,4 +337,9 @@ def test_live_probe_records_exception_as_blocked_evidence():
 
     assert result["live_probe"]["status"] == "blocked"
     assert "ModuleNotFoundError" in result["live_probe"]["exception_type"]
-    assert result["claim_boundary"]["stage7_status"] == "Stage 7 attempted, blocked"
+    assert result["claim_boundary"]["stage7_status"] == (
+        "Stage 7 not evaluated by single-task live schema probe"
+    )
+    assert result["claim_boundary"]["probe_status"] == (
+        "single-task live schema probe blocked"
+    )

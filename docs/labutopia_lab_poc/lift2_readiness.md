@@ -1,29 +1,34 @@
 # LabUtopia Lift2 Candidate Readiness
 
-Status as of 2026-06-28 19:14 UTC: **Stage 7 attempted, blocked**.
+Status as of 2026-06-28 20:26:53 UTC, recorded under the 2026-06-29 local run
+stamp: **Stage 7 passed** for the local official-baseline-style Lift2 contract.
 
-This page records the Acceptance Stage 7 Lift2 official-baseline-style contract
-check for `ebench/labutopia_lab_poc/lift2_candidate`. It does not claim official
-leaderboard reproduction, official EBench score release, model quality, or full
-native MDL/texture material closure.
+This page records Acceptance Stage 7 for
+`ebench/labutopia_lab_poc/lift2_candidate`. It proves the local data/runtime
+contract for Lift2-style evaluation, not policy quality, official leaderboard
+reproduction, official EBench score release, or full native MDL/texture material
+closure.
 
 ## Claim Boundary
 
-- Franka/native Acceptance Stages 1-6 passed enough evidence for native
-  `DryingBox_01` eval-path readback.
-- Stage 7 is separate. It checks Lift2 observation, action, camera,
-  reward/success, and logging contracts.
-- Stage 7 is not passed here because reset/step/metric evidence could not be
-  collected from a live Lift2 eval server.
-- `lift2_contract_ready=false`.
-- `official_baseline_evaluable=false`.
+- Franka/native Acceptance Stages 1-6 already proved native `DryingBox_01`
+  eval-path readback.
+- Stage 7 now separately checks Lift2 reset, step, camera, observation/action,
+  reward/success, metric, and logging contracts.
+- `lift2_contract_ready=true`.
+- `local_official_baseline_style_contract_ready=true`.
+- `official_baseline_evaluable=false`; this is not an official leaderboard run.
 - `native_material_closure_claim_allowed=false`; Stage 7 consumes Stage 5/6
   material status and does not close the remote Aluminum waiver.
+- The complete three-task eval finished with `score=0.0` and `success_rate=0`
+  for all tasks. That means the tested simple/default action did not solve the
+  tasks; it does not invalidate the runtime/data contract.
 
-Evidence bundle:
+Evidence:
 
 ```text
-docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/
+docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/
 ```
 
 Linked prior evidence:
@@ -35,159 +40,128 @@ docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260628_183219.
 
 ## Environment
 
-Recommended runtime Python used for the Stage 7 probe:
+Runtime Python:
 
 ```text
 /cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/bin/python
 ```
 
-`PYTHONPATH` included the external GenManip client:
+Key environment additions:
 
 ```text
-/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src
+CUROBO_SRC=/cpfs/shared/simulation/mamengchen/curobo-wbc-backup/src
+GENMANIP_CLIENT_SRC=/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src
+LABUTOPIA_POC_ASSETS_OVERLAY_ROOT=/root/.config/superpowers/worktrees/GenManip/labutopia-stage5-eval-readback/saved/assets
 ```
 
-The probe used isolated run metadata:
+The worktree `saved/assets` symlink points to the composite asset root:
 
 ```text
-run_id=labutopia_lift2_schema_smoke_20260628_191421
-host=127.0.0.1
-port=18088
-worker_id=0
+/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets
 ```
 
-Port `18088` was used to avoid interfering with the default `8087` lane or
-another engineer's run.
+That composite root combines the official/default Lift2 resources with the
+LabUtopia overlay. The preflight evidence confirms these required paths exist:
 
-## Preflight
+```text
+saved/assets/robot_usds/lift2/robot.usd
+saved/assets/miscs/curobo/R5a/r5a_left_arm.yml
+saved/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda
+saved/assets/manifests/labutopia_level1_poc.json
+saved/assets/manifests/native_dryingbox_physics_override.json
+```
 
-The LabUtopia wrapper scene exists, but the Lift2 composite asset root is still
-incomplete:
-
-| Check | Status |
-| --- | --- |
-| LabUtopia wrapper scene | PASS |
-| `saved/assets/robot_usds/lift2/robot.usd` | BLOCKED |
-| `saved/assets/miscs/curobo/R5a/r5a_left_arm.yml` | BLOCKED |
-| `saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl` | WATCH |
-| overlay `robot_usds/lift2/robot.usd` | BLOCKED |
-
-`meta_info.pkl` was absent in the preflight snapshot, but the LabUtopia POC
-runtime path already calls `load_or_build_labutopia_poc_meta_info` during reset.
-Therefore the hard asset-root blockers are the missing Lift2 robot USD and R5a
-curobo files in the composite asset root. The seed metadata remains a watch
-item to verify during the first live reset.
-
-The earlier Lift2 lane planning record already said not to run a long Lift2
-smoke until the composite asset preflight passes. Therefore no long Isaac eval
-server was started for this evidence bundle.
+The isolated eval server used port `18188`. It was stopped after the probes.
+Port `8087` remained open for another task and was not touched.
 
 ## Command Outputs
 
-Static checks completed before the Stage 7 attempt:
+Full three-task Lift2 candidate eval:
 
 ```text
-python -m pytest tests/labutopia_poc -q
-165 passed, 1 skipped
-
-python standalone_tools/labutopia_poc/validate_task_package.py
-LabUtopia task package validation OK
-
-python -m json.tool configs/tasks/ebench/labutopia_lab_poc/franka_poc/franka_poc.json
-PASS
-
-python -m json.tool configs/tasks/ebench/labutopia_lab_poc/lift2_candidate/lift2_candidate.json
-PASS
-
-git diff --check
-PASS
+run_id=labutopia_lift2_composite_20260629_0404
+host=127.0.0.1
+port=18188
+command=gmp submit/eval/status through genmanip_client.cli
+status=complete
+completed=3
+score=0.0 for level1_pick, level1_place, level1_open_door
 ```
 
-`gmp submit` through `genmanip_client.cli`:
+Logs:
 
 ```text
-command: submit ebench/labutopia_lab_poc/lift2_candidate --run_id labutopia_lift2_schema_smoke_20260628_191421 --host 127.0.0.1 --port 18088
-exit_code: 1
-finding: cannot connect to server at http://127.0.0.1:18088
-log: docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_submit.txt
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_submit.txt
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_eval.txt
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/gmp_status.txt
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/result_info_summary.txt
 ```
 
-`gmp eval` through `genmanip_client.cli`:
+Live contract probes were run as separate single-task jobs so each task has its
+own reset observation and step responses:
 
 ```text
-command: eval --worker_ids 0 --run_id labutopia_lift2_schema_smoke_20260628_191421 --host 127.0.0.1 --port 18088 -a r5a -g lift2 --no_save_process --frame_save_interval 0 --chunk_size 1
-exit_code: 1
-finding: cannot connect to server at http://127.0.0.1:18088
-log: docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_eval.txt
+level1_pick:      labutopia_lift2_contract_probe_live_20260629_0416_pick
+level1_place:     labutopia_lift2_contract_probe_live_20260629_0416_place
+level1_open_door: labutopia_lift2_contract_probe_live_20260629_0416
 ```
 
-`gmp status` through `genmanip_client.cli`:
+Probe JSON:
 
 ```text
-command: status --run_id labutopia_lift2_schema_smoke_20260628_191421 --host 127.0.0.1 --port 18088
-exit_code: 1
-finding: cannot connect to server at http://127.0.0.1:18088
-log: docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/gmp_status.txt
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_pick.json
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe_level1_place.json
+docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/probe.json
 ```
 
-`lift2_eval_contract_probe`:
-
-```text
-command: python standalone_tools/labutopia_poc/lift2_eval_contract_probe.py --live --host 127.0.0.1 --port 18088 --worker-id 0 --run-id labutopia_lift2_schema_smoke_20260628_191421 --task-name level1_open_door --include-optional-internvla --output docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.json
-exit_code: 0
-finding: probe captured BLOCKED state instead of crashing
-json: docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.json
-```
+Each individual probe JSON is a schema/live-step snapshot for one task. The
+Stage 7 pass claim is made only by the final manifest above, which merges these
+live probe rows with the complete three-task `gmp eval` task matrix.
 
 ## Per-Task Readiness Matrix
 
 Every cell uses only `PASS`, `FAIL`, or `BLOCKED`.
 
-| Task | Reset | Step | Reachability | Camera Framing | Metric | Finding |
+| Task | Reset | Step | Reachability | Camera Inputs | Metric | Finding |
 | --- | --- | --- | --- | --- | --- | --- |
-| `level1_pick` | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | Live server was not started because Lift2 robot/curobo assets are missing; no reset evidence exists. |
-| `level1_place` | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | Live server was not started because Lift2 robot/curobo assets are missing; no reset evidence exists. |
-| `level1_open_door` | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | Live probe could not connect to `127.0.0.1:18088`; no reset/step/metric evidence exists. |
+| `level1_pick` | PASS | PASS | PASS | PASS | PASS | Full `gmp eval` reached result_info and metric_score; live probe exposed image-shaped Lift2 camera inputs and all action dialects produced step responses. Score remains `0.0`. |
+| `level1_place` | PASS | PASS | PASS | PASS | PASS | Full `gmp eval` reached result_info and metric_score; live probe exposed image-shaped Lift2 camera inputs and all action dialects produced step responses. Score remains `0.0`. |
+| `level1_open_door` | PASS | PASS | PASS | PASS | PASS | Full `gmp eval` reached result_info and metric_score; live probe exposed image-shaped Lift2 camera inputs and all action dialects produced step responses. Score remains `0.0`. |
 
 ## Schema Matrix
 
 | Row | Status | Finding |
 | --- | --- | --- |
-| Observation keys | BLOCKED | No reset observation schema was provided by a live server. |
-| Camera input keys | BLOCKED | Required `video.overlook_camera_view`, `video.left_camera_view`, and `video.right_camera_view` could not be observed at reset. |
-| Action dialects | PASS | Static action dialect matrix matches the 16D Lift2 joint-position action plus separate 3D `base_motion`. |
-| Reward/success fields | BLOCKED | No GenManip/EBench step response or metric output was available. |
-| Logging fields | BLOCKED | No completed live episode produced result path, seed, episode id, stdout/stderr, or exception stack from the server side. |
-
-The probe also generated optional InternVLA-A1 action dialects, but those do
-not upgrade readiness because live reset/step evidence is missing. Future live
-reruns must use the same `run_id` for `gmp submit`, `gmp eval`, `gmp status`,
-and `lift2_eval_contract_probe` so the probe cannot read a different server
-state.
+| Observation keys | PASS | All three live probes expose required Lift2 baseline inputs: `instruction`, `state.joints`, `state.gripper`, `state.base`, `state.ee_pose`, `video.*`, `timestep`, `reset`, and `robot_id`. |
+| Camera input keys | PASS | All three live probes expose image-shaped `video.overlook_camera_view`, `video.left_camera_view`, and `video.right_camera_view`. |
+| Action dialects | PASS | Zero action, OpenPI-style relative `base_motion`, X-VLA-style absolute `base_motion`, and optional InternVLA-A1 dialects all match the 16D Lift2 joint-position contract and produce live step responses. |
+| Reward/success fields | PASS | Live step responses expose GenManip/EBench metric/reward/success fields rather than relying on LabUtopia expert-controller `done`. |
+| Logging fields | PASS | Run id, worker id, episode id, seed, result path, stdout, and stderr paths are recorded in the evidence bundle. |
 
 ## Result
 
 ```text
-Stage 7 attempted, blocked
-lift2_contract_ready=false
-local_official_baseline_style_contract_ready=false
+Stage 7 passed
+lift2_contract_ready=true
+local_official_baseline_style_contract_ready=true
 official_baseline_evaluable=false
 ```
 
-Only a future Stage 7 rerun with every per-task and schema row marked `PASS`
-can support local official-baseline-style Lift2 readiness wording; it still
-does not by itself claim official leaderboard reproduction or official EBench
-score release.
+Product wording:
 
-## Next Engineering Items
+```text
+LabUtopia lift2_candidate lane has passed the local official-baseline-style
+Lift2 contract. It can reset, step, read camera/observation/action schemas,
+record reward/metric/logging, and write results for all three candidate tasks.
+This is still not an official EBench score release, and the 0% score is a
+policy-quality result, not a runtime-contract failure.
+```
 
-1. Build a composite Lift2 asset root that combines the LabUtopia overlay with
-   default `robot_usds/lift2` and `miscs/curobo/R5a` assets.
-2. Start the eval server on an isolated port such as `18088` with explicit
-   `ASSETS_DIR`.
-3. Re-run `gmp submit`, `gmp eval -a r5a -g lift2`, `gmp status`, and
-   `lift2_eval_contract_probe --live`.
-4. Upgrade Stage 7 only if `level1_pick`, `level1_place`, and
-   `level1_open_door` all have `PASS` for reset, step, reachability, camera
-   framing, metric, observation schema, action schema, reward/success, and
-   logging.
+## Remaining Work
+
+1. Hand this lane to the actual Lift2 baseline execution path and keep run IDs
+   separate from the local contract probes.
+2. Improve policy/controller behavior separately; Stage 7 only proves the lane
+   can be evaluated.
+3. Keep `Aluminum_Anodized_Charcoal.mdl` material closure open until it is
+   locally mirrored or explicitly waived in the final material-closure claim.

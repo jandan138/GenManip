@@ -1,0 +1,24 @@
+[level1_open_door] saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_open_door/000/result_info.json
+  score: 0.0
+  success_rate: 0
+  log_info_keys: ['episode_end_time', 'episode_start_time', 'metric_score']
+  log_info.episode_end_time: '2026-06-29_04_11_46_176259'
+  log_info.episode_start_time: '2026-06-29_04_10_28_735961'
+  log_info.metric_score: [[[0.0]]]
+  top_level_keys: ['log_info', 'score', 'success_rate']
+[level1_pick] saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/000/result_info.json
+  score: 0.0
+  success_rate: 0
+  log_info_keys: ['episode_end_time', 'episode_start_time', 'metric_score']
+  log_info.episode_end_time: '2026-06-29_04_06_48_187095'
+  log_info.episode_start_time: '2026-06-29_04_05_46_401784'
+  log_info.metric_score: [[[0.0]]]
+  top_level_keys: ['log_info', 'score', 'success_rate']
+[level1_place] saved/eval_results/ebench/labutopia_lift2_composite_20260629_0404/ebench/labutopia_lab_poc/lift2_candidate/level1_place/000/result_info.json
+  score: 0.0
+  success_rate: 0
+  log_info_keys: ['episode_end_time', 'episode_start_time', 'metric_score']
+  log_info.episode_end_time: '2026-06-29_04_09_53_935648'
+  log_info.episode_start_time: '2026-06-29_04_07_25_420402'
+  log_info.metric_score: [[[0.0]]]
+  top_level_keys: ['log_info', 'score', 'success_rate']
