@@ -69,8 +69,14 @@ incomplete:
 | LabUtopia wrapper scene | PASS |
 | `saved/assets/robot_usds/lift2/robot.usd` | BLOCKED |
 | `saved/assets/miscs/curobo/R5a/r5a_left_arm.yml` | BLOCKED |
-| `saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl` | BLOCKED |
+| `saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl` | WATCH |
 | overlay `robot_usds/lift2/robot.usd` | BLOCKED |
+
+`meta_info.pkl` was absent in the preflight snapshot, but the LabUtopia POC
+runtime path already calls `load_or_build_labutopia_poc_meta_info` during reset.
+Therefore the hard asset-root blockers are the missing Lift2 robot USD and R5a
+curobo files in the composite asset root. The seed metadata remains a watch
+item to verify during the first live reset.
 
 The earlier Lift2 lane planning record already said not to run a long Lift2
 smoke until the composite asset preflight passes. Therefore no long Isaac eval

@@ -11,7 +11,7 @@ HTML 版产品汇报页：
 
 2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。同时必须保留两个边界：`lift2_contract_ready=false`，所以不能说 official Lift2 baseline 已可评；`native_material_closure_status=open_remote_dependency_waived`，所以不能说 full native MDL/texture material closure 已完成。最新 Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。
 
-2026-06-28 Stage 7 补充：Lift2 official-baseline-style contract check 已尝试并生成 evidence bundle。静态 contract 已补到 `lift2_candidate` 三任务，`action dialects` 行为 `PASS`；但 live reset/step/metric 没有通过，因为当前 composite asset preflight 仍缺 `robot_usds/lift2/robot.usd`、`miscs/curobo/R5a/r5a_left_arm.yml` 和 seed `meta_info.pkl`，因此没有启动长时 Isaac eval server。结论是 `Stage 7 attempted, blocked`，继续保持 `lift2_contract_ready=false`、`official_baseline_evaluable=false`。
+2026-06-28 Stage 7 补充：Lift2 official-baseline-style contract check 已尝试并生成 evidence bundle。静态 contract 已补到 `lift2_candidate` 三任务，`action dialects` 行为 `PASS`；但 live reset/step/metric 没有通过，因为当前 composite asset preflight 仍缺 `robot_usds/lift2/robot.usd` 和 `miscs/curobo/R5a/r5a_left_arm.yml` 的组合资产根目录，因此没有启动长时 Isaac eval server。`meta_info.pkl` 不再视为硬 blocker：LabUtopia POC reset 已有 `load_or_build_labutopia_poc_meta_info` fallback，会在 live reset 时复核。结论是 `Stage 7 attempted, blocked`，继续保持 `lift2_contract_ready=false`、`official_baseline_evaluable=false`。
 
 ## 本周完成了什么
 
@@ -302,7 +302,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
 6. P2 / Acceptance Stage 5：已完成 LabUtopia native complex `DryingBox_01` eval-path readback：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、runtime material readback、door `RevoluteJoint` metric 和 frame hash 都有证据。
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。Aluminum remote waiver 仍然 open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
-8. Acceptance Stage 7：已尝试 Lift2 contract check，当前结论是 `attempted, blocked`。下一步先补 Lift2 composite asset root（默认 `robot_usds/lift2` + `miscs/curobo/R5a` + LabUtopia overlay）和 seed/meta_info，再启动隔离 eval server，重跑 `gmp submit/eval/status` 和 `lift2_eval_contract_probe --live`。
+8. Acceptance Stage 7：已尝试 Lift2 contract check，当前结论是 `attempted, blocked`。下一步先补 Lift2 composite asset root（默认 `robot_usds/lift2` + `miscs/curobo/R5a` + LabUtopia overlay）；`meta_info.pkl` 走 LabUtopia POC runtime fallback，作为 live reset watch item 复核。然后启动隔离 eval server，重跑 `gmp submit/eval/status` 和 `lift2_eval_contract_probe --live`。
 
 ## 新增调研和计划文档
 

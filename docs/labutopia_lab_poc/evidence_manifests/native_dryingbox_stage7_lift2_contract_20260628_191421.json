@@ -17,7 +17,7 @@
     },
     "preflight": {
       "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/preflight.txt",
-      "sha256": "1fd7f5711ab38bb70279c538ab2c595a89be28c831c4260ff1c4c08cb101a24b"
+      "sha256": "82af6c5e5bd5a0fc85a26a1cf1f8678b7be5e35f96f82e5bd02e15c140856ec8"
     },
     "probe_json": {
       "path": "docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260628_191421/probe.json",
@@ -87,8 +87,10 @@
   "preflight_blockers": [
     "saved/assets/robot_usds/lift2/robot.usd missing",
     "saved/assets/miscs/curobo/R5a/r5a_left_arm.yml missing",
-    "saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl missing",
     "overlay robot_usds/lift2/robot.usd missing"
+  ],
+  "preflight_watch_items": [
+    "saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl absent in preflight, but LabUtopia POC reset can build fallback metadata through load_or_build_labutopia_poc_meta_info"
   ],
   "readiness_report": "docs/labutopia_lab_poc/lift2_readiness.md",
   "repositories": {

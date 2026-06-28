@@ -8,3 +8,4 @@ MISSING saved/assets/miscs/curobo/R5a/r5a_left_arm.yml
 MISSING saved/tasks/ebench/labutopia_lab_poc/lift2_candidate/level1_pick/meta_info.pkl
 MISSING /cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/robot_usds/lift2/robot.usd
 EXISTS /cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/scene_usds/labutopia/level1_poc/lab_001/scene.usda
+NOTE meta_info.pkl absence is a watch item, not a hard Stage 7 asset-root blocker, because LabUtopia POC reset calls load_or_build_labutopia_poc_meta_info.
