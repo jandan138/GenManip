@@ -11,9 +11,33 @@ import omni.usd  # type: ignore
 from pxr import UsdPhysics, PhysxSchema  # type: ignore
 
 
+def _prim_is_valid(stage, prim_path: str) -> bool:
+    try:
+        prim = stage.GetPrimAtPath(prim_path)
+        return bool(prim and prim.IsValid())
+    except Exception:
+        return False
+
+
+def _select_physics_scene_path(stage) -> str:
+    for prim_path in ("/World/PhysicsScene", "/World/physicsScene", "/physicsScene"):
+        if _prim_is_valid(stage, prim_path):
+            return prim_path
+    try:
+        for prim in stage.Traverse():
+            if not prim or not prim.IsValid():
+                continue
+            if prim.GetTypeName() == "PhysicsScene":
+                return str(prim.GetPath())
+    except Exception:
+        pass
+    return "/physicsScene"
+
+
 def setup_physics_scene(physics_scene_config) -> None:
     stage = omni.usd.get_context().get_stage()
-    physxSceneAPI = PhysxSchema.PhysxSceneAPI.Get(stage, "/physicsScene")
+    physics_scene_path = _select_physics_scene_path(stage)
+    physxSceneAPI = PhysxSchema.PhysxSceneAPI.Get(stage, physics_scene_path)
 
     for key, value in physics_scene_config.items():
         if isinstance(value, str) and "inf" in value.lower():

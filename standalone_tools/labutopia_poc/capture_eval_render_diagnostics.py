@@ -38,6 +38,7 @@ BoundaryClassification = Literal[
 class CameraFrameStats:
     camera_name: str
     frame_path: str
+    sha256: str | None
     width: int
     height: int
     channel_min: list[float]
@@ -50,6 +51,7 @@ def build_camera_frame_stats(
     *,
     camera_name: str,
     frame_path: str,
+    sha256: str | None = None,
     width: int,
     height: int,
     channel_min: list[float],
@@ -61,6 +63,7 @@ def build_camera_frame_stats(
         CameraFrameStats(
             camera_name=camera_name,
             frame_path=frame_path,
+            sha256=sha256,
             width=width,
             height=height,
             channel_min=channel_min,
@@ -265,6 +268,12 @@ def _jsonable(value: Any) -> Any:
         return value.tolist()
     if isinstance(value, Path):
         return str(value)
+    if value.__class__.__name__ == "AssetPath" and hasattr(value, "path"):
+        converted: dict[str, str | None] = {"path": str(getattr(value, "path"))}
+        resolved_path = getattr(value, "resolvedPath", None)
+        if resolved_path:
+            converted["resolved_path"] = str(resolved_path)
+        return converted
     if isinstance(value, dict):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -294,10 +303,49 @@ def _latest_diagnostic_artifact(
     return candidates[-1]
 
 
+def _optional_latest_diagnostic_artifact(
+    *,
+    diagnostics_root: Path,
+    directory_glob: str,
+    filename: str,
+) -> Path | None:
+    candidates = sorted(diagnostics_root.glob(f"{directory_glob}/{filename}"))
+    return candidates[-1] if candidates else None
+
+
+def _stage4_material_fields(physics_payload: dict[str, Any]) -> dict[str, Any]:
+    waiver = physics_payload.get("remote_aluminum_waiver")
+    if not isinstance(waiver, dict):
+        waiver = {}
+    summary = physics_payload.get("material_validator_summary")
+    if not isinstance(summary, dict):
+        summary = {}
+    return {
+        "remote_aluminum_disposition": physics_payload.get(
+            "remote_aluminum_disposition",
+            summary.get("remote_aluminum_disposition"),
+        ),
+        "remote_aluminum_waiver": waiver,
+        "remote_aluminum_waiver_id": waiver.get("waiver_id"),
+        "material_closure_kept_open": bool(
+            physics_payload.get(
+                "material_closure_kept_open",
+                summary.get("native_material_closure_open", False),
+            )
+        ),
+        "static_material_dependency_gate": physics_payload.get(
+            "static_material_dependency_gate"
+        ),
+        "stage4_material_validator_summary": summary,
+        "stage4_dof_map": physics_payload.get("dof_map"),
+    }
+
+
 def build_native_dryingbox_evidence(
     *,
     audit_json_path: str | Path | None = None,
     smoke_json_path: str | Path | None = None,
+    physics_override_json_path: str | Path | None = None,
     diagnostics_root: str | Path | None = None,
 ) -> dict[str, Any]:
     root = Path(diagnostics_root) if diagnostics_root is not None else REPO_ROOT / "saved/diagnostics"
@@ -320,7 +368,7 @@ def build_native_dryingbox_evidence(
         )
     )
     smoke_payload = json.loads(smoke_path.read_text(encoding="utf-8"))
-    return {
+    evidence: dict[str, Any] = {
         "drying_box_strategy": NATIVE_DRYING_BOX_STRATEGY,
         "native_asset_audit_path": str(audit_path),
         "native_asset_audit_sha256": _sha256_file(audit_path),
@@ -330,6 +378,591 @@ def build_native_dryingbox_evidence(
             smoke_payload.get("runtime_physics_stable")
         ),
     }
+    physics_path = (
+        Path(physics_override_json_path)
+        if physics_override_json_path is not None
+        else _optional_latest_diagnostic_artifact(
+            diagnostics_root=root,
+            directory_glob="native_dryingbox_physics_override_*",
+            filename="physics_override.json",
+        )
+    )
+    if physics_path is not None:
+        physics_payload = json.loads(physics_path.read_text(encoding="utf-8"))
+        evidence.update(
+            {
+                "native_physics_override_path": str(physics_path),
+                "native_physics_override_sha256": _sha256_file(physics_path),
+            }
+        )
+        evidence.update(_stage4_material_fields(physics_payload))
+    else:
+        evidence.update(
+            {
+                "native_physics_override_path": None,
+                "native_physics_override_sha256": None,
+            }
+        )
+    return evidence
+
+
+def _runtime_material_readback_blocked(
+    runtime_material_readback: dict[str, Any] | None,
+) -> tuple[bool, list[str]]:
+    if not isinstance(runtime_material_readback, dict):
+        return True, ["runtime_material_readback_missing"]
+    blockers: list[str] = []
+    if runtime_material_readback.get("blocked") is True:
+        blockers.append("runtime_material_readback_blocked")
+    if runtime_material_readback.get("collection_error"):
+        blockers.append("runtime_material_readback_exception")
+    records = runtime_material_readback.get("records")
+    if not isinstance(records, list):
+        blockers.append("runtime_material_readback_records_missing")
+    else:
+        try:
+            fallback_count = int(runtime_material_readback.get("fallback_surface_count") or 0)
+        except (TypeError, ValueError):
+            fallback_count = 0
+        unresolved_records = [
+            record
+            for record in records
+            if isinstance(record, dict)
+            and record.get("compute_bound_material_valid") is False
+        ]
+        if unresolved_records and fallback_count == 0:
+            blockers.append("runtime_material_binding_unresolved")
+    return bool(blockers), blockers
+
+
+def classify_runtime_material_closure(
+    stage4_evidence: dict[str, Any],
+    *,
+    runtime_material_readback: dict[str, Any] | None,
+) -> dict[str, Any]:
+    disposition = stage4_evidence.get("remote_aluminum_disposition")
+    waiver = stage4_evidence.get("remote_aluminum_waiver")
+    if not isinstance(waiver, dict):
+        waiver = {}
+    blocked, blockers = _runtime_material_readback_blocked(runtime_material_readback)
+    fallback_count = 0
+    if isinstance(runtime_material_readback, dict):
+        try:
+            fallback_count = int(runtime_material_readback.get("fallback_surface_count") or 0)
+        except (TypeError, ValueError):
+            fallback_count = 0
+    open_waiver_ids = [
+        str(waiver_id)
+        for waiver_id in [waiver.get("waiver_id"), stage4_evidence.get("remote_aluminum_waiver_id")]
+        if waiver_id
+    ]
+    report: dict[str, Any] = {
+        "remote_aluminum_disposition": disposition,
+        "open_waiver_ids": sorted(set(open_waiver_ids)),
+        "fallback_surface_count": fallback_count,
+        "blockers": blockers,
+        "material_closure_eligible": False,
+        "native_material_closure_status": "blocked",
+        "runtime_material_dependency_status": "blocked",
+    }
+    if blocked:
+        return report
+    if disposition == "explicit_waiver" or bool(
+        stage4_evidence.get("material_closure_kept_open")
+    ):
+        report.update(
+            {
+                "native_material_closure_status": "open_remote_dependency_waived",
+                "runtime_material_dependency_status": "open_waived",
+            }
+        )
+        return report
+    if fallback_count > 0:
+        report.update(
+            {
+                "native_material_closure_status": "mixed_native_and_fallback",
+                "runtime_material_dependency_status": "closed_local_or_mirrored",
+            }
+        )
+        return report
+    if disposition == "local_mirror":
+        report.update(
+            {
+                "native_material_closure_status": "resolved_native_material",
+                "runtime_material_dependency_status": "closed_local_or_mirrored",
+                "material_closure_eligible": True,
+            }
+        )
+        return report
+    report["blockers"] = [*blockers, "remote_aluminum_disposition_missing"]
+    return report
+
+
+def native_runtime_material_root_path(stage4_evidence: dict[str, Any]) -> str:
+    waiver = stage4_evidence.get("remote_aluminum_waiver")
+    if isinstance(waiver, dict):
+        affected_material_path = waiver.get("affected_material_path")
+        if isinstance(affected_material_path, str) and "/Looks/" in affected_material_path:
+            return affected_material_path.split("/Looks/", 1)[0]
+    return "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+
+
+def _shader_material_metadata(material: Any | None) -> list[dict[str, Any]]:
+    if material is None:
+        return []
+    try:
+        material_prim = material.GetPrim()
+    except Exception:
+        return []
+    shader_reports: list[dict[str, Any]] = []
+    for child in material_prim.GetChildren():
+        try:
+            if child.GetTypeName() != "Shader":
+                continue
+            mdl_source_asset = _jsonable(
+                child.GetAttribute("info:mdl:sourceAsset").Get()
+            )
+            resolved_mdl_path = None
+            mdl_sha256 = None
+            if isinstance(mdl_source_asset, dict):
+                resolved_mdl_path = mdl_source_asset.get("resolved_path")
+                if resolved_mdl_path and Path(str(resolved_mdl_path)).exists():
+                    mdl_sha256 = _sha256_file(Path(str(resolved_mdl_path)))
+            shader_reports.append(
+                {
+                    "shader_path": str(child.GetPath()),
+                    "info_implementation_source": _jsonable(
+                        child.GetAttribute("info:implementationSource").Get()
+                    ),
+                    "mdl_source_asset": mdl_source_asset,
+                    "mdl_source_asset_subidentifier": _jsonable(
+                        child.GetAttribute("info:mdl:sourceAsset:subIdentifier").Get()
+                    ),
+                    "resolved_mdl_path": resolved_mdl_path,
+                    "mdl_sha256": mdl_sha256,
+                }
+            )
+        except Exception as exc:
+            shader_reports.append({"shader_readback_error": repr(exc)})
+    return shader_reports
+
+
+def _material_binding_metadata(binding_rel: Any | None) -> dict[str, Any]:
+    metadata = {"binding_purpose": None, "binding_strength": None}
+    if binding_rel is None:
+        return metadata
+    try:
+        name = binding_rel.GetName()
+        if name == "material:binding":
+            metadata["binding_purpose"] = "allPurpose"
+        elif isinstance(name, str) and name.startswith("material:binding:"):
+            metadata["binding_purpose"] = name.rsplit(":", 1)[-1]
+    except Exception:
+        pass
+    try:
+        strength = binding_rel.GetMetadata("bindMaterialAs")
+        if strength:
+            metadata["binding_strength"] = str(strength)
+    except Exception:
+        pass
+    return metadata
+
+
+def _collect_runtime_material_readback(stage4_evidence: dict[str, Any]) -> dict[str, Any]:
+    report: dict[str, Any] = {
+        "collection_method": "usd_runtime_stage_after_reset",
+        "root_path": native_runtime_material_root_path(stage4_evidence),
+        "records": [],
+        "fallback_surface_count": 0,
+        "blocked": False,
+        "blockers": [],
+        "collection_error": None,
+    }
+    try:
+        import omni.usd
+        from pxr import UsdGeom, UsdShade
+
+        stage = omni.usd.get_context().get_stage()
+        root = stage.GetPrimAtPath(report["root_path"])
+        if not root or not root.IsValid():
+            report["blocked"] = True
+            report["blockers"].append("runtime_material_root_missing")
+            return report
+        for prim in stage.Traverse():
+            prim_path = str(prim.GetPath())
+            if not prim_path.startswith(str(report["root_path"])):
+                continue
+            if not prim.IsA(UsdGeom.Gprim):
+                continue
+            binding_rel = prim.GetRelationship("material:binding")
+            authored_targets = (
+                [str(target) for target in binding_rel.GetTargets()]
+                if binding_rel
+                else []
+            )
+            record: dict[str, Any] = {
+                "prim_path": prim_path,
+                "authored_binding_relationship_path": (
+                    str(binding_rel.GetPath()) if binding_rel else None
+                ),
+                "authored_binding_targets": authored_targets,
+                **_material_binding_metadata(binding_rel),
+                "runtime_binding_target": None,
+                "compute_bound_material_valid": False,
+                "copied_material_path": None,
+                "shader_reports": [],
+                "displayColor_fallback_status": "absent",
+                "texture_references": [],
+                "material_compiler_warnings": [],
+            }
+            try:
+                material, _binding = UsdShade.MaterialBindingAPI(
+                    prim
+                ).ComputeBoundMaterial()
+                if material and material.GetPrim().IsValid():
+                    material_path = str(material.GetPrim().GetPath())
+                    record.update(
+                        {
+                            "runtime_binding_target": material_path,
+                            "compute_bound_material_valid": True,
+                            "copied_material_path": material_path,
+                            "shader_reports": _shader_material_metadata(material),
+                        }
+                    )
+            except Exception as exc:
+                record["compute_bound_material_error"] = repr(exc)
+            display_color = prim.GetAttribute("primvars:displayColor")
+            if display_color and display_color.HasAuthoredValueOpinion():
+                record["displayColor_fallback_status"] = "authored"
+                report["fallback_surface_count"] += 1
+            report["records"].append(record)
+        if not report["records"]:
+            report["blocked"] = True
+            report["blockers"].append("runtime_material_records_missing")
+    except Exception as exc:  # pragma: no cover - Isaac/USD runtime only.
+        report["blocked"] = True
+        report["collection_error"] = repr(exc)
+        report["blockers"].append("runtime_material_readback_exception")
+    return report
+
+
+def summarize_observation_schema(obs: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(obs, dict):
+        return {"keys": [], "camera_keys": [], "entries": {}, "present": False}
+    entries: dict[str, Any] = {}
+    for key, value in sorted(obs.items()):
+        entry: dict[str, Any] = {"type": type(value).__name__}
+        if isinstance(value, dict) and value.get("type") == "jpeg_bytes":
+            shape = value.get("shape")
+            entry.update(
+                {
+                    "type": "jpeg_bytes",
+                    "dtype": value.get("dtype"),
+                    "shape": list(shape) if isinstance(shape, (list, tuple)) else shape,
+                    "bytes": len(value.get("data") or b""),
+                }
+            )
+        elif isinstance(value, (list, tuple)):
+            entry["length"] = len(value)
+        elif hasattr(value, "shape"):
+            entry["shape"] = [int(dim) for dim in value.shape]
+        entries[key] = entry
+    keys = sorted(obs.keys())
+    return {
+        "keys": keys,
+        "camera_keys": [key for key in keys if key.startswith("video.")],
+        "entries": entries,
+        "present": True,
+    }
+
+
+def _flatten_goal_items(value: Any) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        for item in value:
+            items.extend(_flatten_goal_items(item))
+    return items
+
+
+def build_open_door_metric_contract(eval_config: dict[str, Any]) -> dict[str, Any]:
+    policy = eval_config.get("labutopia_native_drying_box") or {}
+    door_joint_name = policy.get("door_joint_name")
+    button_joint_name = policy.get("button_joint_name")
+    goals = _flatten_goal_items((eval_config.get("generation_config") or {}).get("goal"))
+    check_joint_goals = [
+        goal
+        for goal in goals
+        if goal.get("type") == "manip/default/check_joint_angle"
+        and goal.get("articulation_obj_uid") == NATIVE_DRYING_BOX_UID
+    ]
+    metric_goal = check_joint_goals[0] if check_joint_goals else {}
+    metric_joint_name = metric_goal.get("joint_name")
+    return {
+        "metric_type": metric_goal.get("type"),
+        "metric_articulation_obj_uid": metric_goal.get("articulation_obj_uid"),
+        "metric_joint_name": metric_joint_name,
+        "metric_angle_deg_range": metric_goal.get("angle_deg_range"),
+        "metric_reads_door_revolute_joint": (
+            metric_joint_name == door_joint_name == "RevoluteJoint"
+        ),
+        "ignored_button_joint_name": button_joint_name,
+        "button_joint_ignored_by_metric": (
+            button_joint_name == "PrismaticJoint"
+            and metric_joint_name != button_joint_name
+            and policy.get("button_prismatic_joint_policy")
+            == "ignored_by_open_door_metric"
+        ),
+        "goal_count": len(check_joint_goals),
+    }
+
+
+def build_zero_joint_position_action(joint_positions: Any) -> dict[str, Any]:
+    action = _jsonable(joint_positions)
+    if not isinstance(action, list):
+        action = []
+    return {
+        "action": [float(value) for value in action],
+        "base_motion": [0.0, 0.0, 0.0],
+        "control_type": "joint_position",
+        "is_rel": False,
+        "base_is_rel": True,
+    }
+
+
+def _finite_number_list(values: Any) -> bool:
+    if not isinstance(values, list) or not values:
+        return False
+    for value in values:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(numeric):
+            return False
+    return True
+
+
+def summarize_step_response(
+    *,
+    obs: dict[str, Any] | None,
+    reward: Any,
+    done: Any,
+    info: dict[str, Any] | None,
+) -> dict[str, Any]:
+    info_dict = info if isinstance(info, dict) else {}
+    return {
+        "obs_schema": summarize_observation_schema(obs),
+        "reward": _jsonable(reward),
+        "done": bool(done),
+        "info": _jsonable(info_dict),
+        "metric_raw_output": _jsonable(info_dict.get("info", reward)),
+    }
+
+
+def classify_eval_step_contract(
+    *,
+    zero_action: dict[str, Any] | None,
+    step_response: dict[str, Any] | None,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    action = zero_action if isinstance(zero_action, dict) else {}
+    response = step_response if isinstance(step_response, dict) else {}
+    action_finite = _finite_number_list(action.get("action"))
+    base_motion_finite = _finite_number_list(action.get("base_motion"))
+    if not action_finite:
+        blockers.append("zero_action_non_finite")
+    if not base_motion_finite:
+        blockers.append("base_motion_non_finite")
+    if not response:
+        blockers.append("step_response_missing")
+    obs_schema = response.get("obs_schema") if isinstance(response, dict) else {}
+    if not isinstance(obs_schema, dict) or not obs_schema.get("present"):
+        blockers.append("step_observation_missing")
+    metric_raw_output = response.get("metric_raw_output")
+    if metric_raw_output is None:
+        blockers.append("metric_raw_output_missing")
+    else:
+        try:
+            if not math.isfinite(float(metric_raw_output)):
+                blockers.append("metric_raw_output_non_finite")
+        except (TypeError, ValueError):
+            blockers.append("metric_raw_output_non_numeric")
+    info = response.get("info") if isinstance(response.get("info"), dict) else {}
+    termination_reason = info.get("termination_reason") if isinstance(info, dict) else None
+    if termination_reason in {
+        "non_finite_arm_state",
+        "non_finite_gripper_state",
+        "non_finite_base_state",
+        "arm_state_jump",
+        "gripper_state_jump",
+        "base_state_jump",
+    }:
+        blockers.append(f"invalid_step_termination:{termination_reason}")
+    return {
+        "passed": not blockers,
+        "blockers": blockers,
+        "action_finite": action_finite,
+        "base_motion_finite": base_motion_finite,
+        "metric_raw_output_present": metric_raw_output is not None,
+        "termination_reason": termination_reason,
+    }
+
+
+def classify_stage5_evidence_contract(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    if not diagnostics.get("run_id"):
+        blockers.append("run_id_missing")
+    if not diagnostics.get("worker_id"):
+        blockers.append("worker_id_missing")
+    if not diagnostics.get("episode_id"):
+        blockers.append("episode_id_missing")
+    if not diagnostics.get("seed"):
+        blockers.append("seed_missing")
+    if not diagnostics.get("output_dir"):
+        blockers.append("output_dir_missing")
+    reset_info = diagnostics.get("reset_info")
+    if not isinstance(reset_info, dict):
+        blockers.append("reset_info_missing")
+    else:
+        if not reset_info.get("task"):
+            blockers.append("reset_task_missing")
+        if not reset_info.get("seed"):
+            blockers.append("reset_seed_missing")
+    diagnostic_logs = diagnostics.get("diagnostic_logs")
+    if not isinstance(diagnostic_logs, dict):
+        blockers.append("diagnostic_logs_missing")
+    else:
+        for key in ("result_dir", "stdout_log_path", "stderr_log_path"):
+            if not diagnostic_logs.get(key):
+                blockers.append(f"diagnostic_{key}_missing")
+    frames = diagnostics.get("camera_frames")
+    if not isinstance(frames, list) or not frames:
+        blockers.append("camera_frames_missing")
+    else:
+        frame_paths: list[str] = []
+        for frame in frames:
+            if not isinstance(frame, dict):
+                blockers.append("camera_frame_record_invalid")
+                continue
+            frame_path = frame.get("frame_path")
+            if not frame_path:
+                blockers.append("camera_frame_path_missing")
+            else:
+                frame_paths.append(str(frame_path))
+            sha256 = frame.get("sha256")
+            if not isinstance(sha256, str) or len(sha256) != 64:
+                blockers.append("camera_frame_sha256_missing")
+        if len(frame_paths) != len(set(frame_paths)):
+            blockers.append("camera_frame_path_duplicate")
+    return {
+        "passed": not blockers,
+        "blockers": sorted(set(blockers)),
+        "camera_frame_count": len(frames) if isinstance(frames, list) else 0,
+    }
+
+
+def build_stage5_eval_manifest(
+    diagnostics: dict[str, Any],
+    *,
+    diagnostics_path: str | Path,
+) -> dict[str, Any]:
+    material_status = diagnostics.get("native_material_closure_status")
+    return {
+        "stage": "acceptance_stage_5_eval_readback",
+        "schema_version": 1,
+        "run_id": diagnostics.get("run_id"),
+        "worker_id": diagnostics.get("worker_id"),
+        "episode_id": diagnostics.get("episode_id"),
+        "seed": diagnostics.get("seed"),
+        "diagnostics_path": str(diagnostics_path),
+        "native_eval_readback_ready": bool(
+            diagnostics.get("native_eval_readback_ready")
+        ),
+        "claim_boundary": {
+            "lift2_contract_ready": bool(diagnostics.get("lift2_contract_ready")),
+            "native_material_closure_status": material_status,
+            "runtime_material_dependency_status": diagnostics.get(
+                "runtime_material_dependency_status"
+            ),
+            "native_material_closure_claim_allowed": (
+                material_status == "resolved_native_material"
+            ),
+            "official_baseline_evaluable": bool(
+                diagnostics.get("official_baseline_evaluable")
+            ),
+        },
+        "contracts": {
+            "eval_step_contract": diagnostics.get("eval_step_contract"),
+            "stage5_evidence_contract": diagnostics.get("stage5_evidence_contract"),
+            "open_door_metric_contract": diagnostics.get("open_door_metric_contract"),
+            "render_validation": diagnostics.get("render_validation"),
+        },
+        "artifacts": {
+            "result_dir": (diagnostics.get("diagnostic_logs") or {}).get("result_dir"),
+            "stdout_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
+                "stdout_log_path"
+            ),
+            "stderr_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
+                "stderr_log_path"
+            ),
+            "native_asset_audit_path": diagnostics.get("native_asset_audit_path"),
+            "native_asset_audit_sha256": diagnostics.get("native_asset_audit_sha256"),
+            "native_smoke_path": diagnostics.get("native_smoke_path"),
+            "native_smoke_sha256": diagnostics.get("native_smoke_sha256"),
+            "native_physics_override_path": diagnostics.get(
+                "native_physics_override_path"
+            ),
+            "native_physics_override_sha256": diagnostics.get(
+                "native_physics_override_sha256"
+            ),
+        },
+        "camera_frames": diagnostics.get("camera_frames") or [],
+        "material_summary": {
+            "remote_aluminum_disposition": diagnostics.get(
+                "remote_aluminum_disposition"
+            ),
+            "remote_aluminum_waiver_id": diagnostics.get(
+                "remote_aluminum_waiver_id"
+            ),
+            "material_closure_eligible": bool(
+                diagnostics.get("material_closure_eligible")
+            ),
+            "fallback_surface_count": diagnostics.get("fallback_surface_count"),
+            "runtime_material_record_count": len(
+                (diagnostics.get("runtime_material_readback") or {}).get(
+                    "records", []
+                )
+            )
+            if isinstance(diagnostics.get("runtime_material_readback"), dict)
+            else 0,
+        },
+    }
+
+
+def _stage5_eval_manifest_path(diagnostics: dict[str, Any]) -> Path:
+    run_id = str(diagnostics.get("run_id") or "unknown")
+    timestamp = run_id.rsplit("_eval_", 1)[-1]
+    return (
+        REPO_ROOT
+        / "docs/labutopia_lab_poc/evidence_manifests"
+        / f"native_dryingbox_eval_{timestamp}.json"
+    )
+
+
+def _write_stage5_eval_manifest(
+    diagnostics: dict[str, Any],
+    *,
+    diagnostics_path: Path,
+) -> Path:
+    manifest_path = _stage5_eval_manifest_path(diagnostics)
+    manifest = build_stage5_eval_manifest(
+        diagnostics,
+        diagnostics_path=diagnostics_path,
+    )
+    _write_json(manifest_path, manifest)
+    return manifest_path
 
 
 def apply_native_eval_readback_summary(
@@ -345,14 +978,67 @@ def apply_native_eval_readback_summary(
     official_baseline_evaluable = bool(
         claim_boundary.get("official_baseline_evaluable")
     )
+    material_closure = classify_runtime_material_closure(
+        diagnostics,
+        runtime_material_readback=diagnostics.get("runtime_material_readback"),
+    )
     diagnostics["runtime_physics_stable"] = runtime_physics_stable
     diagnostics["task_render_accepted"] = task_render_accepted
     diagnostics["official_baseline_evaluable"] = official_baseline_evaluable
+    diagnostics["lift2_contract_ready"] = False
+    diagnostics.update(material_closure)
+    material_readback_ready = (
+        diagnostics["native_material_closure_status"] != "blocked"
+    )
+    eval_step_contract = classify_eval_step_contract(
+        zero_action=diagnostics.get("zero_action"),
+        step_response=diagnostics.get("step_response"),
+    )
+    diagnostics["eval_step_contract"] = eval_step_contract
+    eval_step_ready = bool(eval_step_contract["passed"])
+    if not eval_step_ready:
+        blockers = diagnostics.setdefault("blockers", [])
+        if "eval_step_contract_failed" not in blockers:
+            blockers.append("eval_step_contract_failed")
+    metric_contract = diagnostics.get("open_door_metric_contract")
+    metric_contract_ready = (
+        isinstance(metric_contract, dict)
+        and metric_contract.get("metric_reads_door_revolute_joint") is True
+    )
+    if not metric_contract_ready:
+        blockers = diagnostics.setdefault("blockers", [])
+        if "open_door_metric_contract_failed" not in blockers:
+            blockers.append("open_door_metric_contract_failed")
+    evidence_contract = diagnostics.get("stage5_evidence_contract")
+    if not (
+        isinstance(evidence_contract, dict)
+        and evidence_contract.get("passed") is True
+    ):
+        evidence_contract = classify_stage5_evidence_contract(diagnostics)
+    diagnostics["stage5_evidence_contract"] = evidence_contract
+    evidence_ready = bool(evidence_contract["passed"])
+    if not evidence_ready:
+        blockers = diagnostics.setdefault("blockers", [])
+        if "stage5_evidence_contract_failed" not in blockers:
+            blockers.append("stage5_evidence_contract_failed")
+    diagnostics["native_eval_readback_ready"] = (
+        diagnostics.get("drying_box_strategy") == NATIVE_DRYING_BOX_STRATEGY
+        and bool(native_evidence.get("native_smoke_runtime_physics_stable"))
+        and runtime_physics_stable
+        and task_render_accepted
+        and material_readback_ready
+        and eval_step_ready
+        and metric_contract_ready
+        and evidence_ready
+    )
     diagnostics["native_complex_dryingbox_ready"] = (
         diagnostics.get("drying_box_strategy") == NATIVE_DRYING_BOX_STRATEGY
         and bool(native_evidence.get("native_smoke_runtime_physics_stable"))
         and runtime_physics_stable
         and task_render_accepted
+        and eval_step_ready
+        and metric_contract_ready
+        and evidence_ready
     )
     return diagnostics
 
@@ -384,10 +1070,12 @@ def frame_stats_from_rgb(
     import numpy as np
 
     arr = _normalize_rgb_array(rgb)
+    path = Path(frame_path)
     flat = arr.reshape(-1, 3)
     stats = build_camera_frame_stats(
         camera_name=camera_name,
         frame_path=str(frame_path),
+        sha256=_sha256_file(path) if path.exists() else None,
         width=int(arr.shape[1]),
         height=int(arr.shape[0]),
         channel_min=[float(value) for value in flat.min(axis=0)],
@@ -944,6 +1632,19 @@ def _save_rgb_png(rgb: Any, frame_path: Path) -> None:
     save_image(_normalize_rgb_array(rgb), str(frame_path))
 
 
+def next_camera_frame_path(
+    *,
+    output_dir: Path,
+    stage: str,
+    camera_name: str,
+    counters: dict[tuple[str, str], int],
+) -> Path:
+    key = (stage, camera_name)
+    index = counters.get(key, 0)
+    counters[key] = index + 1
+    return output_dir / stage / camera_name / f"{index:05d}.png"
+
+
 def _select_eval_config(
     evaluation_configs: list[dict[str, Any]],
     task_name: str,
@@ -1314,6 +2015,11 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         "seed": args.seed,
         "config": args.config,
         "benchmark_id": benchmark_id,
+        "worker_id": os.environ.get("GENMANIP_WORKER_ID")
+        or os.environ.get("RAY_WORKER_ID")
+        or os.environ.get("WORKER_ID")
+        or "local",
+        "episode_id": None,
         "output_dir": str(output_dir),
         "port": args.port,
         "reset_frame_capture": True,
@@ -1334,6 +2040,17 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         "required_articulations": required_articulations,
         "expected_articulation_joint_positions": expected_joint_positions,
         "expected_articulation_joint_names": expected_joint_names,
+        "reset_observation_schema": summarize_observation_schema(None),
+        "reset_info": None,
+        "open_door_metric_contract": build_open_door_metric_contract(eval_config),
+        "zero_action": None,
+        "step_response": None,
+        "metric_raw_output": None,
+        "diagnostic_logs": {
+            "stdout_log_path": args.stdout_log_path,
+            "stderr_log_path": args.stderr_log_path,
+            "result_dir": str(output_dir),
+        },
         "runtime_sanity": classify_articulation_runtime_state(
             {},
             required_articulations=required_articulations,
@@ -1350,7 +2067,16 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         "native_asset_audit_sha256": None,
         "native_smoke_path": None,
         "native_smoke_sha256": None,
+        "native_physics_override_path": None,
+        "native_physics_override_sha256": None,
         "native_smoke_runtime_physics_stable": False,
+        "runtime_material_readback": None,
+        "remote_aluminum_disposition": None,
+        "native_material_closure_status": "blocked",
+        "runtime_material_dependency_status": "blocked",
+        "material_closure_eligible": False,
+        "native_eval_readback_ready": False,
+        "lift2_contract_ready": False,
         "native_complex_dryingbox_ready": False,
         "runtime_physics_stable": False,
         "task_render_accepted": False,
@@ -1371,10 +2097,12 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
         native_evidence = build_native_dryingbox_evidence(
             audit_json_path=args.native_asset_audit_json,
             smoke_json_path=args.native_smoke_json,
+            physics_override_json_path=args.native_physics_override_json,
         )
         diagnostics.update(native_evidence)
         original_get_eval_camera_data = env_module.get_eval_camera_data
         readback_stats: list[dict[str, object]] = []
+        readback_frame_counters: dict[tuple[str, str], int] = {}
 
         def capture_get_eval_camera_data(camera_list: dict[str, Any]) -> dict[str, Any]:
             camera_data = original_get_eval_camera_data(camera_list)
@@ -1389,7 +2117,12 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
                 )
             for camera_name, item in sorted(camera_data.items()):
                 rgb = item.get("rgb")
-                frame_path = output_dir / "readback_after_get_eval_camera_data" / camera_name / "00000.png"
+                frame_path = next_camera_frame_path(
+                    output_dir=output_dir,
+                    stage="readback_after_get_eval_camera_data",
+                    camera_name=camera_name,
+                    counters=readback_frame_counters,
+                )
                 _save_rgb_png(rgb, frame_path)
                 stats = frame_stats_from_rgb(
                     camera_name=camera_name,
@@ -1420,7 +2153,29 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
                 str(current_dir),
                 benchmark_id=benchmark_id,
             )
-            env.reset(args.seed, eval_config, default_config)
+            reset_obs, reset_info = env.reset(args.seed, eval_config, default_config)
+            diagnostics["reset_observation_schema"] = summarize_observation_schema(
+                reset_obs
+            )
+            diagnostics["episode_id"] = (
+                reset_obs.get("episode_id") if isinstance(reset_obs, dict) else None
+            )
+            diagnostics["reset_info"] = _jsonable(reset_info)
+            diagnostics["zero_action"] = build_zero_joint_position_action(
+                env.current_joint_position
+            )
+            step_obs, step_reward, step_done, step_info = env.step(
+                diagnostics["zero_action"]
+            )
+            diagnostics["step_response"] = summarize_step_response(
+                obs=step_obs,
+                reward=step_reward,
+                done=step_done,
+                info=step_info,
+            )
+            diagnostics["metric_raw_output"] = diagnostics["step_response"][
+                "metric_raw_output"
+            ]
             scene = env.scene
             diagnostics["scene_collections"] = _scene_collection_keys(scene)
             if scene is not None:
@@ -1438,6 +2193,9 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
                     getattr(scene, "camera_list", {}) or {},
                     diagnostics["articulation_state"],
                     diagnostics["native_handle_parts"],
+                )
+                diagnostics["runtime_material_readback"] = (
+                    _collect_runtime_material_readback(diagnostics)
                 )
             recorder_stats = _copy_recorder_frame_stats(
                 traj_log_dir=env.traj_log_dir,
@@ -1512,7 +2270,13 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             native_evidence=diagnostics,
         )
     finally:
-        _write_json(output_dir / "diagnostics.json", diagnostics)
+        diagnostics_path = output_dir / "diagnostics.json"
+        manifest_path = _write_stage5_eval_manifest(
+            diagnostics,
+            diagnostics_path=diagnostics_path,
+        )
+        diagnostics["stage5_eval_manifest_path"] = str(manifest_path)
+        _write_json(diagnostics_path, diagnostics)
         if env is not None:
             try:
                 env.close()
@@ -1583,6 +2347,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--native-smoke-json",
         default=None,
         help="Explicit native DryingBox smoke.json to hash. Defaults to latest artifact.",
+    )
+    parser.add_argument(
+        "--native-physics-override-json",
+        default=None,
+        help="Explicit native DryingBox physics_override.json to hash. Defaults to latest artifact.",
+    )
+    parser.add_argument(
+        "--stdout-log-path",
+        default=None,
+        help="Path where the caller is writing this diagnostics run stdout log.",
+    )
+    parser.add_argument(
+        "--stderr-log-path",
+        default=None,
+        help="Path where the caller is writing this diagnostics run stderr log.",
     )
     args = parser.parse_args(argv)
     if args.output_dir is None and args.output_root is not None:

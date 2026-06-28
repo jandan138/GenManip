@@ -12,6 +12,7 @@ from omni.isaac.core.robots.robot import Robot  # type: ignore
 from omni.isaac.franka import Franka  # type: ignore
 
 from genmanip.core.robot.base import ManipRobotConfig
+from genmanip.core.robot.pose_config import resolve_optional_robot_pose
 from genmanip.core.robot.singlearm_manip import SingleArmEmbodiment
 from genmanip.core.robot.utils import RobotFactory
 from genmanip.utils.planner.curobo.base import CuroboPlanner
@@ -44,6 +45,12 @@ class FrankaNormalEmbodiment(SingleArmEmbodiment):
         robot = Franka(
             prim_path=f"/World/{scene_uid}/franka",
         )
+        pose = resolve_optional_robot_pose(robot_config)
+        if pose is not None:
+            robot.set_world_pose(
+                position=pose["position"],
+                orientation=pose["orientation"],
+            )
 
         # Set default parameters for the franka robot
         robot.set_solver_position_iteration_count(128)
