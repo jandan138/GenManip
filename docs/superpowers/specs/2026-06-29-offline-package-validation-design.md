@@ -34,8 +34,9 @@ class OfflineDependencyRoots:
 @dataclass(frozen=True)
 class OfflineDependencyExpectation:
     allowed_location_statuses: set[str]
-    required_local_path_fields: set[str]
-    optional_informational_uri_fields: set[str]
+    local_path_fields: set[str]
+    remote_checked_fields: set[str]
+    informational_uri_fields: set[str]
 
 
 def assert_offline_dependency_records(
