@@ -123,6 +123,12 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 - explicit waiver 可以保留资产验收边界，但不能让 package material closure 或 native material closure 自动变成 true。
 - `primvars:displayColor` 不自动等于 fallback；有有效 `material:binding` 时只算 authored auxiliary color，只有 fallback-only surface 才计入 `fallback_surface_count`。
 
+Reusable validator boundary:
+
+- New assets should construct `MaterialClosureExpectation` instead of copy/pasting DryingBox assertions.
+- `NativeMaterialProvenanceBlocker` records are the reusable unit for surfaces that have package-visible wrapper material but cannot claim source-native material binding.
+- Asset-specific validators may still add package checks for source files, physics reports, camera contracts, or task semantics.
+
 ## PM 文案映射
 
 | Manifest 字段 | PM 可以怎么说 | PM 不能怎么说 |

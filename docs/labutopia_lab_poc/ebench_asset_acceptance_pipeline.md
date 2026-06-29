@@ -170,6 +170,8 @@ Pass condition:
 | `claim_derivation` | claim flags 只能由证据字段派生，不能手写成 true |
 | `evidence_manifest_consistency` | generator manifest、validator summary、docs manifest 的 count/blocker/claim 一致 |
 
+Implementation rule: generic material shape checks live in `asset_acceptance_validation.py`. Asset-specific validators pass a `MaterialClosureExpectation`; they should not reimplement provenance blocker path/count/status checks by hand.
+
 Material states:
 
 ```text
@@ -522,7 +524,7 @@ separately run and recorded.
 
 1. 先把 material report 扩展成通用 schema：不再只服务 Aluminum，而是覆盖任意 asset 的 MDL/texture/material binding、`GeomSubset`、wrapper-local override 和 fallback-only surface。
 2. 完成 DryingBox package material closure：Aluminum local mirror、`panel` source-resolved、`Group/_900_1` 和 `button` wrapper-local material override，runtime `fallback_surface_count=0`。
-3. 把 `native_material_provenance` blocker 写进 manifest，并在 `validate_task_package.py` 里校验 blocker count、path、binding status 和 blocked claims。
+3. 把 `native_material_provenance` blocker 写进 manifest，并用 `asset_acceptance_validation.py` 的 `MaterialClosureExpectation` 统一校验 blocker count、path、binding status 和 blocked claims。
 4. 增加 cold/offline package validation：验证不依赖公网和缓存。
 5. 对 DryingBox 重新跑 evaluator camera readback，产出 diagnostic image；如需对外展示，再单独补拍 PM-facing image 并通过 `pm_showcase_ready` 边界。
 6. 生成 `asset_acceptance_record.json`，把 Stage 0-7 的状态、hash、allowed claims 和 blocked claims 汇总到 `acceptance_stages`，同时保留 `gate_status` 作为兼容摘要。
