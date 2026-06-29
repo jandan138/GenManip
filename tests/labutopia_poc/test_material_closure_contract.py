@@ -1,3 +1,6 @@
+import pytest
+
+
 ALUMINUM_TEXTURE_RECORDS = [
     {
         "package_relative_path": (
@@ -73,6 +76,7 @@ def test_scoped_local_mirror_does_not_allow_full_native_material_closure():
         "fallback_surface_records",
         "waiver_records",
         "derived_counts",
+        "blockers",
         "closure_claim_allowed",
         "aluminum_material_closure_claim_allowed",
         "native_material_closure_claim_allowed",
@@ -93,6 +97,7 @@ def test_scoped_local_mirror_does_not_allow_full_native_material_closure():
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
         "local_mirror_count": 1,
+        "unsupported_dependency_resolution_mode_count": 0,
         "fallback_surface_count": 3,
     }
     assert report["derived_counts"]["fallback_surface_count"] == 3
@@ -118,6 +123,11 @@ def test_unknown_dependency_resolution_mode_blocks_full_closure():
     assert report["closure_claim_allowed"] is False
     assert report["native_material_closure_claim_allowed"] is False
     assert report["full_native_material_closure_claim_allowed"] is False
+    assert report["derived_counts"]["unsupported_dependency_resolution_mode_count"] == 1
+    assert "unsupported_dependency_resolution_mode" in report["blockers"]
+    assert report["native_material_closure_reason"] == (
+        "unsupported_dependency_resolution_mode"
+    )
 
 
 def test_material_closure_report_does_not_retain_input_references():
@@ -139,3 +149,99 @@ def test_material_closure_report_does_not_retain_input_references():
         report["dependency_records"][0]["material_name"]
         == "Aluminum_Anodized_Charcoal"
     )
+
+
+def test_rejects_full_closure_overclaim_with_fallback_surface():
+    from standalone_tools.labutopia_poc.material_closure import (
+        assert_material_claims_are_derived,
+    )
+
+    claimed = {
+        "full_native_material_closure_claim_allowed": True,
+        "derived_counts": {"fallback_surface_count": 1},
+    }
+
+    with pytest.raises(AssertionError, match="full material closure overclaim"):
+        assert_material_claims_are_derived(claimed)
+
+
+def test_rejects_full_closure_overclaim_with_remote_dependency():
+    from standalone_tools.labutopia_poc.material_closure import (
+        assert_material_claims_are_derived,
+    )
+
+    claimed = {
+        "full_native_material_closure_claim_allowed": True,
+        "derived_counts": {
+            "remote_unmirrored_unwaived_count": 1,
+            "remote_waiver_count": 0,
+            "fallback_surface_count": 0,
+        },
+        "blockers": ["remote_dependency_unmirrored_unwaived"],
+    }
+
+    with pytest.raises(AssertionError, match="full material closure overclaim"):
+        assert_material_claims_are_derived(claimed)
+
+
+def test_rejects_full_closure_overclaim_with_stale_counts():
+    from standalone_tools.labutopia_poc.material_closure import (
+        assert_material_claims_are_derived,
+    )
+
+    claimed = {
+        "closure_claim_allowed": True,
+        "native_material_closure_claim_allowed": True,
+        "full_native_material_closure_claim_allowed": True,
+        "dependency_records": [
+            {
+                "material_name": "UnexpectedMaterial",
+                "resolution_mode": "typo_local_mirror",
+            }
+        ],
+        "fallback_surface_records": [],
+        "waiver_records": [],
+        "derived_counts": {
+            "remote_unmirrored_unwaived_count": 0,
+            "remote_waiver_count": 0,
+            "local_mirror_count": 1,
+            "unsupported_dependency_resolution_mode_count": 0,
+            "fallback_surface_count": 0,
+        },
+        "blockers": [],
+    }
+
+    with pytest.raises(AssertionError, match="full material closure overclaim"):
+        assert_material_claims_are_derived(claimed)
+
+
+def test_derive_blockers_accepts_planned_positional_signature():
+    from standalone_tools.labutopia_poc.material_closure import _derive_blockers
+
+    assert _derive_blockers(1, 1, 1) == [
+        "remote_dependency_unmirrored_unwaived",
+        "explicit_material_waiver_open",
+        "fallback_surfaces_remain_after_aluminum_local_mirror",
+    ]
+
+
+def test_rejects_remote_dependency_without_mirror_or_waiver():
+    from standalone_tools.labutopia_poc.material_closure import (
+        derive_material_closure_claims,
+    )
+
+    report = derive_material_closure_claims(
+        asset_id="LabUtopia/DryingBox_01",
+        dependency_records=[
+            {
+                "material_name": "ExampleRemote",
+                "resolution_mode": "remote_unmirrored_unwaived",
+            }
+        ],
+        fallback_surface_records=[],
+        waiver_records=[],
+    )
+
+    assert report["derived_counts"]["remote_unmirrored_unwaived_count"] == 1
+    assert report["native_material_closure_claim_allowed"] is False
+    assert "remote_dependency_unmirrored_unwaived" in report["blockers"]
