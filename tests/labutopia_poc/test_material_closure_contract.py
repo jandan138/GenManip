@@ -37,6 +37,45 @@ def _aluminum_dependency_record():
     }
 
 
+def test_package_material_closure_stays_true_with_wrapper_authored_native_blockers():
+    from standalone_tools.labutopia_poc.material_closure import (
+        derive_material_closure_claims,
+    )
+
+    report = derive_material_closure_claims(
+        asset_id="LabUtopia/DryingBox_01",
+        dependency_records=[_aluminum_dependency_record()],
+        fallback_surface_records=[],
+        waiver_records=[],
+        source_resolved_surface_records=[
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+                "resolution_mode": "native_geomsubset_material_binding",
+            }
+        ],
+        authored_material_records=[
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+                "resolution_mode": "wrapper_local_preview_surface",
+            },
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+                "resolution_mode": "wrapper_local_preview_surface",
+            },
+        ],
+    )
+
+    assert report["closure_claim_allowed"] is True
+    assert report["full_material_closure_claim_allowed"] is True
+    assert report["material_status"] == "resolved_material_with_local_overrides"
+    assert report["blockers"] == []
+    assert report["derived_counts"]["fallback_surface_count"] == 0
+    assert report["derived_counts"]["wrapper_authored_material_count"] == 2
+    assert report["native_material_closure_claim_allowed"] is False
+    assert report["full_native_material_closure_claim_allowed"] is False
+    assert report["native_material_closure_reason"] == "wrapper_local_material_overrides_present"
+
+
 def test_scoped_local_mirror_does_not_allow_full_native_material_closure():
     from standalone_tools.labutopia_poc.material_closure import (
         derive_material_closure_claims,
