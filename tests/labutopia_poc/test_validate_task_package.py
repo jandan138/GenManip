@@ -809,6 +809,46 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert 'def Cube "handle"' not in scene_text
 
 
+def test_drying_box_offline_dependency_validator_rejects_texture_hash_drift(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    package_root = tmp_path / "package"
+    common_root = package_root / "common"
+    manifest["overlay_root"] = str(tmp_path / "overlay/assets")
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    aluminum = next(
+        record
+        for record in dependency_report
+        if record["material_name"] == "Aluminum_Anodized_Charcoal"
+    )
+    source_paths = [aluminum["local_mirror_path"]] + [
+        record["local_mirror_path"]
+        for record in aluminum["texture_dependency_records"]
+    ]
+    for relative_path in source_paths:
+        source = validate_task_package.PACKAGE_ROOT / "common" / relative_path
+        target = common_root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    aluminum["texture_dependency_records"][0]["sha256"] = "0" * 64
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="hash mismatch"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            tmp_path / "assets_manifest.json",
+            manifest,
+            dependency_report,
+        )
+
+
 def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     manifest_path = (
         validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"

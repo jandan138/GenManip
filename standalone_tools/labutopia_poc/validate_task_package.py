@@ -28,6 +28,11 @@ from standalone_tools.labutopia_poc.asset_acceptance_validation import (
     NativeMaterialProvenanceBlocker,
     assert_asset_acceptance_material_closure,
 )
+from standalone_tools.labutopia_poc.offline_package_validation import (
+    OfflineDependencyExpectation,
+    OfflineDependencyRoots,
+    assert_offline_dependency_records,
+)
 
 
 TASK_ROOT = ROOT / "configs/tasks"
@@ -265,6 +270,19 @@ def _drying_box_material_closure_expectation() -> MaterialClosureExpectation:
             EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS
         ),
         native_provenance_blockers=EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BLOCKERS,
+    )
+
+
+def _drying_box_offline_dependency_expectation() -> OfflineDependencyExpectation:
+    return OfflineDependencyExpectation(
+        allowed_location_statuses={"local_mirror_copied_with_package"},
+        local_path_fields={"local_mirror_path"},
+        remote_checked_fields={
+            "local_mirror_path",
+            "relative_path",
+            "worker_resolved_path",
+        },
+        informational_uri_fields={"source_url"},
     )
 
 
@@ -819,6 +837,32 @@ def _validate_asset_acceptance_material_closure(
     )
 
 
+def _drying_box_package_local_dependency_records(
+    dependency_report: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        record
+        for record in dependency_report
+        if record.get("dependency_location_status") == "local_mirror_copied_with_package"
+    ]
+
+
+def _validate_drying_box_offline_package_dependencies(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    dependency_report: list[dict[str, Any]],
+) -> None:
+    assert_offline_dependency_records(
+        manifest_path,
+        _drying_box_package_local_dependency_records(dependency_report),
+        OfflineDependencyRoots(
+            package_root=PACKAGE_ROOT / "common",
+            overlay_root=Path(str(manifest["overlay_root"])),
+        ),
+        _drying_box_offline_dependency_expectation(),
+    )
+
+
 def _validate_drying_box_wrapper_composition(
     manifest_path: Path,
     manifest: dict[str, Any],
@@ -1051,6 +1095,11 @@ def _validate_drying_box_wrapper_composition(
         == EXPECTED_DRYING_BOX_LOCAL_MDL_MATERIALS
         | {"Aluminum_Anodized_Charcoal"},
         f"{manifest_path}: material_dependency_report must cover expected material names",
+    )
+    _validate_drying_box_offline_package_dependencies(
+        manifest_path,
+        manifest,
+        dependency_report,
     )
     for material_name in EXPECTED_DRYING_BOX_LOCAL_MDL_MATERIALS:
         record = dependency_by_name[material_name]
