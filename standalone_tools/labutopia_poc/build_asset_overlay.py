@@ -247,6 +247,8 @@ DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES = {
         "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
     },
 }
+DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_OWNER = "GenManip LabUtopia integration"
+DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_REVIEW_DATE = "2026-07-15"
 DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS = {
     "mdl_0007": {
         "mdl_source_asset": "./SubUSDs/materials/material_11.mdl",
@@ -1294,6 +1296,41 @@ def _drying_box_fallback_display_records() -> list[dict[str, object]]:
     return records
 
 
+def _drying_box_material_waiver_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    records = []
+    for index, (relative_path, fallback) in enumerate(
+        sorted(DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES.items()),
+        start=1,
+    ):
+        source_prim_path = f"/World/DryingBox_01/{relative_path}"
+        runtime_prim_path = f"{root_path}/{relative_path}"
+        records.append(
+            {
+                "waiver_id": f"DRYINGBOX_UNBOUND_NATIVE_SURFACE_{index:03d}",
+                "waiver_status": "open",
+                "disposition": "explicit_waiver",
+                "owner": DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_OWNER,
+                "review_date": DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_REVIEW_DATE,
+                "expiry_date": DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_REVIEW_DATE,
+                "source_prim_path": source_prim_path,
+                "runtime_prim_path": runtime_prim_path,
+                "source_binding_status": fallback["source_binding_status"],
+                "source_material_binding": None,
+                "compute_bound_material_success": False,
+                "fallback_display_color": fallback["display_color"],
+                "reason": (
+                    "Native LabUtopia source USD has no usable material:binding "
+                    "for this task-visible surface; the runtime overlay keeps a "
+                    "displayColor for visibility while full material authoring is "
+                    "reviewed."
+                ),
+                "blocked_claims": ["full_native_material_closure"],
+            }
+        )
+    return records
+
+
 def _drying_box_wrapper_composition_report(
     labutopia_root: Path,
     overlay_root: Path,
@@ -1391,7 +1428,7 @@ def _drying_box_asset_acceptance_report(overlay_root: Path) -> dict[str, object]
             asset_id="LabUtopia/DryingBox_01",
             dependency_records=static_material_gate["remote_dependency_records"],
             fallback_surface_records=_drying_box_fallback_display_records(),
-            waiver_records=[],
+            waiver_records=_drying_box_material_waiver_records(),
         )
     }
 

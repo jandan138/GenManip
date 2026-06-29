@@ -592,6 +592,22 @@ def test_assets_manifest_rejects_full_material_closure_overclaim(
         validate_task_package._validate_assets_manifest()
 
 
+def test_asset_acceptance_material_closure_rejects_malformed_waiver_record():
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    material = manifest["asset_acceptance"]["material_closure"]
+    material["waiver_records"][0] = "not-a-record"
+
+    with pytest.raises(AssertionError, match="explicit material waivers"):
+        validate_task_package._validate_asset_acceptance_material_closure(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+        )
+
+
 def test_labutopia_tasks_define_runtime_articulation_contract():
     for path in validate_task_package._indexed_task_yaml_paths():
         data = validate_task_package._load_yaml(path)

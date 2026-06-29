@@ -7,6 +7,7 @@
       "aluminum_material_closure_claim_allowed": true,
       "asset_id": "LabUtopia/DryingBox_01",
       "blockers": [
+        "explicit_material_waiver_open",
         "fallback_surfaces_remain_after_aluminum_local_mirror"
       ],
       "closure_claim_allowed": false,
@@ -31,6 +32,7 @@
         }
       ],
       "derived_counts": {
+        "explicit_material_waiver_count": 3,
         "fallback_surface_count": 3,
         "local_mirror_count": 1,
         "remote_unmirrored_unwaived_count": 0,
@@ -75,9 +77,76 @@
       "full_native_material_closure_claim_allowed": false,
       "material_status": "mixed_native_and_fallback",
       "native_material_closure_claim_allowed": false,
-      "native_material_closure_reason": "fallback_surfaces_remain_after_aluminum_local_mirror",
+      "native_material_closure_reason": "explicit_material_waiver_open",
       "schema_version": 1,
-      "waiver_records": []
+      "waiver_records": [
+        {
+          "blocked_claims": [
+            "full_native_material_closure"
+          ],
+          "compute_bound_material_success": false,
+          "disposition": "explicit_waiver",
+          "expiry_date": "2026-07-15",
+          "fallback_display_color": [
+            0.1,
+            0.36,
+            0.95
+          ],
+          "owner": "GenManip LabUtopia integration",
+          "reason": "Native LabUtopia source USD has no usable material:binding for this task-visible surface; the runtime overlay keeps a displayColor for visibility while full material authoring is reviewed.",
+          "review_date": "2026-07-15",
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_material_binding": null,
+          "source_prim_path": "/World/DryingBox_01/Group/_900_1",
+          "waiver_id": "DRYINGBOX_UNBOUND_NATIVE_SURFACE_001",
+          "waiver_status": "open"
+        },
+        {
+          "blocked_claims": [
+            "full_native_material_closure"
+          ],
+          "compute_bound_material_success": false,
+          "disposition": "explicit_waiver",
+          "expiry_date": "2026-07-15",
+          "fallback_display_color": [
+            1.0,
+            0.48,
+            0.04
+          ],
+          "owner": "GenManip LabUtopia integration",
+          "reason": "Native LabUtopia source USD has no usable material:binding for this task-visible surface; the runtime overlay keeps a displayColor for visibility while full material authoring is reviewed.",
+          "review_date": "2026-07-15",
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+          "source_binding_status": "unbound_in_stage2_source_readback",
+          "source_material_binding": null,
+          "source_prim_path": "/World/DryingBox_01/button",
+          "waiver_id": "DRYINGBOX_UNBOUND_NATIVE_SURFACE_002",
+          "waiver_status": "open"
+        },
+        {
+          "blocked_claims": [
+            "full_native_material_closure"
+          ],
+          "compute_bound_material_success": false,
+          "disposition": "explicit_waiver",
+          "expiry_date": "2026-07-15",
+          "fallback_display_color": [
+            0.88,
+            0.92,
+            0.96
+          ],
+          "owner": "GenManip LabUtopia integration",
+          "reason": "Native LabUtopia source USD has no usable material:binding for this task-visible surface; the runtime overlay keeps a displayColor for visibility while full material authoring is reviewed.",
+          "review_date": "2026-07-15",
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_material_binding": null,
+          "source_prim_path": "/World/DryingBox_01/panel",
+          "waiver_id": "DRYINGBOX_UNBOUND_NATIVE_SURFACE_003",
+          "waiver_status": "open"
+        }
+      ]
     }
   },
   "copied_files": [

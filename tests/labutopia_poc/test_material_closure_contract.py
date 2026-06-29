@@ -96,6 +96,7 @@ def test_scoped_local_mirror_does_not_allow_full_native_material_closure():
     assert report["derived_counts"] == {
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
+        "explicit_material_waiver_count": 0,
         "local_mirror_count": 1,
         "unsupported_dependency_resolution_mode_count": 0,
         "fallback_surface_count": 3,
@@ -204,6 +205,7 @@ def test_rejects_full_closure_overclaim_with_stale_counts():
         "derived_counts": {
             "remote_unmirrored_unwaived_count": 0,
             "remote_waiver_count": 0,
+            "explicit_material_waiver_count": 0,
             "local_mirror_count": 1,
             "unsupported_dependency_resolution_mode_count": 0,
             "fallback_surface_count": 0,
@@ -245,3 +247,32 @@ def test_rejects_remote_dependency_without_mirror_or_waiver():
     assert report["derived_counts"]["remote_unmirrored_unwaived_count"] == 1
     assert report["native_material_closure_claim_allowed"] is False
     assert "remote_dependency_unmirrored_unwaived" in report["blockers"]
+
+
+def test_explicit_waiver_blocks_full_closure_without_fallback_surface():
+    from standalone_tools.labutopia_poc.material_closure import (
+        derive_material_closure_claims,
+    )
+
+    report = derive_material_closure_claims(
+        asset_id="LabUtopia/DryingBox_01",
+        dependency_records=[_aluminum_dependency_record()],
+        fallback_surface_records=[],
+        waiver_records=[
+            {
+                "waiver_id": "DRYINGBOX_UNBOUND_NATIVE_SURFACE_001",
+                "disposition": "explicit_waiver",
+                "runtime_prim_path": (
+                    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+                ),
+                "blocked_claims": ["full_native_material_closure"],
+            }
+        ],
+    )
+
+    assert report["derived_counts"]["fallback_surface_count"] == 0
+    assert report["derived_counts"]["remote_waiver_count"] == 0
+    assert report["derived_counts"]["explicit_material_waiver_count"] == 1
+    assert report["blockers"] == ["explicit_material_waiver_open"]
+    assert report["full_native_material_closure_claim_allowed"] is False
+    assert report["forbidden_claims"] == ["full_native_material_closure"]

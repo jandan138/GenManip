@@ -35,9 +35,15 @@ def _derive_counts(
         for record in dependency_records
         if record.get("resolution_mode") not in SUPPORTED_DEPENDENCY_RESOLUTION_MODES
     )
+    explicit_material_waiver_count = sum(
+        1
+        for record in waiver_records
+        if record.get("disposition") == "explicit_waiver"
+    )
     return {
         "remote_unmirrored_unwaived_count": remote_unmirrored_unwaived_count,
-        "remote_waiver_count": len(waiver_records),
+        "remote_waiver_count": len(waiver_records) - explicit_material_waiver_count,
+        "explicit_material_waiver_count": explicit_material_waiver_count,
         "local_mirror_count": local_mirror_count,
         "unsupported_dependency_resolution_mode_count": (
             unsupported_dependency_resolution_mode_count
@@ -88,6 +94,7 @@ def assert_material_claims_are_derived(report: dict[str, Any]) -> None:
     blocker_counts = (
         int(counts.get("remote_unmirrored_unwaived_count") or 0),
         int(counts.get("remote_waiver_count") or 0),
+        int(counts.get("explicit_material_waiver_count") or 0),
         int(counts.get("unsupported_dependency_resolution_mode_count") or 0),
         int(counts.get("fallback_surface_count") or 0),
     )
@@ -123,7 +130,7 @@ def derive_material_closure_claims(
     )
     blockers = _derive_blockers(
         counts["remote_unmirrored_unwaived_count"],
-        counts["remote_waiver_count"],
+        counts["remote_waiver_count"] + counts["explicit_material_waiver_count"],
         counts["fallback_surface_count"],
         counts["unsupported_dependency_resolution_mode_count"],
         not bool(dependency_records),
@@ -136,6 +143,7 @@ def derive_material_closure_claims(
     full_allowed = (
         counts["remote_unmirrored_unwaived_count"] == 0
         and counts["remote_waiver_count"] == 0
+        and counts["explicit_material_waiver_count"] == 0
         and counts["fallback_surface_count"] == 0
         and counts["unsupported_dependency_resolution_mode_count"] == 0
         and bool(dependency_records)

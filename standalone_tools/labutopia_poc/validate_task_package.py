@@ -655,6 +655,7 @@ def _validate_asset_acceptance_material_closure(
     expected_counts = {
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
+        "explicit_material_waiver_count": 3,
         "local_mirror_count": 1,
         "unsupported_dependency_resolution_mode_count": 0,
         "fallback_surface_count": 3,
@@ -669,8 +670,17 @@ def _validate_asset_acceptance_material_closure(
     )
     _assert(
         material.get("blockers")
-        == ["fallback_surfaces_remain_after_aluminum_local_mirror"],
-        f"{manifest_path}: material closure blockers must explain fallback surfaces",
+        == [
+            "explicit_material_waiver_open",
+            "fallback_surfaces_remain_after_aluminum_local_mirror",
+        ],
+        f"{manifest_path}: material closure blockers must explain explicit waivers and fallback surfaces",
+    )
+    waiver_records = material.get("waiver_records")
+    _assert(
+        isinstance(waiver_records, list)
+        and all(isinstance(record, dict) for record in waiver_records),
+        f"{manifest_path}: explicit material waivers must be record mappings",
     )
     try:
         assert_material_claims_are_derived(material)
@@ -706,6 +716,37 @@ def _validate_asset_acceptance_material_closure(
         == fallback_policy.get("fallback_records"),
         f"{manifest_path}: material closure fallback records must derive from wrapper fallback policy",
     )
+    fallback_runtime_paths = {
+        record.get("runtime_prim_path")
+        for record in fallback_policy.get("fallback_records", [])
+        if isinstance(record, dict)
+    }
+    _assert(
+        isinstance(waiver_records, list) and len(waiver_records) == 3,
+        f"{manifest_path}: material closure must record three explicit waiver records",
+    )
+    _assert(
+        {record.get("runtime_prim_path") for record in waiver_records}
+        == fallback_runtime_paths,
+        f"{manifest_path}: material closure waiver records must cover wrapper fallback surfaces",
+    )
+    for record in waiver_records:
+        _assert(
+            isinstance(record, dict)
+            and record.get("disposition") == "explicit_waiver"
+            and record.get("waiver_status") == "open"
+            and record.get("owner")
+            and record.get("review_date")
+            and record.get("expiry_date")
+            and record.get("reason")
+            and record.get("blocked_claims") == ["full_native_material_closure"],
+            f"{manifest_path}: explicit material waivers must include owner, reason, review date, expiry, and blocked claims",
+        )
+        _assert(
+            record.get("source_material_binding") is None
+            and record.get("compute_bound_material_success") is False,
+            f"{manifest_path}: explicit material waiver must record unbound native source evidence",
+        )
 
 
 def _validate_drying_box_wrapper_composition(

@@ -593,16 +593,61 @@ def test_manifest_contains_generic_asset_acceptance_material_closure(tmp_path):
     assert material["derived_counts"] == {
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
+        "explicit_material_waiver_count": 3,
         "local_mirror_count": 1,
         "unsupported_dependency_resolution_mode_count": 0,
         "fallback_surface_count": 3,
     }
     assert material["blockers"] == [
-        "fallback_surfaces_remain_after_aluminum_local_mirror"
+        "explicit_material_waiver_open",
+        "fallback_surfaces_remain_after_aluminum_local_mirror",
     ]
+    assert {
+        record["runtime_prim_path"] for record in material["fallback_surface_records"]
+    } == {
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+    }
+    assert {
+        record["runtime_prim_path"] for record in material["waiver_records"]
+    } == {
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+    }
+    assert all(
+        record["disposition"] == "explicit_waiver"
+        and record["waiver_status"] == "open"
+        and record["blocked_claims"] == ["full_native_material_closure"]
+        for record in material["waiver_records"]
+    )
     assert material["aluminum_material_closure_claim_allowed"] is True
     assert material["native_material_closure_claim_allowed"] is False
     assert material["full_native_material_closure_claim_allowed"] is False
+
+
+@pytest.mark.xfail(reason="Full Material Closure follow-up not implemented")
+def test_dryingbox_full_material_closure_has_no_fallback_surfaces(tmp_path):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+    _write_native_material_fixture(source_dir)
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+    )
+
+    manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    material = manifest["asset_acceptance"]["material_closure"]
+    assert material["derived_counts"]["fallback_surface_count"] == 0
+    assert material["material_status"] == "resolved_native_material"
+    assert material["full_native_material_closure_claim_allowed"] is True
 
 
 def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_report(
