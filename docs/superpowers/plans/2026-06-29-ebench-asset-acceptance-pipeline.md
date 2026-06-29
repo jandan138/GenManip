@@ -18,6 +18,20 @@
 - `gate_status` remains the backward-compatible claim summary and must not replace `acceptance_stages`.
 - `blocked_claims` remains a legacy claim-allowed map; new consumers should read `claim_boundary.blocked_claim_status.*.blocked`.
 
+**2026-06-29 execution ledger:** An implementation audit found that this plan has advanced beyond the unchecked boxes below. Treat the table here as the current source of execution truth; the detailed Task sections remain as historical implementation notes and reproduction instructions.
+
+| Task | Current status | Evidence | Remaining work |
+| --- | --- | --- | --- |
+| 1. Material Closure Data Model | COMPLETE | `2216337`, `standalone_tools/labutopia_poc/material_closure.py`, `tests/labutopia_poc/test_material_closure_contract.py` | None. |
+| 2. Negative Material Closure Tests | COMPLETE | `87fdf96`, `assert_material_claims_are_derived()`, overclaim and remote dependency tests | None. |
+| 3. Emit Generic `asset_acceptance` Material Object | COMPLETE | `bb5919e`, `asset_acceptance.material_closure` in `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json` | None. |
+| 4. Validate Generic Asset Acceptance Fields | COMPLETE | `8b18ab6`, package validator checks `asset_acceptance.acceptance_stages` and material claims | None. |
+| 5. Full Material Closure Follow-Up | PARTIAL | `50ee478`; package material gate is closed with `fallback_surface_count=0` and `full_material_closure_claim_allowed=true` | Full source-native material closure remains blocked by two wrapper-local authored materials: `button` and `Group/_900_1`. |
+| 6. Asset Acceptance Record and PM Evidence | COMPLETE | `f715acf` plus `35768e1`; final record contains `acceptance_stages`, `gate_status`, and `claim_boundary.blocked_claim_status` | Overall record is still `WARN` because blocked claims remain. |
+| 7. Final Verification | VERIFIED | `python standalone_tools/labutopia_poc/validate_task_package.py`; focused pytest listed in Task 7; `git diff --check`; claim-text grep | No dedicated final-docs commit was needed after `35768e1`; repeat verification before any future claim upgrade. |
+
+**Current next work:** Do not restart at Task 1. The next engineering batch is a separate `Full Native Material Provenance` follow-up: audit whether `/World/DryingBox_01/button` and `/World/DryingBox_01/Group/_900_1` can be restored to source-native material binding. If they cannot, keep `native_material_closure_claim_allowed=false` and `full_native_material_closure_claim_allowed=false`, then document the permanent waiver; do not downgrade the already-passing package material gate.
+
 ---
 
 ## File Map
@@ -38,6 +52,8 @@
 | `docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/index.html` | GitHub Pages weekly report link to the SOP. |
 
 ## Task 1: Material Closure Data Model
+
+**Status:** COMPLETE in commit `2216337`. Keep this section for TDD reproduction only; do not re-run it by deleting existing code.
 
 **Files:**
 - Create: `standalone_tools/labutopia_poc/material_closure.py`
@@ -175,6 +191,8 @@ git commit -m "test: add reusable material closure contract"
 
 ## Task 2: Negative Material Closure Tests
 
+**Status:** COMPLETE in commit `87fdf96`. Current tests include stale-count, remote-dependency, unsupported-resolution, and wrapper-authored-material overclaim protection.
+
 **Files:**
 - Modify: `tests/labutopia_poc/test_material_closure_contract.py`
 - Modify: `standalone_tools/labutopia_poc/material_closure.py`
@@ -282,6 +300,8 @@ git commit -m "test: reject material closure overclaims"
 
 ## Task 3: Emit Generic `asset_acceptance` Material Object
 
+**Status:** COMPLETE in commit `bb5919e`, later refined by `50ee478` and `35768e1`. The current manifest emits both `asset_acceptance.acceptance_stages` and `asset_acceptance.material_closure`.
+
 **Files:**
 - Modify: `standalone_tools/labutopia_poc/build_asset_overlay.py`
 - Modify: `tests/labutopia_poc/test_build_asset_overlay.py`
@@ -379,6 +399,8 @@ git commit -m "feat: emit generic asset material closure evidence"
 
 ## Task 4: Validate Generic Asset Acceptance Fields
 
+**Status:** COMPLETE in commit `8b18ab6`, later refined by `35768e1`. The package validator now rejects missing or unordered acceptance stages and material overclaims.
+
 **Files:**
 - Modify: `standalone_tools/labutopia_poc/validate_task_package.py`
 - Modify: `tests/labutopia_poc/test_validate_task_package.py`
@@ -455,6 +477,12 @@ git commit -m "test: validate asset acceptance material claims"
 ```
 
 ## Task 5: Full Material Closure Follow-Up for Remaining Surfaces
+
+**Status:** PARTIAL. Package-level material closure is COMPLETE: Aluminum is local-mirrored, `panel` is source-resolved by native `GeomSubset` binding, runtime `fallback_surface_count=0`, and `full_material_closure_claim_allowed=true`. Full source-native material closure is NOT complete: `button` and `Group/_900_1` are still `wrapper_local_preview_surface`, so `native_material_closure_claim_allowed=false` and `full_native_material_closure_claim_allowed=false`.
+
+**Next follow-up:** Reframe the remaining work as `Full Native Material Provenance`, not as a blocker for the Lift2 contract or package material gate. The follow-up must either restore source-native binding for both wrapper-local surfaces, or record explicit permanent waiver(s) while keeping native claims blocked.
+
+**Historical note:** The original xfail-style test below was written before package closure reached `fallback_surface_count=0`. Do not reintroduce it as-is. A new follow-up test should assert that `wrapper_authored_material_count` becomes `0` before `full_native_material_closure_claim_allowed` may become `true`.
 
 **Files:**
 - Modify: `standalone_tools/labutopia_poc/build_asset_overlay.py`
@@ -548,6 +576,8 @@ git commit -m "feat: close DryingBox native material surfaces"
 ```
 
 ## Task 6: Asset Acceptance Record and PM Evidence
+
+**Status:** COMPLETE in commit `f715acf`, expanded by `35768e1`. The current evidence record is intentionally `WARN` because render/showcase and official leaderboard/policy claims remain blocked.
 
 **Files:**
 - Create: `docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_<timestamp>.json`
@@ -648,6 +678,8 @@ git commit -m "docs: record DryingBox asset acceptance evidence"
 ```
 
 ## Task 7: Final Verification
+
+**Status:** VERIFIED for the current package state after `35768e1`. Repeat this task before any future claim upgrade, especially before changing `pm_showcase_ready`, `official_*`, or `full_native_material_closure_claim_allowed`.
 
 **Files:**
 - Verify: full package and docs.
