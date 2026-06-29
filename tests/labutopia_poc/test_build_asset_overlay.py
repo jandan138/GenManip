@@ -571,6 +571,40 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     ]
 
 
+def test_manifest_contains_generic_asset_acceptance_material_closure(tmp_path):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+    _write_native_material_fixture(source_dir)
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+    )
+
+    manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    material = manifest["asset_acceptance"]["material_closure"]
+    assert material["asset_id"] == "LabUtopia/DryingBox_01"
+    assert material["material_status"] == "mixed_native_and_fallback"
+    assert material["derived_counts"] == {
+        "remote_unmirrored_unwaived_count": 0,
+        "remote_waiver_count": 0,
+        "local_mirror_count": 1,
+        "unsupported_dependency_resolution_mode_count": 0,
+        "fallback_surface_count": 3,
+    }
+    assert material["blockers"] == [
+        "fallback_surfaces_remain_after_aluminum_local_mirror"
+    ]
+    assert material["aluminum_material_closure_claim_allowed"] is True
+    assert material["native_material_closure_claim_allowed"] is False
+    assert material["full_native_material_closure_claim_allowed"] is False
+
+
 def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_report(
     tmp_path,
 ):
@@ -722,6 +756,35 @@ def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):
     args = build_overlay.parse_args()
 
     assert args.drying_box_strategy == "native_complex"
+
+
+def test_build_asset_overlay_cli_runs_from_repo_root(tmp_path):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    repo_root = build_overlay.Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "standalone_tools/labutopia_poc/build_asset_overlay.py",
+            "--labutopia-root",
+            str(labutopia_root),
+            "--overlay-root",
+            str(overlay_root),
+        ],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    output = json.loads(result.stdout)
+    assert output["manifest"] == str(
+        overlay_root / "manifests" / "labutopia_level1_poc.json"
+    )
 
 
 def test_build_asset_overlay_rejects_overlay_scene_inside_source_dir(

@@ -2,6 +2,84 @@
   "articulation_part_paths": {
     "obj_DryingBox_01_handle": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
   },
+  "asset_acceptance": {
+    "material_closure": {
+      "aluminum_material_closure_claim_allowed": true,
+      "asset_id": "LabUtopia/DryingBox_01",
+      "blockers": [
+        "fallback_surfaces_remain_after_aluminum_local_mirror"
+      ],
+      "closure_claim_allowed": false,
+      "dependency_records": [
+        {
+          "aluminum_material_closure_claim_allowed": true,
+          "closure_claim_allowed": false,
+          "full_native_material_closure_claim_allowed": false,
+          "local_mirror_bytes": 1600,
+          "local_mirror_path": "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl",
+          "local_mirror_sha256": "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a",
+          "material_name": "Aluminum_Anodized_Charcoal",
+          "native_material_closure_claim_allowed": false,
+          "resolution_mode": "local_mirror",
+          "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+          "source_material_path": "/World/Looks/Aluminum_Anodized_Charcoal",
+          "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl",
+          "waiver_id": null,
+          "waiver_reason": null,
+          "worker_mdl_system_path_covered": true,
+          "worker_resolved_path": "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+        }
+      ],
+      "derived_counts": {
+        "fallback_surface_count": 3,
+        "local_mirror_count": 1,
+        "remote_unmirrored_unwaived_count": 0,
+        "remote_waiver_count": 0,
+        "unsupported_dependency_resolution_mode_count": 0
+      },
+      "fallback_surface_records": [
+        {
+          "display_color": [
+            0.1,
+            0.36,
+            0.95
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/Group/_900_1"
+        },
+        {
+          "display_color": [
+            1.0,
+            0.48,
+            0.04
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+          "source_binding_status": "unbound_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/button"
+        },
+        {
+          "display_color": [
+            0.88,
+            0.92,
+            0.96
+          ],
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_prim_path": "/World/DryingBox_01/panel"
+        }
+      ],
+      "forbidden_claims": [
+        "full_native_material_closure"
+      ],
+      "full_native_material_closure_claim_allowed": false,
+      "material_status": "mixed_native_and_fallback",
+      "native_material_closure_claim_allowed": false,
+      "native_material_closure_reason": "fallback_surfaces_remain_after_aluminum_local_mirror",
+      "schema_version": 1,
+      "waiver_records": []
+    }
+  },
   "copied_files": [
     {
       "bytes": 16903,

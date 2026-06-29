@@ -7,10 +7,18 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from standalone_tools.labutopia_poc.material_closure import (
+    derive_material_closure_claims,
+)
+
+
 PACKAGE_COMMON_ROOT = ROOT / "configs/tasks/ebench/labutopia_lab_poc/common"
 DEFAULT_LABUTOPIA_ROOT = Path("/cpfs/shared/simulation/zhuzihou/dev/LabUtopia")
 DEFAULT_OVERLAY_ROOT = Path(
@@ -1376,6 +1384,18 @@ def _drying_box_wrapper_composition_report(
     }
 
 
+def _drying_box_asset_acceptance_report(overlay_root: Path) -> dict[str, object]:
+    static_material_gate = _drying_box_static_material_dependency_gate(overlay_root)
+    return {
+        "material_closure": derive_material_closure_claims(
+            asset_id="LabUtopia/DryingBox_01",
+            dependency_records=static_material_gate["remote_dependency_records"],
+            fallback_surface_records=_drying_box_fallback_display_records(),
+            waiver_records=[],
+        )
+    }
+
+
 def _drying_box_active_rigid_body_records() -> list[dict[str, object]]:
     root_path = _drying_box_root_path()
     return [
@@ -1701,6 +1721,9 @@ def build_asset_overlay(
             _drying_box_wrapper_composition_report(labutopia_root, overlay_root)
         )
         manifest["drying_box_physics_override"] = physics_override_report
+        manifest["asset_acceptance"] = _drying_box_asset_acceptance_report(
+            overlay_root
+        )
         manifest["material_closure_followups"] = {
             "aluminum_local_mirror": aluminum_mirror_followup
         }
