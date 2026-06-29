@@ -34,9 +34,37 @@ PASS = "PASS"
 FAIL = "FAIL"
 BLOCKED = "BLOCKED"
 CACHE_MARKERS = ("/.cache/", "/ov/pkg/", "/kit/cache/")
-REMOTE_URI_PREFIXES = ("http://", "https://", "omniverse://", "s3://")
+REMOTE_URI_PREFIXES = (
+    "http://",
+    "https://",
+    "omniverse://",
+    "s3://",
+    "http:/",
+    "https:/",
+    "omniverse:/",
+    "s3:/",
+)
 DEFAULT_CHILD_TIMEOUT_SECONDS = 120
-BUILTIN_ALLOWLIST_ROOTS = (Path("/isaac-sim/materials"),)
+BUILTIN_ALLOWLIST_ROOTS = (
+    Path("/isaac-sim/materials"),
+    Path("/isaac-sim/kit/mdl"),
+)
+BUILTIN_MDL_SEARCH_ROOTS = (
+    Path("/isaac-sim/kit/mdl/core/Base"),
+    Path("/isaac-sim/kit/mdl/core/mdl"),
+)
+FILE_LIKE_ASSET_SUFFIXES = (
+    ".usd",
+    ".usda",
+    ".usdc",
+    ".mdl",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".exr",
+)
 
 
 def build_claim_boundary(status: str) -> dict[str, bool]:
@@ -64,7 +92,11 @@ def derive_parent_status(
         "remote_uri_count",
         "user_cache_path_count",
         "unauthorized_outside_sandbox_runtime_path_count",
+        "missing_local_dependency_count",
         "non_allowlisted_search_path_count",
+        "user_cache_env_count",
+        "original_overlay_search_path_count",
+        "dependency_scan_error_count",
         "missing_required_prim_count",
     )
     if any(int(runtime_counts.get(key) or 0) for key in blocking_keys):
@@ -156,6 +188,18 @@ def _split_search_path(value: str) -> list[str]:
     return [part for part in value.split(os.pathsep) if part]
 
 
+def _append_existing_paths(entries: list[str], paths: tuple[Path, ...]) -> list[str]:
+    results = list(entries)
+    existing = set(results)
+    for path in paths:
+        if path.exists():
+            text = str(path)
+            if text not in existing:
+                results.append(text)
+                existing.add(text)
+    return results
+
+
 def _search_path_report(
     entries: list[str],
     *,
@@ -189,6 +233,7 @@ def build_child_environment(
     base_env: os._Environ[str] | dict[str, str],
     task_env_vars: dict[str, str] | None = None,
     builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+    builtin_mdl_search_roots: tuple[Path, ...] = BUILTIN_MDL_SEARCH_ROOTS,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     env = dict(base_env)
     if task_env_vars:
@@ -206,6 +251,9 @@ def build_child_environment(
         pxr_entries = [str(layout.assets_dir)]
     if not mdl_system_entries:
         mdl_system_entries = [str(layout.assets_dir)]
+    mdl_system_entries = _append_existing_paths(
+        mdl_system_entries, builtin_mdl_search_roots
+    )
 
     effective_pxr, pxr_bad, pxr_original, pxr_cache = _search_path_report(
         pxr_entries,
@@ -249,6 +297,7 @@ class RuntimeDependencyRecord:
     is_under_assets_dir: bool
     is_allowlisted_builtin: bool
     is_unauthorized_outside_sandbox: bool
+    is_missing_local_path: bool
 
 
 def _is_remote_uri(value: str) -> bool:
@@ -259,6 +308,11 @@ def _is_cache_path(value: str) -> bool:
     return any(marker in value.lower() for marker in CACHE_MARKERS)
 
 
+def _is_file_like_asset(value: str) -> bool:
+    lowered = value.lower().split("?", 1)[0]
+    return lowered.endswith(FILE_LIKE_ASSET_SUFFIXES)
+
+
 def classify_runtime_dependency(
     *,
     authored_value: str,
@@ -266,6 +320,7 @@ def classify_runtime_dependency(
     dependency_type: str,
     assets_dir: Path,
     builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+    treat_unresolved_as_missing: bool = False,
 ) -> RuntimeDependencyRecord:
     resolved_text = str(resolved_path) if resolved_path is not None else None
     path_text = resolved_text or authored_value
@@ -285,6 +340,14 @@ def classify_runtime_dependency(
         resolved_text and _is_cache_path(resolved_text)
     )
     outside = bool(path and path.is_absolute() and not under_assets and not builtin)
+    missing_local = False
+    if not remote and not cache:
+        if resolved_path is None:
+            missing_local = treat_unresolved_as_missing or _is_file_like_asset(
+                authored_value
+            )
+        elif (under_assets or builtin) and not resolved_path.exists():
+            missing_local = True
     return RuntimeDependencyRecord(
         dependency_type=dependency_type,
         authored_value=authored_value,
@@ -294,6 +357,7 @@ def classify_runtime_dependency(
         is_under_assets_dir=under_assets,
         is_allowlisted_builtin=builtin,
         is_unauthorized_outside_sandbox=outside and not remote and not cache,
+        is_missing_local_path=missing_local,
     )
 
 
@@ -309,12 +373,21 @@ def summarize_dependency_records(
         "allowlisted_builtin_runtime_path_count": sum(
             record.is_allowlisted_builtin for record in records
         ),
+        "missing_local_dependency_count": sum(
+            record.is_missing_local_path for record in records
+        ),
     }
 
 
-QUOTED_MDL_IMPORT_RE = re.compile(r'import\s+"([^"]+\.mdl)"\s*;')
+QUOTED_MDL_IMPORT_RE = re.compile(r'^\s*import\s+"([^"]+\.mdl)"\s*;', re.MULTILINE)
 MODULE_MDL_IMPORT_RE = re.compile(
-    r"import\s+((?:::)?[A-Za-z_][A-Za-z0-9_:]*)\s*;"
+    r"^\s*import\s+((?:::)?[A-Za-z_][A-Za-z0-9_:]*)\s*;",
+    re.MULTILINE,
+)
+USING_MDL_IMPORT_RE = re.compile(
+    r"^\s*using\s+((?:::)?[A-Za-z_][A-Za-z0-9_:]*)\s+"
+    r"import\s+(?:\*|[A-Za-z_][A-Za-z0-9_]*)\s*;",
+    re.MULTILINE,
 )
 TEXTURE_2D_RE = re.compile(r'texture_2d\s*\(\s*"([^"]+)"')
 
@@ -326,6 +399,8 @@ def parse_mdl_dependency_values(text: str) -> list[tuple[str, str]]:
     for value in MODULE_MDL_IMPORT_RE.findall(text):
         if not value.endswith(".mdl"):
             records.append(("mdl_import", value))
+    for value in USING_MDL_IMPORT_RE.findall(text):
+        records.append(("mdl_import", value))
     for value in TEXTURE_2D_RE.findall(text):
         records.append(("texture", value))
     return records
@@ -340,8 +415,10 @@ def _resolve_mdl_reference(
     if _is_remote_uri(value):
         return None
     candidate_values = [value]
-    if value.startswith("::"):
-        candidate_values.append(value.strip(":").replace("::", "/") + ".mdl")
+    if "::" in value:
+        parts = [part for part in value.strip(":").split("::") if part]
+        for length in range(len(parts), 0, -1):
+            candidate_values.append("/".join(parts[:length]) + ".mdl")
     elif not value.endswith(".mdl") and "/" not in value:
         candidate_values.append(value + ".mdl")
     for candidate_value in candidate_values:
@@ -384,16 +461,21 @@ def expand_local_mdl_dependencies(
         elif not _is_remote_uri(value):
             texture = Path(value)
             resolved = texture if texture.is_absolute() else mdl_path.parent / texture
-        records.append(
-            classify_runtime_dependency(
-                authored_value=value,
-                resolved_path=resolved,
-                dependency_type=dependency_type,
-                assets_dir=assets_dir,
-                builtin_allowlist_roots=builtin_allowlist_roots,
-            )
+        record = classify_runtime_dependency(
+            authored_value=value,
+            resolved_path=resolved,
+            dependency_type=dependency_type,
+            assets_dir=assets_dir,
+            builtin_allowlist_roots=builtin_allowlist_roots,
+            treat_unresolved_as_missing=dependency_type == "mdl_import",
         )
-        if dependency_type == "mdl_import" and resolved and resolved.exists():
+        records.append(record)
+        if (
+            dependency_type == "mdl_import"
+            and resolved
+            and resolved.exists()
+            and not record.is_allowlisted_builtin
+        ):
             records.extend(
                 expand_local_mdl_dependencies(
                     mdl_path=resolved,
@@ -425,6 +507,9 @@ def derive_required_prim_paths(
         wrapper = (manifest.get("wrapper_prim_paths") or {}).get("obj_DryingBox_01")
     if wrapper:
         paths.extend([wrapper, f"{wrapper}/Looks"])
+        scene_root = _scene_root_from_prim_path(wrapper)
+        if scene_root:
+            paths.append(scene_root)
     handle = (manifest.get("articulation_part_paths") or {}).get(
         "obj_DryingBox_01_handle"
     )
@@ -433,7 +518,30 @@ def derive_required_prim_paths(
     joint = task_config.get("metric_joint_path") or task_config.get("joint_path")
     if joint:
         paths.append(joint)
+    wrapper_prim_paths = manifest.get("wrapper_prim_paths") or {}
+    object_config = task_config.get("object_config") or {}
+    if isinstance(object_config, dict):
+        for object_key, config in object_config.items():
+            candidate_keys = [object_key]
+            if isinstance(config, dict):
+                candidate_keys.extend(str(item) for item in config.get("uid_list", []))
+            for candidate_key in candidate_keys:
+                object_path = wrapper_prim_paths.get(candidate_key)
+                if object_path:
+                    paths.append(object_path)
+                    scene_root = _scene_root_from_prim_path(object_path)
+                    if scene_root:
+                        paths.append(scene_root)
     return list(dict.fromkeys(paths))
+
+
+def _scene_root_from_prim_path(prim_path: str) -> str | None:
+    parts = [part for part in prim_path.split("/") if part]
+    if len(parts) >= 2 and parts[0] == "World":
+        return "/" + "/".join(parts[:2])
+    if parts and parts[0] == "World":
+        return "/World"
+    return None
 
 
 def _load_pxr_modules():
@@ -513,6 +621,8 @@ def _expand_mdl_records_from_dependency(
     mdl_search_paths: list[Path],
     builtin_allowlist_roots: tuple[Path, ...],
 ) -> list[RuntimeDependencyRecord]:
+    if record.is_allowlisted_builtin:
+        return []
     candidate = record.resolved_path or record.authored_value
     if not candidate.endswith(".mdl"):
         return []
@@ -541,6 +651,10 @@ def _dependency_item_to_path(item: Any) -> str:
     if path:
         return str(path)
     return str(item)
+
+
+def _compute_all_dependencies(UsdUtils: Any, runtime_scene: Path):
+    return UsdUtils.ComputeAllDependencies(str(runtime_scene))
 
 
 def run_child_pxr_compose(
@@ -580,17 +694,28 @@ def run_child_pxr_compose(
         Path(path)
         for path in environment_report.get("effective_mdl_system_path_entries", [])
     ]
+    mdl_search_paths.extend(
+        Path(path)
+        for path in environment_report.get("effective_mdl_user_path_entries", [])
+    )
+    dependency_scan_error = None
     try:
-        layers, assets, unresolved = UsdUtils.ComputeAllDependencies(
-            str(runtime_scene)
-        )
-    except Exception:
+        layers, assets, unresolved = _compute_all_dependencies(UsdUtils, runtime_scene)
+    except Exception as exc:
+        dependency_scan_error = f"{type(exc).__name__}: {exc}"
         layers, assets, unresolved = [], [], []
     for item in list(layers) + list(assets) + list(unresolved):
         authored = _dependency_item_to_path(item)
+        resolved_path = Path(authored) if Path(authored).is_absolute() else None
+        if resolved_path is None and authored.endswith(".mdl"):
+            resolved_path = _resolve_mdl_reference(
+                authored,
+                current_dir=assets_dir,
+                search_paths=mdl_search_paths,
+            )
         record = classify_runtime_dependency(
             authored_value=authored,
-            resolved_path=Path(authored) if Path(authored).is_absolute() else None,
+            resolved_path=resolved_path,
             dependency_type="usd_dependency",
             assets_dir=assets_dir,
             builtin_allowlist_roots=builtin_allowlist_roots,
@@ -633,9 +758,13 @@ def run_child_pxr_compose(
                 "remote_uri_count",
                 "user_cache_path_count",
                 "unauthorized_outside_sandbox_runtime_path_count",
+                "missing_local_dependency_count",
             )
         )
         or environment_report.get("non_allowlisted_search_path_count", 0)
+        or environment_report.get("user_cache_env_count", 0)
+        or environment_report.get("original_overlay_search_path_count", 0)
+        or dependency_scan_error
         else PASS
     )
     return {
@@ -648,6 +777,8 @@ def run_child_pxr_compose(
                 for path in required_prim_paths
             ],
             "missing_required_prim_paths": missing,
+            "dependency_scan_error": dependency_scan_error,
+            "dependency_scan_error_count": 1 if dependency_scan_error else 0,
             "resolved_runtime_dependency_records": [
                 record.__dict__ for record in records
             ],
@@ -858,8 +989,20 @@ def run_parent_probe(
             "unauthorized_outside_sandbox_runtime_path_count": int(
                 runtime.get("unauthorized_outside_sandbox_runtime_path_count") or 0
             ),
+            "missing_local_dependency_count": int(
+                runtime.get("missing_local_dependency_count") or 0
+            ),
             "non_allowlisted_search_path_count": int(
                 environment_report.get("non_allowlisted_search_path_count") or 0
+            ),
+            "user_cache_env_count": int(
+                environment_report.get("user_cache_env_count") or 0
+            ),
+            "original_overlay_search_path_count": int(
+                environment_report.get("original_overlay_search_path_count") or 0
+            ),
+            "dependency_scan_error_count": int(
+                runtime.get("dependency_scan_error_count") or 0
             ),
             "missing_required_prim_count": len(
                 runtime.get("missing_required_prim_paths") or []
