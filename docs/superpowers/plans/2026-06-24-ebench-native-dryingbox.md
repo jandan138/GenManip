@@ -500,3 +500,22 @@ official_baseline_evaluable=true
 The full native material closure remains open until the remaining fallback
 surfaces (`Group/_900_1`, `button`, `panel`) are converted from
 `displayColor` fallback to native material binding.
+
+## Follow-Up: EBench Asset Acceptance Pipeline
+
+The native DryingBox plan above remains the historical Stage 1-7 execution
+record. The reusable SOP now lives in
+`docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md`, with the follow-up
+implementation plan in
+`docs/superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md`.
+
+Next implementation work should not mix material closure into the Stage 7 Lift2
+contract. Instead:
+
+```text
+1. Add generic asset_acceptance.material_closure schema.
+2. Refactor material closure validators out of DryingBox-specific assertions.
+3. Close or explicitly waive Group/_900_1, button, and panel fallback surfaces.
+4. Generate one final asset_acceptance_record.json for DryingBox.
+5. Use that record as the reference template for future EBench asset packages.
+```

@@ -1,0 +1,475 @@
+# EBench Asset Acceptance Pipeline
+
+## 一句话结论
+
+`Full Material Closure follow-up` 完成后，应沉淀为一套通用的 `EBench Asset Acceptance Pipeline`。以后 LabUtopia 或外部资产进入 EBench，不再靠“看起来能加载”判断，而是按 asset、USD composition、material、physics、articulation、task runtime 和 render evidence 七类 gate 签收。
+
+这套流程的口径是：**不是写了流程就保证所有资产正常，而是资产只有通过这些 gate，才允许声明 `EBench-ready`。**
+
+## 给产品经理的通俗解释
+
+可以把资产进入 EBench 理解成“把一个真实实验室物件搬进评测工厂”。搬进去不只要看见它，还要确认：
+
+- 文件齐不齐：USD、MDL、texture、payload、reference 不能临时去公网找。
+- 放得对不对：坐标、scale、root prim、wrapper path 不能错。
+- 材质对不对：不能只靠 fallback displayColor 假装有颜色。
+- 物理稳不稳：不能飞、倒、穿模、抖动。
+- 关节准不准：门、抽屉、按钮的 joint、axis、limit、drive 和 metric 不能读错。
+- 任务能不能跑：reset、step、observation、camera、metric、result logging 必须闭环。
+- 图能不能验：最终要看 evaluator camera，不只看 Isaac viewer。
+
+DryingBox 是第一套模板：我们已经证明 native complex `DryingBox_01` 能进入 EBench，door `RevoluteJoint` metric 可读，Lift2 local contract 可评，Aluminum remote material 已 local mirror。剩余的 `Group/_900_1`、`button`、`panel` fallback surfaces 关闭后，它就可以成为这套流程的完整样例。
+
+## 多 agent 评审后的统一口径
+
+三路评审把这套流程收敛成一句话：
+
+```text
+EBench Asset Acceptance Pipeline 不是模型拿分流水线，而是一套把外部
+asset package 验收到 GenManip/EBench 可评链路里的 evidence-gated workflow。
+每个 Gate 只允许升级对应的 Claim Boundary；没有 evidence manifest，就不能
+把状态写成完成。
+```
+
+给实习生执行时的规则更简单：
+
+```text
+不要先写完成了。先补 run_id、command、artifact path、manifest 字段、
+PASS/FAIL/BLOCKED、allowed claims 和 blocked claims。PM 周报只引用
+evidence manifest 已经证明的结论；diagnostic/WARN 只能写成诊断证据，
+不能写成验收完成。
+```
+
+## Gate 总览
+
+| Gate | 解决的问题 | 通过后能说什么 | 不能说什么 |
+| --- | --- | --- | --- |
+| 1. `Asset Intake Gate` | 资产和依赖是否登记完整 | 资产包输入完整、来源清楚 | 不能说已经能渲染或可评 |
+| 2. `USD Composition Gate` | USD 在 EBench wrapper 下是否正确 compose | runtime prim path、scale、payload/reference 可解析 | 不能说物理或材质已经闭环 |
+| 3. `Material Closure Gate` | MDL/texture/material binding 是否本地闭合 | native material closure 可按字段声明 | 不能把单项 material mirror 说成 full closure |
+| 4. `Physics Closure Gate` | mass、inertia、collision、contact 是否稳定 | reset 后物理状态有限、稳定 | 不能说 articulated task metric 已正确 |
+| 5. `Articulation Closure Gate` | joint/axis/limit/drive/metric 是否正确 | 门/抽屉/按钮等 articulated object 可被任务读写 | 不能说策略能完成任务 |
+| 6. `Task Runtime Gate` | EBench task 是否能 reset/step/logging | 本地任务链路可评 | 不能说 official leaderboard 或 policy success |
+| 7. `Render Evidence Gate` | evaluator camera 图是否可读 | PM 和工程都能用图验收任务目标 | 不能用 polished viewer 图替代 eval-path evidence |
+
+工程执行时建议保留一个 `Stage 0` 作为声明阶段，后面 1-7 才是验收阶段。这样不会破坏现有周报里 `Acceptance Stage 1-7` 的口径，同时能避免“还没声明资产合同就开始跑任务”的混乱。
+
+| Stage | 名称 | 要完成的事情 | 当前 DryingBox 对应状态 |
+| --- | --- | --- | --- |
+| 0 | `Asset Contract Declaration` | 声明 `source_prim_path`、`wrapper_prim_path`、task roles、camera、metric DOF、material policy | 已有，但需要抽成通用 schema |
+| 1 | `Static USD/Physics Audit` | 只读 source USD，盘点 hierarchy、API schema、rigid bodies、joints、mass/inertia、material binding | 已完成 DryingBox audit |
+| 2 | `Isolated Native Physics Smoke` | 不进 EBench，单独跑 Isaac，确认 root/handle/joint 有限稳定 | 已完成 native-only smoke |
+| 3 | `EBench Wrapper Composition` | 生成 wrapper，保留 native payload，校验 object map、nested handle、wrapper-local material binding | 已完成 native wrapper |
+| 4 | `Additive Physics + Articulation Override` | 只用 additive layer 修 fixed base、joint target、inertia、collision、reset target | 已完成 DryingBox override |
+| 5 | `Task Runtime + Eval Readback` | task 能 reset/step、metric/logging/result 写出，eval camera 能读图 | Franka/native open_door 已通过 |
+| 6 | `Evidence Package + Claim Boundary` | 生成 manifest、frame hash、allowed/blocked claims，避免过度汇报 | 已有 acceptance manifest |
+| 7 | `Evaluator Robot Contract` | Lift2 official-baseline-style lane 的 observation/camera/action/reward/logging 全 PASS | 本地 Lift2 contract 已 PASS |
+
+## Gate 1: Asset Intake Gate
+
+目标：资产进入 EBench 前，先把“有什么文件、来自哪里、运行时怎么找”说清楚。
+
+Required evidence:
+
+```text
+asset_uid
+asset_family
+source_repo_or_dataset
+source_usd_path
+package_relative_usd_path
+payload_paths
+reference_paths
+mdl_paths
+texture_paths
+external_uri_count
+remote_dependency_records
+source_license_or_policy
+```
+
+Pass condition:
+
+- 所有 USD、payload、reference、MDL、texture 都有 package-relative path。
+- 远端依赖必须二选一：`local_mirror` 或 `explicit_waiver`。
+- `explicit_waiver` 必须有 waiver id、reason、owner 和关闭计划。
+
+DryingBox 当前对应状态：
+
+```text
+Aluminum_Anodized_Charcoal.mdl: local_mirror
+Aluminum_Anodized textures: local_mirror
+remaining fallback surfaces: tracked as full material closure blockers
+```
+
+## Gate 2: USD Composition Gate
+
+目标：确认资产在 EBench runtime wrapper 里真的 compose 成预期的 scene，而不是路径看起来存在但 runtime 下丢层级、丢 payload 或 scale 错。
+
+Required checks:
+
+```text
+root_prim_exists=true
+runtime_prim_path_exists=true
+payload_reference_resolved=true
+root_scale_is_expected=true
+wrapper_local_looks_scope_exists=true
+runtime_object_key_mapped=true
+task_object_center_in_workspace=true
+```
+
+Typical commands:
+
+```bash
+python standalone_tools/labutopia_poc/build_asset_overlay.py --drying-box-strategy native_complex
+python standalone_tools/labutopia_poc/validate_task_package.py
+```
+
+Pass condition:
+
+- `scene.usda` can be generated deterministically.
+- `assets_manifest.json` records source-to-runtime object mapping.
+- Runtime object keys match evaluator expectations.
+- Static bounds/center are in robot workspace.
+
+## Gate 3: Material Closure Gate
+
+目标：材质不能只靠“有颜色”过关。必须判断 native material binding、MDL、texture 和 fallback surfaces。
+
+推荐拆成 6 个 material 子门禁：
+
+| 子门禁 | 通过条件 |
+| --- | --- |
+| `material_dependency_inventory` | 静态扫描 USD material binding、MDL source asset、MDL import 和 texture reference |
+| `local_mirror_resolution` | 每个本地 mirror 都有 package-relative path、bytes、SHA256、texture hash 和 `MDL_SYSTEM_PATH` 覆盖 |
+| `runtime_binding_resolution` | composed runtime USD 里 `ComputeBoundMaterial` 不指向 stale `/World/Looks`，也不丢绑定 |
+| `fallback_surface_inventory` | 所有 unbound mesh 必须在已知 fallback list 里，且有 displayColor 证据 |
+| `claim_derivation` | claim flags 只能由证据字段派生，不能手写成 true |
+| `evidence_manifest_consistency` | generator manifest、validator summary、docs manifest 的 count/blocker/claim 一致 |
+
+Material states:
+
+```text
+resolved_native_material
+mixed_native_and_fallback
+local_mirror
+explicit_waiver
+fallback_display_color
+missing_binding
+```
+
+Required machine fields:
+
+```text
+material_status
+remote_only_dependency_count
+remote_unmirrored_unwaived_count
+waiver_count
+local_mirror_count
+closure_claim_allowed
+aluminum_material_closure_claim_allowed
+native_material_closure_claim_allowed
+full_native_material_closure_claim_allowed
+native_material_closure_reason
+fallback_surface_records
+material_binding_records
+texture_dependency_records
+worker_mdl_system_path
+```
+
+Recommended machine object:
+
+```json
+{
+  "asset_acceptance": {
+    "material_closure": {
+      "schema_version": 1,
+      "asset_id": "LabUtopia/DryingBox_01",
+      "closure_level": "single_dependency_closed_with_known_fallback_surfaces",
+      "material_status": "mixed_native_and_fallback",
+      "claim_scope": ["dependency:Aluminum_Anodized_Charcoal"],
+      "dependency_records": [],
+      "binding_summary": {},
+      "fallback_surface_records": [],
+      "waiver_records": [],
+      "derived_counts": {
+        "remote_unmirrored_unwaived_count": 0,
+        "local_mirror_count": 1,
+        "fallback_surface_count": 3
+      },
+      "full_native_material_closure_claim_allowed": false,
+      "forbidden_claims": ["full_native_material_closure"]
+    }
+  }
+}
+```
+
+Claim policy:
+
+- 单个材质依赖关闭时，只能说 `aluminum_material_closure_claim_allowed=true` 这类 scoped claim。
+- 全资产所有 native binding、MDL 和 texture 闭合后，才允许 `full_native_material_closure_claim_allowed=true`。
+- overclaim 是非豁免错误：如果 fallback surface 还存在，任何 manifest 或文档把 full closure 写成 true，都必须 fail。
+- 只要存在 fallback surfaces，就必须保持：
+
+```text
+closure_claim_allowed=false
+native_material_closure_claim_allowed=false
+full_native_material_closure_claim_allowed=false
+```
+
+DryingBox next action:
+
+```text
+Group/_900_1 -> find native source material, bind or record waiver
+button -> find native source material, bind or record waiver
+panel -> find native source material, bind or record waiver
+```
+
+## Gate 4: Physics Closure Gate
+
+目标：资产不能只在 viewer 里看着正常，还要进入 EBench reset 后稳定。
+
+Required checks:
+
+```text
+fixed_base_policy
+mass_records
+inertia_records
+collision_approximation
+gravity_enabled_policy
+contact_with_table
+reset_pose_finite
+post_reset_velocity_finite
+no_exploding_transform
+no_table_penetration
+```
+
+Pass condition:
+
+- reset 后 root transform、joint state、velocity 都有限。
+- asset 不飞、不倒、不穿桌、不无限抖动。
+- physics override 是 additive layer，并记录原始值和 after 值。
+
+Fail condition:
+
+- 缺失或重复 `PhysicsScene`。
+- 任务相关 body 没有 `RigidBodyAPI` 或 collision。
+- mass/inertia 非正数，COM/principal axes 无效。
+- joint `body0/body1` 指向不存在或非 rigid body 的 prim。
+- root/handle drift 不受控，或出现未分类 PhysX warning。
+- runtime material binding 未解析，且没有可读性证据或 waiver。
+
+DryingBox 当前对应状态：
+
+```text
+runtime_physics_stable=true
+additive physics override exists
+native_eval_readback_ready=true
+```
+
+## Gate 5: Articulation Closure Gate
+
+目标：门、抽屉、按钮、旋钮等 articulated object 必须确认 joint 语义，而不是只看视觉。
+
+Required checks:
+
+```text
+joint_path
+joint_type
+joint_axis
+joint_limit_lower
+joint_limit_upper
+drive_target
+initial_joint_state
+metric_joint_name
+ignored_dofs
+task_relevant_dof_count
+```
+
+Pass condition:
+
+- 任务 metric 读的是正确 joint。
+- 非任务 DOF 被明确 ignore 或 lock。
+- open/close 初始状态可复现。
+- reset 后 joint 不爆值。
+
+Fail condition:
+
+- 缺失 `ArticulationRootAPI`。
+- active DOF 不明确，或 metric 指向了错误 joint。
+- target position 与 reset 后读数偏差超过 `1e-3`。
+- nested handle path 缺失。
+- 把辅助 `PrismaticJoint` 当成 open-door 任务成功 DOF。
+
+DryingBox 当前对应状态：
+
+```text
+metric_reads_door_revolute_joint=true
+ignored_dof=button PrismaticJoint
+open_door metric reads RevoluteJoint, not PrismaticJoint
+```
+
+## Gate 6: Task Runtime Gate
+
+目标：资产进入真实 EBench task 后，必须能完成 reset、step、observation、camera、metric、result logging。
+
+Required checks:
+
+```text
+reset_reachable
+step_reachable
+observation_schema_pass
+camera_schema_pass
+action_schema_pass
+reward_success_fields_pass
+metric_logging_pass
+result_info_written
+result_json_written
+run_id_isolated
+port_isolated
+```
+
+Pass condition:
+
+- 每个 task 都能 reset/step。
+- `result_info.json` 和 `result.json` 正常写出。
+- live probe 能读到 observation、camera、action、reward/success、logging schema。
+- 和其他工程师或 EOS 任务 run_id/port/worktree 隔离。
+
+Fail condition:
+
+- reset 或 step 没返回可用 observation。
+- action schema 与 robot contract 不匹配。
+- metric、reward/success 或 result logging 缺字段。
+- 出现 `non_finite_arm_state` 这类无效终止，却被写成任务完成。
+
+Boundary:
+
+```text
+task_runtime_ready=true
+policy_success_claim_allowed=false
+official_leaderboard_claim_allowed=false
+```
+
+## Gate 7: Render Evidence Gate
+
+目标：最终验收图必须来自 evaluator camera readback，而不是只看 Isaac viewer 或手工展示截图。
+
+Required evidence:
+
+```text
+evaluator_camera_name
+frame_path
+frame_sha256
+rgb_min
+rgb_max
+rgb_mean
+render_validation_passed
+task_render_accepted
+visual_review_status
+pm_showcase_ready
+```
+
+Pass condition:
+
+- 图不是黑屏。
+- 任务目标可读。
+- 关键 affordance 可见，比如 handle、door panel、target tray。
+- 若视觉审阅是 `WARN`，只能作为 diagnostic evidence，不能作为 polished PM showcase。
+
+Fail condition:
+
+- 黑屏、低纹理、required object missing 或 severe clipping。
+- 缺 frame SHA256、run_id、seed、episode id 或 camera config。
+- 只提供 Isaac viewer/direct-render 截图，没有 evaluator camera readback。
+- scene-readback fallback 没有对应 on-camera RGB 证据。
+
+## 统一 Claim Boundary
+
+任何 asset acceptance record 都必须带下面这些字段，防止对 PM 或论文叙述过度承诺：
+
+```json
+{
+  "schema_version": 1,
+  "asset_id": "LabUtopia/DryingBox_01",
+  "task_lane": "ebench/labutopia_lab_poc/lift2_candidate",
+  "gate_status": {
+    "asset_intake": "PASS",
+    "usd_composition": "PASS",
+    "material_closure": "BLOCKED",
+    "physics_closure": "PASS",
+    "articulation_closure": "PASS",
+    "task_runtime": "PASS",
+    "render_evidence": "WARN",
+    "evaluator_robot_contract": "PASS"
+  },
+  "allowed_claims": {
+    "ebench_asset_ready": false,
+    "task_runtime_ready": true,
+    "task_render_accepted": true,
+    "lift2_contract_ready": true,
+    "local_official_baseline_style_contract_ready": true
+  },
+  "blocked_claims": {
+    "native_material_closure_claim_allowed": false,
+    "full_native_material_closure_claim_allowed": false,
+    "official_baseline_evaluable": false,
+    "official_leaderboard_claim_allowed": false,
+    "policy_success_claim_allowed": false,
+    "pm_showcase_ready": false
+  }
+}
+```
+
+推荐解释：
+
+```text
+EBench-ready means the asset passed local package, runtime, material, physics,
+articulation, task, and render gates for a named task lane. It does not mean
+official leaderboard reproduction or policy success unless those gates are
+separately run and recorded.
+```
+
+## 对 DryingBox 的落地顺序
+
+1. 先把 material report 扩展成通用 schema：不再只服务 Aluminum，而是覆盖任意 asset 的 MDL/texture/material binding。
+2. 完成 `Full Material Closure follow-up`：关闭 `Group/_900_1`、`button`、`panel` 的 fallback surfaces。
+3. 把 `validate_task_package.py` 中 DryingBox 专项断言抽成 reusable validator helpers。
+4. 增加 cold/offline package validation：验证不依赖公网和缓存。
+5. 对 DryingBox 重新跑 evaluator camera readback，产出 diagnostic image 和 PM-facing image。
+6. 生成 `asset_acceptance_record.json`，把 Stage 0-7 的状态、hash、allowed claims 和 blocked claims 汇总。
+7. 将 DryingBox 作为第一个 `EBench Asset Acceptance Pipeline` reference asset。
+
+## 后续产物
+
+| 产物 | 用途 |
+| --- | --- |
+| `asset_acceptance_record.json` | 每个资产的机器可读验收总表 |
+| `material_closure_report.json` | MDL/texture/material binding/fallback/waiver 证据 |
+| `physics_closure_report.json` | mass/inertia/collision/reset stability 证据 |
+| `articulation_closure_report.json` | joint/axis/limit/metric 证据 |
+| `task_runtime_report.json` | reset/step/observation/camera/result logging 证据 |
+| `render_evidence_report.json` | evaluator camera frame/hash/visual review 证据 |
+| PM-facing HTML section | 用通俗语言解释资产是否真的可交付 |
+
+## 验收记录写法
+
+每次推进一个资产，都应该先生成机器证据，再写 PM 汇报。推荐顺序：
+
+```text
+1. 写清 asset_id、task_lane、run_id 和 isolated port/worktree。
+2. 记录 command、artifact path、SHA256、PASS/FAIL/BLOCKED。
+3. 由 validator 生成 allowed_claims 和 blocked_claims。
+4. PM 文案只引用 allowed_claims；blocked_claims 必须保留在边界说明里。
+5. diagnostic/WARN 图可以放进证据，但不能标成 polished showcase。
+```
+
+## 不允许的表述
+
+- 不能因为 task 能 reset/step 就说 material closure 完成。
+- 不能因为 Aluminum local mirror 完成就说 DryingBox full material closure 完成。
+- 不能因为 local Lift2 contract 通过就说 official leaderboard 复现。
+- 不能用 viewer screenshot 替代 evaluator camera evidence。
+- 不能把 `score=0.0` 解释成 asset gate 失败；它通常是 policy/controller 结果。
+
+## 当前推荐下一步
+
+先做 DryingBox `Full Material Closure follow-up`，同时把这套 pipeline 的 schema 和 validator 骨架抽出来。等 DryingBox 七个 gate 全部通过，再把它作为以后所有资产进入 EBench 的 reference acceptance package。

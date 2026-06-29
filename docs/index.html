@@ -26,6 +26,7 @@
       border-radius: 8px;
       box-shadow: 0 10px 28px rgba(36, 52, 71, 0.08);
     }
+    .report + .report { margin-top: 14px; }
     a { color: #245da8; text-decoration: none; font-weight: 750; }
     a:hover { text-decoration: underline; }
     .meta { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -49,13 +50,24 @@
     <p>Zero-build static report surface for LabUtopia x EBench integration evidence.</p>
     <section class="report">
       <a href="records/evidence/2026-06-22-labutopia-ebench-weekly-report/">LabUtopia x EBench 接入周报 · 2026-06-22</a>
-      <p>Franka POC end-to-end smoke has completed; P0a/P0b now make pick/place eval readback non-black, while render layout acceptance and Lift2 official baseline readiness remain behind evidence gates.</p>
+      <p>Franka POC, task-render gates, native DryingBox eval readback, and the local Lift2 official-baseline-style contract have evidence; official leaderboard reproduction, policy success, and full native material closure remain blocked claims.</p>
       <div class="meta">
         <span class="pill">3/3 episodes complete</span>
-        <span class="pill">34 passed, 1 skipped</span>
-        <span class="pill">pick/place readback visible</span>
-        <span class="pill">Franka POC only</span>
+        <span class="pill">3/3 task render pass</span>
+        <span class="pill">native DryingBox gate pass</span>
+        <span class="pill">Stage 7 local contract pass</span>
+        <span class="pill">not leaderboard</span>
         <span class="pill">GitHub Pages ready</span>
+      </div>
+    </section>
+    <section class="report">
+      <a href="labutopia_lab_poc/ebench_asset_acceptance_pipeline.md">EBench Asset Acceptance Pipeline · SOP</a>
+      <p>Evidence-gated workflow for accepting LabUtopia and future external assets into GenManip/EBench: material, physics, articulation, runtime, render, and Lift2 contract claims are tracked separately.</p>
+      <div class="meta">
+        <span class="pill">Stage 0-7 schema</span>
+        <span class="pill">manifest-driven claims</span>
+        <span class="pill">not policy success</span>
+        <span class="pill">full material closure tracked separately</span>
       </div>
     </section>
   </main>

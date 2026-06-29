@@ -15,6 +15,8 @@ HTML 版产品汇报页：
 
 2026-06-29 材质依赖收尾补充：`Aluminum_Anodized_Charcoal.mdl` 已作为独立 material closure follow-up 做 local mirror，不再依赖远端 Omniverse/S3 MDL。我们把 MDL 和三张 texture 放进 `miscs/mdl/labutopia/mdl`，并在 wrapper layer 里把 Aluminum Shader 的 `info:mdl:sourceAsset` 指向本地 `Aluminum_Anodized_Charcoal.mdl`。这关闭的是 Aluminum remote waiver，提升离线可复现性；它不改变 Stage 7 Lift2 contract、不提升任务分数、不代表 official baseline 成绩发布，也不代表 full native material closure 已完成。剩余材质尾项是 `Group/_900_1`、`button`、`panel` 的 fallback displayColor native binding。
 
+2026-06-29 资产验收规范补充：我们把上述经验整理成 `EBench Asset Acceptance Pipeline`。这不是“模型拿分流水线”，而是把外部 asset package 验收到 GenManip/EBench 可评链路里的 evidence-gated workflow：asset intake、USD composition、material closure、physics、articulation、task runtime、render evidence 和 Lift2-style evaluator contract 每一项都要有 manifest 证据。PM 周报以后只引用 `allowed_claims`，不能把 `diagnostic/WARN` 图、单项材质 mirror 或本地 contract pass 写成 full closure、policy success 或 official leaderboard 成绩。
+
 ## 本周完成了什么
 
 ### 1. LabUtopia POC 任务包已可运行
@@ -234,6 +236,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
 | 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
+| 资产验收 SOP | 已规划 | `EBench Asset Acceptance Pipeline` 已新增为通用 SOP；后续 DryingBox 将作为第一套 reference asset acceptance package |
 
 ## 验证证据
 
@@ -291,6 +294,9 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - Stage 7 evidence bundle: [docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/](../labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/)
 - Aluminum material mirror follow-up: [docs/records/2026-06-29-labutopia-aluminum-material-mirror-closure.md](2026-06-29-labutopia-aluminum-material-mirror-closure.md)
 - Aluminum material mirror machine evidence: [docs/labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json](../labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json)
+- EBench Asset Acceptance Pipeline SOP: [docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md](../labutopia_lab_poc/ebench_asset_acceptance_pipeline.md)
+- Evidence manifest field guide: [docs/labutopia_lab_poc/evidence_manifests/README.md](../labutopia_lab_poc/evidence_manifests/README.md)
+- Asset acceptance implementation plan: [docs/superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md](../superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -310,6 +316,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
 8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
 9. Material follow-up：Aluminum remote waiver 已由 local mirror 关闭，但 full native material closure 仍未完成；剩余是 fallback surfaces 的 native binding。
+10. Asset acceptance pipeline：已新增通用 SOP 和实现计划。下一步先把 material closure schema 抽成通用 validator，再关闭 DryingBox 三个 fallback surfaces，最后生成 `asset_acceptance_record.json` 作为后续所有资产接入 EBench 的模板。
 
 ## 新增调研和计划文档
 
@@ -322,3 +329,6 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
 - [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json)
 - [docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/](../labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/)
+- [docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md](../labutopia_lab_poc/ebench_asset_acceptance_pipeline.md)
+- [docs/labutopia_lab_poc/evidence_manifests/README.md](../labutopia_lab_poc/evidence_manifests/README.md)
+- [docs/superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md](../superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md)

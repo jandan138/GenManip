@@ -9,6 +9,10 @@ contract for Lift2-style evaluation, not policy quality, official leaderboard
 reproduction, official EBench score release, or full native MDL/texture material
 closure.
 
+For the full multi-gate SOP, see
+[EBench Asset Acceptance Pipeline](ebench_asset_acceptance_pipeline.md). This
+page is only the Stage 7 record inside that broader pipeline.
+
 ## Claim Boundary
 
 - Franka/native Acceptance Stages 1-6 already proved native `DryingBox_01`
@@ -170,6 +174,9 @@ policy-quality result, not a runtime-contract failure.
 3. Close the remaining full material-closure blockers for `Group/_900_1`,
    `button`, and `panel`; Aluminum is now local-mirrored, but those fallback
    surfaces still prevent `resolved_native_material`.
+4. Implement the generic `asset_acceptance` manifest fields described in
+   [EBench Asset Acceptance Pipeline](ebench_asset_acceptance_pipeline.md) so
+   future PM reports derive claims from manifest evidence instead of manual text.
 
 ## Post-Stage-7 Material Follow-Up
 

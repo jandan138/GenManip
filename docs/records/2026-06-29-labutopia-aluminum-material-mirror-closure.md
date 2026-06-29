@@ -4,6 +4,8 @@
 
 `Aluminum_Anodized_Charcoal.mdl` 已从 remote dependency / explicit waiver 改成 package-local mirror。这个 follow-up 关闭的是 Aluminum 这一项远端材质依赖，不改变 Stage 7 Lift2 contract，也不代表 full native MDL/texture material closure 已完成。
 
+这项工作现在归入 [EBench Asset Acceptance Pipeline](../labutopia_lab_poc/ebench_asset_acceptance_pipeline.md) 的 `Material Closure Gate`。它是 material track 的 scoped claim，不是 Lift2 contract 的 pass/fail 条件。
+
 ## 给产品经理的通俗解释
 
 之前 `DryingBox_01` 有一个金属材质不在我们的 EBench package 里。运行时如果要完整解析它，需要去 Omniverse/S3 远端拿 `Aluminum_Anodized_Charcoal.mdl`。Stage 7 当时允许它用 explicit waiver 通过，因为 Stage 7 验的是任务能不能 reset、step、读 camera/observation/action、写 reward/metric/logging，而不是验所有材质是否离线闭合。
@@ -27,6 +29,17 @@ miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png
 | Aluminum material mirror | 已完成 | 关闭 `Aluminum_Anodized_Charcoal.mdl` remote waiver；不改变任务分数或 policy 能力 |
 | Full native material closure | 未完成 | `Group/_900_1`、`button`、`panel` 仍有 fallback displayColor，需要后续 native binding 修复 |
 | 官方 baseline 成绩 | 未发布 | 当前 `score=0.0` 是策略/动作结果，不是材质 mirror 能解决的问题 |
+
+## 和 Asset Acceptance Pipeline 的关系
+
+在新的 SOP 里，Aluminum mirror 的准确说法是：
+
+```text
+aluminum_material_closure_claim_allowed=true
+full_native_material_closure_claim_allowed=false
+```
+
+也就是“Aluminum 这一项远端材质依赖已关闭”，但不是“DryingBox 整体材质已完全闭合”。等 `Group/_900_1`、`button`、`panel` 三个 fallback surfaces 都找到 native binding、local mirror 或明确 waiver 后，才能进入 full material closure 判定。
 
 ## 机器证据
 
