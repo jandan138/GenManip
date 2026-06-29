@@ -1,6 +1,7 @@
 {
   "allowed_claims": {
     "aluminum_material_closure_claim_allowed": true,
+    "full_material_closure_claim_allowed": true,
     "lift2_contract_ready": true,
     "local_official_baseline_style_contract_ready": true,
     "runtime_physics_stable": true,
@@ -17,13 +18,13 @@
     "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png"
   ],
   "artifact_sha256": {
-    "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json": "43e43f23f5be691b4203712098429a90712a86f21300de87075386674cb4d9a5",
-    "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json": "b1813d589033c126ee35c620efd50e55b56e88899370dd2f8077055fad8fd2fd",
+    "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json": "fe5c9b1a66f2af58632ad6ad47e347906c9c6647a7880fba205473ae03078b56",
+    "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json": "39075c15162750e9653b84d4ff9f8bb1a3dacad6680bade402ca6f576cf8cebd",
     "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json": "3dc9a07d42a6013f80346bf94bb29c2367aac6a75bcd7a7b00545fc78521314a",
-    "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json": "e47cde947e53bb144da47888b91a283aacdc749fb56e5d6ddb76696cd42606b3",
-    "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65",
-    "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png": "225314a3808b2a35f333d408c46f00b2990fa97719dd07385ffb972516ace57c",
-    "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65"
+    "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json": "023582943f9b376ff59589eb4e4278122904aff632d57abe2744b0d20d678fa5",
+    "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8",
+    "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png": "30c8b45708daaa7260d44aeb1733967effc10d890e86d10a79032601b03ad75e",
+    "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8"
   },
   "asset_id": "LabUtopia/DryingBox_01",
   "blocked_claims": {
@@ -41,7 +42,7 @@
     "articulation_closure": "PASS",
     "asset_intake": "PASS",
     "evaluator_robot_contract": "PASS",
-    "material_closure": "BLOCKED",
+    "material_closure": "PASS",
     "physics_closure": "PASS",
     "render_evidence": "WARN",
     "task_runtime": "PASS",
@@ -49,27 +50,28 @@
   },
   "material_closure": {
     "aluminum_material_closure_claim_allowed": true,
-    "blockers": [
-      "explicit_material_waiver_open",
-      "fallback_surfaces_remain_after_aluminum_local_mirror"
-    ],
+    "blockers": [],
     "derived_counts": {
-      "explicit_material_waiver_count": 3,
-      "fallback_surface_count": 3,
+      "explicit_material_waiver_count": 0,
+      "fallback_surface_count": 0,
       "local_mirror_count": 1,
       "remote_unmirrored_unwaived_count": 0,
       "remote_waiver_count": 0,
-      "unsupported_dependency_resolution_mode_count": 0
+      "source_resolved_surface_count": 1,
+      "unsupported_dependency_resolution_mode_count": 0,
+      "wrapper_authored_material_count": 2
     },
+    "full_material_closure_claim_allowed": true,
     "full_native_material_closure_claim_allowed": false,
-    "material_status": "mixed_native_and_fallback",
-    "native_material_closure_claim_allowed": false
+    "material_status": "resolved_material_with_local_overrides",
+    "native_material_closure_claim_allowed": false,
+    "native_material_closure_reason": "wrapper_local_material_overrides_present"
   },
-  "recorded_at_utc": "2026-06-29T11:28:08Z",
+  "recorded_at_utc": "2026-06-29T12:06:27Z",
   "run_id": "labutopia_native_open_door_eval_20260629_asset_acceptance_manual",
   "schema_version": 1,
   "stage": "acceptance_stage_7_asset_acceptance_record",
-  "status": "BLOCKED",
+  "status": "WARN",
   "task_lane": "ebench/labutopia_lab_poc/lift2_candidate",
   "verification": [
     "python standalone_tools/labutopia_poc/validate_task_package.py",

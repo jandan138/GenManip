@@ -47,7 +47,7 @@ WARN
   "gate_status": {
     "asset_intake": "PASS",
     "usd_composition": "PASS",
-    "material_closure": "BLOCKED",
+    "material_closure": "PASS",
     "physics_closure": "PASS",
     "articulation_closure": "PASS",
     "task_runtime": "PASS",
@@ -61,33 +61,40 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 
 ## Material Closure 字段
 
-`material_closure` 必须拆清楚 scoped claim 和 full claim：
+`material_closure` 必须拆清楚 package-level claim 和 source-native claim：
 
 ```json
 {
   "material_closure": {
-    "material_status": "mixed_native_and_fallback",
+    "material_status": "resolved_material_with_local_overrides",
     "remote_unmirrored_unwaived_count": 0,
     "remote_waiver_count": 0,
     "local_mirror_count": 1,
-    "fallback_surface_count": 3,
+    "source_resolved_surface_count": 1,
+    "wrapper_authored_material_count": 2,
+    "fallback_surface_count": 0,
     "dependency_records": [],
+    "source_resolved_surface_records": [],
+    "authored_material_records": [],
     "fallback_surface_records": [],
     "waiver_records": [],
     "aluminum_material_closure_claim_allowed": true,
+    "full_material_closure_claim_allowed": true,
     "native_material_closure_claim_allowed": false,
     "full_native_material_closure_claim_allowed": false,
-    "native_material_closure_reason": "fallback_surfaces_remain_after_aluminum_local_mirror"
+    "native_material_closure_reason": "wrapper_local_material_overrides_present"
   }
 }
 ```
 
 规则：
 
-- 单个 material dependency 已 local mirror，只能升级 scoped claim。
-- 只要存在 fallback surface，`full_native_material_closure_claim_allowed` 必须是 `false`。
+- 单个 material dependency 已 local mirror，只能升级 scoped dependency claim。
+- 当 runtime `fallback_surface_count=0`，且 wrapper-local override 已显式记录时，`full_material_closure_claim_allowed` 可以是 `true`，表示 EBench package material gate 已通过。
+- 只要存在 wrapper-local authored material，`full_native_material_closure_claim_allowed` 必须是 `false`。
 - hash mismatch、missing texture、stale `/World/Looks` binding、unknown unbound mesh 和 overclaim 都是 FAIL。
-- explicit waiver 可以保留资产验收边界，但不能让 full material closure 变成 true。
+- explicit waiver 可以保留资产验收边界，但不能让 package material closure 或 native material closure 自动变成 true。
+- `primvars:displayColor` 不自动等于 fallback；有有效 `material:binding` 时只算 authored auxiliary color，只有 fallback-only surface 才计入 `fallback_surface_count`。
 
 ## PM 文案映射
 
@@ -96,7 +103,9 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 | `task_runtime_ready=true` | 任务能 reset/step/logging，本地链路可评 | 策略已经会做任务 |
 | `task_render_accepted=true` | eval camera 能拍到可读任务图 | 官方榜单成绩已复现 |
 | `lift2_contract_ready=true` | 本地 Lift2 official-baseline-style contract 通过 | official leaderboard 已发布 |
-| `aluminum_material_closure_claim_allowed=true` | Aluminum 远端材质依赖已 local mirror | DryingBox full material closure 已完成 |
+| `aluminum_material_closure_claim_allowed=true` | Aluminum 远端材质依赖已 local mirror | DryingBox 全部 native 材质已恢复 |
+| `full_material_closure_claim_allowed=true` | EBench package material gate 已通过 | source-native full material closure 已完成 |
+| `full_native_material_closure_claim_allowed=false` | 仍不能宣称 source-native 全闭环 | 把它解读为 package material gate 未通过 |
 | `pm_showcase_ready=false` | 当前图只能作为诊断证据 | 当前图可直接对外展示 |
 
 ## 当前 DryingBox 状态示例
@@ -104,9 +113,10 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 ```text
 Stage 7 local Lift2 contract: PASS
 Aluminum local mirror: PASS
-full native material closure: BLOCKED by Group/_900_1, button, panel fallback surfaces
+EBench package material closure: PASS
+full native material closure: BLOCKED by wrapper-local button and Group/_900_1 materials
 policy success: BLOCKED / not evaluated
 official leaderboard: BLOCKED / not an official run
 ```
 
-这说明 DryingBox 当前已经能证明“本地可评链路通过”，但还不能证明“策略成功”“官方成绩发布”或“全资产 native material closure 完成”。
+这说明 DryingBox 当前已经能证明“本地可评链路通过”和“包级材质闭环通过”，但还不能证明“策略成功”“官方成绩发布”或“source-native 全材质闭环完成”。

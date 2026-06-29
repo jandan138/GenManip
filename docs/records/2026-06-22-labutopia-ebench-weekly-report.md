@@ -9,15 +9,15 @@ HTML 版产品汇报页：
 
 这说明当前最关键的“接入链路”已经打通。需要注意的是，这还不是任务求解成功，也不是官方 baseline 成绩；当前 smoke 使用默认动作，所以三个任务分数都是 `0.0`。2026-06-23 到 2026-06-24 最新复核补充：三任务现在都能通过 EBench/evaluator 正常读回非黑渲染图，资产静态坐标也已经从“明显导错”修到合理工作区；最新正式诊断中 `pick`、`place`、`open_door` 均为 `render_validation.passed=true`、`task_render_accepted=true`。P2 又把 `open_door` 从 P1 `sanitized_surrogate` 对照组推进到 LabUtopia native complex `DryingBox_01`：原生 visual/hierarchy/nested handle 保留，wrapper-local `Looks` 和 native `material:binding` 已重连，retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，`native_complex_dryingbox_ready=true`。
 
-2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。最新 Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。材质边界仍要保留：`native_material_closure_status=open_remote_dependency_waived`，所以不能说 full native MDL/texture material closure 已完成。
+2026-06-28 Stage 5/6 补充：原生 `DryingBox_01` 已通过 EBench/GenManip Franka/native `open_door` eval-path readback，`native_eval_readback_ready=true`、`eval_step_contract.passed=true`，metric 明确读取门的 `RevoluteJoint` 而不是按钮 `PrismaticJoint`。Stage 5 图可以作为机器诊断证据，但独立视觉审阅是 `WARN`，不是 showcase-ready 图片。当时材质边界仍是 `native_material_closure_status=open_remote_dependency_waived`；这个历史边界已在 2026-06-29 material follow-up 中升级为 package material closure pass，但 full native MDL/texture material closure 仍不能声明。
 
 2026-06-29 Stage 7 补充：Lift2 official-baseline-style contract check 已通过本地合同验证。我们先把官方/default `robot_usds/lift2`、`miscs/curobo/R5a` 和 LabUtopia overlay 合成 composite asset root，再用隔离端口 `18188` 跑完整三任务 `gmp submit/eval/status`，`level1_pick`、`level1_place`、`level1_open_door` 都完成 reset/step/result_info/metric logging；随后又对三条任务分别跑 live contract probe，observation keys、camera input keys、action dialects、reward/success fields、logging fields 全部为 `PASS`。结论升级为 `Stage 7 passed`、`lift2_contract_ready=true`、`local_official_baseline_style_contract_ready=true`。边界仍然明确：三任务分数都是 `0.0`，说明当前简单动作没有解任务；`official_baseline_evaluable=false`，因为这还不是 official leaderboard 复现或官方 EBench score release。
 
-2026-06-29 材质依赖收尾补充：`Aluminum_Anodized_Charcoal.mdl` 已作为独立 material closure follow-up 做 local mirror，不再依赖远端 Omniverse/S3 MDL。我们把 MDL 和三张 texture 放进 `miscs/mdl/labutopia/mdl`，并在 wrapper layer 里把 Aluminum Shader 的 `info:mdl:sourceAsset` 指向本地 `Aluminum_Anodized_Charcoal.mdl`。这关闭的是 Aluminum remote waiver，提升离线可复现性；它不改变 Stage 7 Lift2 contract、不提升任务分数、不代表 official baseline 成绩发布，也不代表 full native material closure 已完成。剩余材质尾项是 `Group/_900_1`、`button`、`panel` 的 fallback displayColor native binding。
+2026-06-29 材质依赖收尾补充：`Aluminum_Anodized_Charcoal.mdl` 已作为独立 material closure follow-up 做 local mirror，不再依赖远端 Omniverse/S3 MDL。我们把 MDL 和三张 texture 放进 `miscs/mdl/labutopia/mdl`，并在 wrapper layer 里把 Aluminum Shader 的 `info:mdl:sourceAsset` 指向本地 `Aluminum_Anodized_Charcoal.mdl`。随后又把 `panel` 识别为原生 `GeomSubset material binding` 覆盖完整，把 `button` 和 `Group/_900_1` 改为 wrapper-local `PreviewSurface` material override。最新 runtime readback 中真正 `fallback_only` surface 为 0，`material_status=resolved_material_with_local_overrides`，所以 EBench package material gate 已通过；但 `native_material_closure_claim_allowed=false`、`full_native_material_closure_claim_allowed=false`，因为其中 2 个可见表面仍是 wrapper-local authored material，不是从 LabUtopia source-native material 恢复出来的。
 
 2026-06-29 资产验收规范补充：我们把上述经验整理成 `EBench Asset Acceptance Pipeline`。这不是“模型拿分流水线”，而是把外部 asset package 验收到 GenManip/EBench 可评链路里的 evidence-gated workflow：asset intake、USD composition、material closure、physics、articulation、task runtime、render evidence 和 Lift2-style evaluator contract 每一项都要有 manifest 证据。PM 周报以后只引用 `allowed_claims`，不能把 `diagnostic/WARN` 图、单项材质 mirror 或本地 contract pass 写成 full closure、policy success 或 official leaderboard 成绩。
 
-2026-06-29 Task 6 补充：`DryingBox_01` 已生成第一份 `asset_acceptance_record`，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：它明确写出哪些门已过、哪些话可以对外说、哪些话还不能说。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、Aluminum local mirror claim allowed；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“full native material closure 完成”。
+2026-06-29 Task 6 补充：`DryingBox_01` 已生成第一份 `asset_acceptance_record`，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：它明确写出哪些门已过、哪些话可以对外说、哪些话还不能说。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、`full_material_closure_claim_allowed=true`；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路、包级材质闭环和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“source-native full material closure 完成”。
 
 ## 本周完成了什么
 
@@ -187,7 +187,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia-franka-level1-open-door-native-retake-p2.png
 ```
 
-旧的三张 JPG 保留为历史失败样例。P1 的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们说明链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手/把手像一大片橙色面板”推进到“关闭位正确、门板/框架/细把手可识别”。旧 P2 native PNG 说明 open_door 已经不再只停留在 surrogate 对照组，但材质 binding 和证据视角还没有闭环，容易误读成箱子倒了；P2 retake PNG 修复 wrapper-local `Looks` 和 native `material:binding` 后，能清楚看到 upright 的蓝门、白侧面、handle、window 和 control panel。这说明任务渲染门禁和 Franka POC native gate 已经通过，但不等于官方 Lift2 baseline 已经可评。
+旧的三张 JPG 保留为历史失败样例。P1 的三张 PNG 来自正常 evaluator camera readback，不是 direct-render 截图；它们说明链路能拍到场景，pick/place 通过任务级隐藏后已经能让 PM 看懂任务目标，open_door 已从“只看到黑箱角/看不见把手/把手像一大片橙色面板”推进到“关闭位正确、门板/框架/细把手可识别”。旧 P2 native PNG 说明 open_door 已经不再只停留在 surrogate 对照组，但材质证据和证据视角还没有闭环，容易误读成箱子倒了；P2 retake PNG 能清楚看到 upright 的蓝门、白侧面、handle、window 和 control panel。后续 2026-06-29 材质收尾进一步把 Aluminum 做 local mirror，把 `panel` 记为 source-resolved `GeomSubset`，并把 `button`/`Group/_900_1` 记为 wrapper-local override。这说明任务渲染门禁、Franka POC native gate 和 package material gate 已经通过，但不等于官方 Lift2 baseline 已经可评，也不等于 full native material closure。
 
 `open_door` 的 USD 铰接物体问题已经单独整理成解释性教学页：`docs/records/evidence/2026-06-24-usd-articulation-dryingbox-tutorial/index.html`。这篇页面面向产品经理解释 `USD articulation`、`ArticulationRootAPI`、`RevoluteJoint`、P1 `sanitized_surrogate` 对照组、P2 native complex `DryingBox_01` 已通过的前五步 gate、门把手层级和 claim boundary。
 
@@ -238,7 +238,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
 | 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
-| 资产验收 Record | 已生成 reference asset 记录 | `DryingBox_01` 已生成 `asset_acceptance_record`：task runtime、runtime physics、evaluator robot contract、USD composition 通过；material closure 仍为 `BLOCKED`，因为 fallback surfaces 还有 native binding 尾项 |
+| 资产验收 Record | 已生成 reference asset 记录 | `DryingBox_01` 已生成 `asset_acceptance_record`：task runtime、runtime physics、evaluator robot contract、USD composition 和 package material closure 通过；overall 仍是 `WARN`，因为 Stage 5 图是诊断证据且官方榜单/策略成功/full native material closure 仍不可声明 |
 
 ## 验证证据
 
@@ -255,10 +255,10 @@ total_episodes=3
 
 ```text
 python -m pytest tests/labutopia_poc -q
-187 passed, 1 skipped, 1 xfailed
+193 passed, 1 skipped
 
 python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q
-51 passed
+53 passed
 
 python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
@@ -289,7 +289,8 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - P2 native DryingBox audit: `saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json`, SHA256 `e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d`
 - P2 native-only Isaac smoke: `saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json`, SHA256 `fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4`
 - P2 native EBench retake diagnostics: `saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json`, SHA256 `d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6`; boundary is `render_validation.passed=true`, `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
-- Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; historical boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
+- Latest Stage 5 native eval readback diagnostics: `saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json`; boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=resolved_material_with_local_overrides`, `fallback_surface_count=0`, `native_material_closure_claim_allowed=false`
+- Historical Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; historical boundary was `native_material_closure_status=open_remote_dependency_waived`
 - Stage 5 referenced native smoke mirror: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json), SHA256 `d6fefeec5ffea1b6b6209e512e3b9588a3f0c07e2abd1cfaa50d841dfd516c33`; committed mirror removes machine-local absolute paths.
 - Stage 6 acceptance evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
 - Stage 7 Lift2 readiness report: [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
@@ -317,10 +318,10 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 4. P1c：已完成任务级相机/构图复验，三任务 `render_validation.passed=true`。
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
 6. P2 / Acceptance Stage 5：已完成 LabUtopia native complex `DryingBox_01` eval-path readback：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、runtime material readback、door `RevoluteJoint` metric 和 frame hash 都有证据。
-7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
+7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 polished showcase；material follow-up 已单独把 package material closure 收口。
 8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
-9. Material follow-up：Aluminum remote waiver 已由 local mirror 关闭，但 full native material closure 仍未完成；剩余是 fallback surfaces 的 native binding。
-10. Asset acceptance record：已生成 DryingBox reference record。下一步是继续推进 full material closure，把 `Group/_900_1`、`button`、`panel` 从 fallback displayColor 收口到规范 native binding；然后再进入真实 Lift2 baseline/policy 评测和官方成绩边界。
+9. Material follow-up：package material closure 已通过：Aluminum local mirror、`panel` 原生 `GeomSubset` 覆盖、`button` 和 `Group/_900_1` wrapper-local material override 都有证据；full native material closure 仍未完成，因为 wrapper-local override 不能冒充 source-native material。
+10. Asset acceptance record：已生成 DryingBox reference record。下一步不是重开原来的 acceptance stages，而是在这个 reference record 基础上进入真实 Lift2 baseline/policy gate；如果后续需要论文级 source-native material provenance，再单独做 full native material closure follow-up。
 
 ## 新增调研和计划文档
 

@@ -322,6 +322,12 @@ def _stage4_material_fields(physics_payload: dict[str, Any]) -> dict[str, Any]:
     summary = physics_payload.get("material_validator_summary")
     if not isinstance(summary, dict):
         summary = {}
+    native_material_closure_open = bool(
+        physics_payload.get(
+            "native_material_closure_open",
+            summary.get("native_material_closure_open", False),
+        )
+    )
     return {
         "remote_aluminum_disposition": physics_payload.get(
             "remote_aluminum_disposition",
@@ -332,14 +338,25 @@ def _stage4_material_fields(physics_payload: dict[str, Any]) -> dict[str, Any]:
         "material_closure_kept_open": bool(
             physics_payload.get(
                 "material_closure_kept_open",
-                summary.get("native_material_closure_open", False),
+                summary.get("material_closure_kept_open", False),
             )
+        ),
+        "native_material_closure_open": native_material_closure_open,
+        "native_material_closure_reason": physics_payload.get(
+            "native_material_closure_reason",
+            summary.get("native_material_closure_reason"),
         ),
         "static_material_dependency_gate": physics_payload.get(
             "static_material_dependency_gate"
         ),
         "stage4_material_validator_summary": summary,
         "stage4_dof_map": physics_payload.get("dof_map"),
+        "source_resolved_surface_records": physics_payload.get(
+            "source_resolved_surface_records", []
+        ),
+        "authored_material_records": physics_payload.get(
+            "authored_material_records", []
+        ),
     }
 
 
@@ -431,6 +448,7 @@ def _runtime_material_readback_blocked(
             for record in records
             if isinstance(record, dict)
             and record.get("compute_bound_material_valid") is False
+            and not record.get("source_resolved_parent_without_direct_bound_material")
         ]
         if unresolved_records and fallback_count == 0:
             blockers.append("runtime_material_binding_unresolved")
@@ -443,6 +461,12 @@ def classify_runtime_material_closure(
     runtime_material_readback: dict[str, Any] | None,
 ) -> dict[str, Any]:
     disposition = stage4_evidence.get("remote_aluminum_disposition")
+    native_material_closure_open = bool(
+        stage4_evidence.get("native_material_closure_open")
+    )
+    native_material_closure_reason = stage4_evidence.get(
+        "native_material_closure_reason"
+    )
     waiver = stage4_evidence.get("remote_aluminum_waiver")
     if not isinstance(waiver, dict):
         waiver = {}
@@ -465,6 +489,8 @@ def classify_runtime_material_closure(
         "blockers": blockers,
         "material_closure_eligible": False,
         "native_material_closure_status": "blocked",
+        "native_material_closure_claim_allowed": False,
+        "native_material_closure_reason": native_material_closure_reason,
         "runtime_material_dependency_status": "blocked",
     }
     if blocked:
@@ -487,10 +513,25 @@ def classify_runtime_material_closure(
             }
         )
         return report
+    if native_material_closure_open:
+        if native_material_closure_reason == "wrapper_local_material_overrides_present":
+            report.update(
+                {
+                    "native_material_closure_status": (
+                        "resolved_material_with_local_overrides"
+                    ),
+                    "runtime_material_dependency_status": "closed_local_or_mirrored",
+                    "material_closure_eligible": True,
+                }
+            )
+            return report
+        report["blockers"] = [*blockers, "native_material_closure_open"]
+        return report
     if disposition == "local_mirror":
         report.update(
             {
                 "native_material_closure_status": "resolved_native_material",
+                "native_material_closure_claim_allowed": True,
                 "runtime_material_dependency_status": "closed_local_or_mirrored",
                 "material_closure_eligible": True,
             }
@@ -576,6 +617,8 @@ def _collect_runtime_material_readback(stage4_evidence: dict[str, Any]) -> dict[
         "root_path": native_runtime_material_root_path(stage4_evidence),
         "records": [],
         "fallback_surface_count": 0,
+        "display_color_authored_count": 0,
+        "source_resolved_parent_count": 0,
         "blocked": False,
         "blockers": [],
         "collection_error": None,
@@ -584,6 +627,11 @@ def _collect_runtime_material_readback(stage4_evidence: dict[str, Any]) -> dict[
         import omni.usd
         from pxr import UsdGeom, UsdShade
 
+        source_resolved_paths = {
+            str(record.get("runtime_prim_path"))
+            for record in stage4_evidence.get("source_resolved_surface_records", [])
+            if isinstance(record, dict) and record.get("runtime_prim_path")
+        }
         stage = omni.usd.get_context().get_stage()
         root = stage.GetPrimAtPath(report["root_path"])
         if not root or not root.IsValid():
@@ -614,6 +662,8 @@ def _collect_runtime_material_readback(stage4_evidence: dict[str, Any]) -> dict[
                 "copied_material_path": None,
                 "shader_reports": [],
                 "displayColor_fallback_status": "absent",
+                "display_color_authored": False,
+                "source_resolved_parent_without_direct_bound_material": False,
                 "texture_references": [],
                 "material_compiler_warnings": [],
             }
@@ -635,8 +685,32 @@ def _collect_runtime_material_readback(stage4_evidence: dict[str, Any]) -> dict[
                 record["compute_bound_material_error"] = repr(exc)
             display_color = prim.GetAttribute("primvars:displayColor")
             if display_color and display_color.HasAuthoredValueOpinion():
-                record["displayColor_fallback_status"] = "authored"
-                report["fallback_surface_count"] += 1
+                record["display_color_authored"] = True
+                report["display_color_authored_count"] += 1
+                if record["compute_bound_material_valid"]:
+                    record["displayColor_fallback_status"] = (
+                        "authored_with_bound_material"
+                    )
+                elif prim_path in source_resolved_paths:
+                    record["displayColor_fallback_status"] = (
+                        "source_resolved_parent_with_geomsubsets"
+                    )
+                    record["source_resolved_parent_without_direct_bound_material"] = (
+                        True
+                    )
+                    report["source_resolved_parent_count"] += 1
+                else:
+                    record["displayColor_fallback_status"] = "fallback_only"
+                    report["fallback_surface_count"] += 1
+            elif (
+                not record["compute_bound_material_valid"]
+                and prim_path in source_resolved_paths
+            ):
+                record["displayColor_fallback_status"] = (
+                    "source_resolved_parent_without_displayColor"
+                )
+                record["source_resolved_parent_without_direct_bound_material"] = True
+                report["source_resolved_parent_count"] += 1
             report["records"].append(record)
         if not report["records"]:
             report["blocked"] = True
@@ -1076,12 +1150,18 @@ def build_asset_acceptance_record(
         material.get("aluminum_material_closure_claim_allowed")
     )
     full_material_closure_allowed = bool(
+        material.get(
+            "full_material_closure_claim_allowed",
+            material.get("full_native_material_closure_claim_allowed"),
+        )
+    )
+    full_native_material_closure_allowed = bool(
         material.get("full_native_material_closure_claim_allowed")
     )
     native_material_closure_allowed = bool(
         material.get(
             "native_material_closure_claim_allowed",
-            full_material_closure_allowed,
+            full_native_material_closure_allowed,
         )
     )
     metric_contract = diagnostics.get("open_door_metric_contract")
@@ -1109,11 +1189,12 @@ def build_asset_acceptance_record(
         "aluminum_material_closure_claim_allowed": (
             aluminum_material_closure_allowed
         ),
+        "full_material_closure_claim_allowed": full_material_closure_allowed,
     }
     blocked_claims = {
         "native_material_closure_claim_allowed": native_material_closure_allowed,
         "full_native_material_closure_claim_allowed": (
-            full_material_closure_allowed
+            full_native_material_closure_allowed
         ),
         "official_baseline_evaluable": bool(
             stage7_boundary.get("official_baseline_evaluable")
@@ -1149,11 +1230,15 @@ def build_asset_acceptance_record(
             "aluminum_material_closure_claim_allowed": (
                 aluminum_material_closure_allowed
             ),
+            "full_material_closure_claim_allowed": full_material_closure_allowed,
             "native_material_closure_claim_allowed": (
                 native_material_closure_allowed
             ),
             "full_native_material_closure_claim_allowed": (
-                full_material_closure_allowed
+                full_native_material_closure_allowed
+            ),
+            "native_material_closure_reason": material.get(
+                "native_material_closure_reason"
             ),
         },
         "artifact_paths": artifact_path_strings,

@@ -25,8 +25,9 @@ page is only the Stage 7 record inside that broader pipeline.
 - `native_material_closure_claim_allowed=false`; Stage 7 consumes Stage 5/6
   material status and does not require material follow-up completion.
 - Post-Stage-7 follow-up on 2026-06-29 closed the Aluminum remote waiver via
-  package-local mirror, but full native material closure remains open because
-  fallback surfaces still need native material binding.
+  package-local mirror and then closed the EBench package material gate with
+  `fallback_surface_count=0`. Full native material closure remains open because
+  `button` and `Group/_900_1` use wrapper-local authored materials.
 - The complete three-task eval finished with `score=0.0` and `success_rate=0`
   for all tasks. That means the tested simple/default action did not solve the
   tasks; it does not invalidate the runtime/data contract.
@@ -171,9 +172,9 @@ policy-quality result, not a runtime-contract failure.
    separate from the local contract probes.
 2. Improve policy/controller behavior separately; Stage 7 only proves the lane
    can be evaluated.
-3. Close the remaining full material-closure blockers for `Group/_900_1`,
-   `button`, and `panel`; Aluminum is now local-mirrored, but those fallback
-   surfaces still prevent `resolved_native_material`.
+3. Treat source-native material provenance as a separate follow-up: package
+   material closure is closed, but `button` and `Group/_900_1` still use
+   wrapper-local materials, so `resolved_native_material` is not claimable.
 4. Implement the generic `asset_acceptance` manifest fields described in
    [EBench Asset Acceptance Pipeline](ebench_asset_acceptance_pipeline.md) so
    future PM reports derive claims from manifest evidence instead of manual text.
@@ -194,13 +195,15 @@ The wrapper layer now overrides the Aluminum Shader with
 `info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@`, and worker
 `MDL_SYSTEM_PATH` covers `{ASSETS_DIR}/miscs/mdl/labutopia/mdl`.
 
-This closes the Aluminum remote dependency:
+This closes the Aluminum remote dependency and the EBench package material gate:
 
 ```text
 remote_aluminum_disposition=local_mirror
 remote_only_dependency_count=0
 waiver_count=0
-closure_claim_allowed=false
+fallback_surface_count=0
+closure_claim_allowed=true
+full_material_closure_claim_allowed=true
 aluminum_material_closure_claim_allowed=true
 ```
 
@@ -210,5 +213,5 @@ native material closure yet:
 ```text
 native_material_closure_claim_allowed=false
 full_native_material_closure_claim_allowed=false
-native_material_closure_reason=fallback_surfaces_remain_after_aluminum_local_mirror
+native_material_closure_reason=wrapper_local_material_overrides_present
 ```

@@ -3,36 +3,36 @@
     "native_asset_audit_path": "saved/diagnostics/native_dryingbox_material_audit_manual/audit.json",
     "native_asset_audit_sha256": "43f7a3589f6db59382687ba2d5bab768b78f4fe38a1ebd0f0bc3917fc8580f85",
     "native_physics_override_path": "saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror/physics_override.json",
-    "native_physics_override_sha256": "c95a448dce7440d4d61e34efe71897dc095f143f582bbde9ea4e104de207a0e7",
+    "native_physics_override_sha256": "bd9f379dbd50b6c685b658cef80bfe0cedcbe5ae1fad9ba0185ac65da1670466",
     "native_smoke_path": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json",
     "native_smoke_sha256": "d6fefeec5ffea1b6b6209e512e3b9588a3f0c07e2abd1cfaa50d841dfd516c33",
     "result_dir": "saved/diagnostics/dryingbox_asset_acceptance_manual",
-    "stderr_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/stderr.log",
-    "stdout_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/stdout.log"
+    "stderr_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/logs/stderr.log",
+    "stdout_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/logs/stdout.log"
   },
   "camera_frames": [
     {
       "camera_name": "camera2",
       "channel_max": [
         228.0,
-        234.0,
+        233.0,
         254.0
       ],
       "channel_mean": [
-        178.58012008666992,
-        178.70812225341797,
-        178.90068817138672
+        178.87004470825195,
+        178.99602890014648,
+        179.18846893310547
       ],
       "channel_min": [
-        20.0,
-        36.0,
-        37.0
+        22.0,
+        39.0,
+        39.0
       ],
       "classification": "visible_frame",
       "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png",
       "height": 512,
       "nonzero_pixels": 262144,
-      "sha256": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65",
+      "sha256": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8",
       "source": "genmanip.core.evaluator.env.get_eval_camera_data",
       "stage": "readback_after_get_eval_camera_data",
       "width": 512
@@ -41,24 +41,24 @@
       "camera_name": "camera2",
       "channel_max": [
         228.0,
-        234.0,
+        233.0,
         254.0
       ],
       "channel_mean": [
-        178.57927703857422,
-        178.70752334594727,
-        178.89952850341797
+        178.85223007202148,
+        178.9780502319336,
+        179.17043685913086
       ],
       "channel_min": [
-        20.0,
-        36.0,
-        36.0
+        22.0,
+        39.0,
+        39.0
       ],
       "classification": "visible_frame",
       "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png",
       "height": 512,
       "nonzero_pixels": 262144,
-      "sha256": "225314a3808b2a35f333d408c46f00b2990fa97719dd07385ffb972516ace57c",
+      "sha256": "30c8b45708daaa7260d44aeb1733967effc10d890e86d10a79032601b03ad75e",
       "source": "genmanip.core.evaluator.env.get_eval_camera_data",
       "stage": "readback_after_get_eval_camera_data",
       "width": 512
@@ -67,25 +67,25 @@
       "camera_name": "camera2",
       "channel_max": [
         228.0,
-        234.0,
+        233.0,
         254.0
       ],
       "channel_mean": [
-        178.58012008666992,
-        178.70812225341797,
-        178.90068817138672
+        178.87004470825195,
+        178.99602890014648,
+        179.18846893310547
       ],
       "channel_min": [
-        20.0,
-        36.0,
-        37.0
+        22.0,
+        39.0,
+        39.0
       ],
       "classification": "visible_frame",
       "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png",
       "height": 512,
       "nonzero_pixels": 262144,
-      "sha256": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65",
-      "source_frame_path": "saved/eval_results/ebench/labutopia_native_open_door_eval_20260629_asset_acceptance_manual/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000/2775d72dce49425bbd26c79a025ea126/camera2/00000.png",
+      "sha256": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8",
+      "source_frame_path": "saved/eval_results/ebench/labutopia_native_open_door_eval_20260629_asset_acceptance_manual/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000/d8088fc82c0e479283f6488ab07f4e5c/camera2/00000.png",
       "stage": "recorder_png",
       "width": 512
     }
@@ -93,9 +93,9 @@
   "claim_boundary": {
     "lift2_contract_ready": false,
     "native_material_closure_claim_allowed": false,
-    "native_material_closure_status": "open_remote_dependency_waived",
+    "native_material_closure_status": "resolved_material_with_local_overrides",
     "official_baseline_evaluable": false,
-    "runtime_material_dependency_status": "open_waived"
+    "runtime_material_dependency_status": "closed_local_or_mirrored"
   },
   "contracts": {
     "eval_step_contract": {
@@ -149,8 +149,8 @@
             "bbox_area_fraction": 0.00981903076171875,
             "evidence_method": "rgb_contract_mask",
             "height_px": 143,
-            "mask_area_fraction": 0.004261016845703125,
-            "mask_area_px": 1117,
+            "mask_area_fraction": 0.00431060791015625,
+            "mask_area_px": 1130,
             "present": true,
             "severe_clipping": false,
             "width_px": 18
@@ -165,9 +165,9 @@
           "passed": true,
           "present": true,
           "projected_rgb_evidence": {
-            "chroma_max": 2.0,
-            "luminance_range": 158.667,
-            "luminance_std": 37.172,
+            "chroma_max": 8.0,
+            "luminance_range": 160.0,
+            "luminance_std": 37.287,
             "mask_uid": "obj_DryingBox_01",
             "object_mask_area_fraction": 0.061728,
             "object_mask_area_px": 405,
@@ -237,12 +237,12 @@
           "passed": true,
           "present": true,
           "projected_rgb_evidence": {
-            "chroma_max": 141.0,
-            "luminance_range": 184.667,
-            "luminance_std": 51.696,
+            "chroma_max": 149.0,
+            "luminance_range": 179.667,
+            "luminance_std": 49.622,
             "mask_uid": "obj_DryingBox_01",
-            "object_mask_area_fraction": 0.348026,
-            "object_mask_area_px": 379,
+            "object_mask_area_fraction": 0.354454,
+            "object_mask_area_px": 386,
             "patch_bbox": [
               206,
               306,
@@ -287,8 +287,8 @@
   "diagnostics_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json",
   "episode_id": "ebench/labutopia_native_open_door_eval_20260629_asset_acceptance_manual/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000",
   "material_summary": {
-    "fallback_surface_count": 30,
-    "material_closure_eligible": false,
+    "fallback_surface_count": 0,
+    "material_closure_eligible": true,
     "remote_aluminum_disposition": "local_mirror",
     "remote_aluminum_waiver_id": null,
     "runtime_material_record_count": 32

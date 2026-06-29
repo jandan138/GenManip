@@ -230,22 +230,40 @@ DRYING_BOX_NATIVE_MATERIAL_BINDINGS = {
 }
 DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY = "preserve_owned_world_looks"
 DRYING_BOX_NATIVE_MATERIAL_POLICY = (
-    "owned_world_looks_payload_with_wrapper_local_rebind"
+    "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides"
 )
-DRYING_BOX_NATIVE_MATERIAL_STATUS = "mixed_native_and_fallback"
-DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES = {
+DRYING_BOX_NATIVE_MATERIAL_STATUS = "resolved_material_with_local_overrides"
+DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES = {
     "button": {
+        "material_name": "task_button_mat",
         "display_color": [1.0, 0.48, 0.04],
         "source_binding_status": "unbound_in_stage2_source_readback",
+        "reason": "native_source_has_no_material_binding",
     },
     "Group/_900_1": {
+        "material_name": "task_indicator_mat",
         "display_color": [0.10, 0.36, 0.95],
         "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+        "reason": "native_source_has_empty_material_binding",
     },
+}
+DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES: dict[str, dict[str, object]] = {}
+DRYING_BOX_SOURCE_RESOLVED_SURFACES = {
     "panel": {
-        "display_color": [0.88, 0.92, 0.96],
-        "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
-    },
+        "resolution_mode": "native_geomsubset_material_binding",
+        "geomsubset_coverage_status": "covers_all_faces",
+        "face_count": 158,
+        "covered_face_count": 158,
+        "source_binding_status": "parent_empty_binding_with_geomsubset_coverage",
+        "geomsubset_bindings": [
+            {"relative_path": "panel/mesh", "material_name": "mdl_0007"},
+            {"relative_path": "panel/mesh_01", "material_name": "mdl_0008"},
+            {
+                "relative_path": "panel/mesh_02",
+                "material_name": "Aluminum_Anodized_Charcoal",
+            },
+        ],
+    }
 }
 DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_OWNER = "GenManip LabUtopia integration"
 DRYING_BOX_NATIVE_UNBOUND_SURFACE_WAIVER_REVIEW_DATE = "2026-07-15"
@@ -286,7 +304,7 @@ DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES = (
     "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
 )
 DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON = (
-    "fallback_surfaces_remain_after_aluminum_local_mirror"
+    "wrapper_local_material_overrides_present"
 )
 DRYING_BOX_REMOTE_ALUMINUM_WAIVER = {
     "waiver_id": "ALUMINUM_REMOTE_MDL_001",
@@ -323,7 +341,8 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
     "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
     "remote_aluminum_disposition": "local_mirror",
-    "material_closure_kept_open": True,
+    "material_closure_kept_open": False,
+    "native_material_closure_open": True,
     "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
@@ -622,6 +641,14 @@ def _native_drying_box_root_overrides(root_path: str) -> str:
 
 
 def _native_drying_box_material_scope_def() -> str:
+    local_materials = "\n".join(
+        _preview_surface_material_def(
+            str(record["material_name"]),
+            color=record["display_color"],  # type: ignore[arg-type]
+            indent_level=16,
+        )
+        for record in DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES.values()
+    )
     return f"""            def Scope "Looks" (
                 prepend payload = @scene.usd@<{SOURCE_WORLD_LOOKS_PATH}>
             )
@@ -635,6 +662,7 @@ def _native_drying_box_material_scope_def() -> str:
                         token info:mdl:sourceAsset:subIdentifier = "{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
                     }}
                 }}
+{local_materials}
             }}"""
 
 
@@ -672,6 +700,15 @@ def _wrapper_body(
                     override_tree,
                     override_path,
                     f"{root_path}/Looks/{material_name}",
+                )
+            for (
+                override_path,
+                material,
+            ) in DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES.items():
+                _add_material_binding_override(
+                    override_tree,
+                    override_path,
+                    f"{root_path}/Looks/{material['material_name']}",
                 )
             for (
                 override_path,
@@ -1296,6 +1333,62 @@ def _drying_box_fallback_display_records() -> list[dict[str, object]]:
     return records
 
 
+def _drying_box_source_resolved_surface_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    records = []
+    for relative_path, source_record in sorted(
+        DRYING_BOX_SOURCE_RESOLVED_SURFACES.items()
+    ):
+        record = {
+            key: value
+            for key, value in source_record.items()
+            if key != "geomsubset_bindings"
+        }
+        record["source_prim_path"] = f"/World/DryingBox_01/{relative_path}"
+        record["runtime_prim_path"] = f"{root_path}/{relative_path}"
+        record["geomsubset_bindings"] = [
+            {
+                "source_prim_path": (
+                    f"/World/DryingBox_01/{binding['relative_path']}"
+                ),
+                "runtime_prim_path": f"{root_path}/{binding['relative_path']}",
+                "source_binding_target": (
+                    f"{SOURCE_WORLD_LOOKS_PATH}/{binding['material_name']}"
+                ),
+                "runtime_binding_target": (
+                    f"{root_path}/Looks/{binding['material_name']}"
+                ),
+            }
+            for binding in source_record["geomsubset_bindings"]  # type: ignore[index]
+        ]
+        records.append(record)
+    return records
+
+
+def _drying_box_authored_material_records() -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    records = []
+    for relative_path, material in sorted(
+        DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES.items()
+    ):
+        material_name = str(material["material_name"])
+        records.append(
+            {
+                "source_prim_path": f"/World/DryingBox_01/{relative_path}",
+                "runtime_prim_path": f"{root_path}/{relative_path}",
+                "resolution_mode": "wrapper_local_preview_surface",
+                "runtime_material_path": f"{root_path}/Looks/{material_name}",
+                "material_name": material_name,
+                "display_color": material["display_color"],
+                "source_binding_status": material["source_binding_status"],
+                "authoring_scope": "wrapper_local_material_override",
+                "native_material_closure_claim_allowed": False,
+                "reason": material["reason"],
+            }
+        )
+    return records
+
+
 def _drying_box_material_waiver_records() -> list[dict[str, object]]:
     root_path = _drying_box_root_path()
     records = []
@@ -1339,6 +1432,8 @@ def _drying_box_wrapper_composition_report(
     binding_records = _drying_box_source_binding_records()
     material_names = sorted(set(DRYING_BOX_NATIVE_MATERIAL_BINDINGS.values()))
     fallback_records = _drying_box_fallback_display_records()
+    source_resolved_records = _drying_box_source_resolved_surface_records()
+    authored_material_records = _drying_box_authored_material_records()
     return {
         "schema_version": 1,
         "wrapper_prim_path": root_path,
@@ -1355,6 +1450,10 @@ def _drying_box_wrapper_composition_report(
         "material_scope_ownership": "source_world_looks_payloaded_under_wrapper",
         "source_binding_records": binding_records,
         "source_binding_record_count": len(binding_records),
+        "source_resolved_surface_records": source_resolved_records,
+        "source_resolved_surface_count": len(source_resolved_records),
+        "authored_material_records": authored_material_records,
+        "authored_material_count": len(authored_material_records),
         "runtime_rebind_map": {
             record["source_prim_path"]: {
                 "source_binding_target": record["source_binding_target"],
@@ -1369,12 +1468,17 @@ def _drying_box_wrapper_composition_report(
         "unresolved_binding_targets": [],
         "compute_bound_material_summary": {
             "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
-            "bound_material_count": len(binding_records),
+            "bound_material_count": len(binding_records)
+            + len(authored_material_records),
             "unbound_fallback_count": len(fallback_records),
             "status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
         },
         "owned_material_paths": [
             f"{root_path}/Looks/{material_name}" for material_name in material_names
+        ]
+        + [
+            str(record["runtime_material_path"])
+            for record in authored_material_records
         ],
         "material_dependency_report": _drying_box_material_dependency_report(
             labutopia_root,
@@ -1384,16 +1488,22 @@ def _drying_box_wrapper_composition_report(
             overlay_root
         ),
         "remote_aluminum_disposition": "local_mirror",
-        "material_closure_kept_open": True,
+        "material_closure_kept_open": False,
+        "native_material_closure_open": True,
         "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         "worker_mdl_system_path": REQUIRED_WORKER_MDL_SYSTEM_PATH,
         "aluminum_local_mirror_followup": _aluminum_local_mirror_followup(
             overlay_root
         ),
         "fallback_display_color_policy": {
-            "policy": "stage3_task_visible_readability_overlay",
+            "policy": "no_display_color_fallback_surfaces_after_material_closure",
             "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
             "fallback_records": fallback_records,
+        },
+        "wrapper_local_material_policy": {
+            "policy": "task_visible_surfaces_without_native_binding_get_wrapper_local_preview_surface",
+            "native_material_closure_claim_allowed": False,
+            "authored_material_records": authored_material_records,
         },
         "binding_record_coverage": {
             "direct_and_inherited_xform_bindings": "source_binding_records",
@@ -1429,6 +1539,10 @@ def _drying_box_asset_acceptance_report(overlay_root: Path) -> dict[str, object]
             dependency_records=static_material_gate["remote_dependency_records"],
             fallback_surface_records=_drying_box_fallback_display_records(),
             waiver_records=_drying_box_material_waiver_records(),
+            source_resolved_surface_records=(
+                _drying_box_source_resolved_surface_records()
+            ),
+            authored_material_records=_drying_box_authored_material_records(),
         )
     }
 
@@ -1577,13 +1691,17 @@ def _drying_box_physics_override_report(
             "fallback_surface_count": len(DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES),
             "waiver_count": 0,
             "remote_aluminum_disposition": "local_mirror",
+            "material_closure_closed": True,
             "native_material_closure_open": True,
             "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         },
+        "source_resolved_surface_records": _drying_box_source_resolved_surface_records(),
+        "authored_material_records": _drying_box_authored_material_records(),
         "static_material_dependency_gate": static_material_gate,
         "remote_aluminum_disposition": "local_mirror",
         "aluminum_local_mirror_followup": _aluminum_local_mirror_followup(overlay_root),
-        "material_closure_kept_open": True,
+        "material_closure_kept_open": False,
+        "native_material_closure_open": True,
         "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         "physx_warning_diff": {
             "collected": False,

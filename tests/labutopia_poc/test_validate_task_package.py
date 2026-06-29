@@ -599,9 +599,9 @@ def test_asset_acceptance_material_closure_rejects_malformed_waiver_record():
         )
     )
     material = manifest["asset_acceptance"]["material_closure"]
-    material["waiver_records"][0] = "not-a-record"
+    material["authored_material_records"][0] = "not-a-record"
 
-    with pytest.raises(AssertionError, match="explicit material waivers"):
+    with pytest.raises(AssertionError, match="authored_material_records"):
         validate_task_package._validate_asset_acceptance_material_closure(
             validate_task_package.Path("assets_manifest.json"),
             manifest,
@@ -649,9 +649,9 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert report["material_scope_policy"] == "preserve_owned_world_looks"
     assert (
         report["material_policy"]
-        == "owned_world_looks_payload_with_wrapper_local_rebind"
+        == "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides"
     )
-    assert report["material_status"] == "mixed_native_and_fallback"
+    assert report["material_status"] == "resolved_material_with_local_overrides"
     assert report["source_binding_record_count"] == 32
     assert report["runtime_rebind_count"] == 32
     assert report["stale_source_binding_count"] == 0
@@ -698,13 +698,17 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
         / f"{manifest['runtime_usd_name']}.usda"
     )
     scene_text = runtime_scene.read_text(encoding="utf-8")
+    drying_box_block = scene_text.split('def Xform "obj_obj_DryingBox_01" (', 1)[1]
+    drying_box_block = drying_box_block.split('def Xform "obj_table" (', 1)[0]
     assert 'def Xform "obj_obj_DryingBox_01_handle" (' not in scene_text
     assert "prepend payload = @scene.usd@</World/DryingBox_01>" in scene_text
     assert "double3 xformOp:scale = (0.001, 0.001, 0.001)" in scene_text
     assert "delete rel physics:body0" in scene_text
     assert "prepend payload = @scene.usd@</World/Looks>" in scene_text
-    assert "rel material:binding = </World/Looks/" not in scene_text
-    assert "primvars:displayColor" in scene_text
+    assert "rel material:binding = </World/Looks/" not in drying_box_block
+    assert "primvars:displayColor" not in drying_box_block
+    assert 'def Material "task_button_mat"' in drying_box_block
+    assert 'def Material "task_indicator_mat"' in drying_box_block
     assert 'def Cube "body_link"' not in scene_text
     assert 'def Cube "door_link"' not in scene_text
     assert 'def Cube "handle"' not in scene_text
@@ -718,9 +722,10 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
 
     runtime_asset = manifest["drying_box_runtime_asset"]
     assert runtime_asset["remote_aluminum_disposition"] == "local_mirror"
-    assert runtime_asset["material_closure_kept_open"] is True
+    assert runtime_asset["material_closure_kept_open"] is False
+    assert runtime_asset["native_material_closure_open"] is True
     assert runtime_asset["native_material_closure_reason"] == (
-        "fallback_surfaces_remain_after_aluminum_local_mirror"
+        "wrapper_local_material_overrides_present"
     )
 
     wrapper_gate = manifest["drying_box_wrapper_composition"][
@@ -731,19 +736,23 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     assert report["status"] == "passed"
     assert report["generated_wrapper_stage_path"] == report["override_layer_path"]
     assert report["remote_aluminum_disposition"] == "local_mirror"
-    assert report["material_closure_kept_open"] is True
+    assert report["material_closure_kept_open"] is False
+    assert report["native_material_closure_open"] is True
     assert report["native_material_closure_reason"] == (
-        "fallback_surfaces_remain_after_aluminum_local_mirror"
+        "wrapper_local_material_overrides_present"
     )
     assert report["static_material_dependency_gate"] == wrapper_gate
 
     report_path = validate_task_package.Path(report["physics_override_json"])
     assert report_path.exists()
-    assert "saved/diagnostics/native_dryingbox_physics_override_" in report_path.as_posix()
-    assert report_path.name == "physics_override.json"
-    assert validate_task_package.Path(report["packaged_physics_override_json"]).exists()
+    packaged_report_path = validate_task_package.Path(
+        report["packaged_physics_override_json"]
+    )
+    assert packaged_report_path.exists()
     saved_report = validate_task_package._load_json(report_path)
     assert saved_report == report
+    packaged_report = validate_task_package._load_json(packaged_report_path)
+    assert packaged_report == report
 
     gate = report["static_material_dependency_gate"]
     assert gate["status"] == "passed"
@@ -776,7 +785,7 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     ] is True
     assert report["material_validator_summary"][
         "native_material_closure_reason"
-    ] == "fallback_surfaces_remain_after_aluminum_local_mirror"
+    ] == "wrapper_local_material_overrides_present"
     assert report["dof_map"]["metric_dof"]["joint_name"] == "RevoluteJoint"
     assert report["dof_map"]["ignored_dofs"][0]["joint_name"] == "PrismaticJoint"
 
@@ -803,6 +812,37 @@ def test_stage4_validator_rejects_wrong_joint_body_target_evidence(tmp_path):
     )
 
     with pytest.raises(AssertionError, match="joint_body_targets"):
+        validate_task_package._validate_drying_box_physics_override_report(
+            tmp_path / "assets_manifest.json",
+            manifest,
+            runtime_scene,
+        )
+
+
+def test_stage4_validator_rejects_packaged_report_mismatch(tmp_path):
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    report = manifest["drying_box_physics_override"]
+    report_path = tmp_path / "physics_override.json"
+    packaged_path = tmp_path / "packaged_physics_override.json"
+    report["physics_override_json"] = str(report_path)
+    report["packaged_physics_override_json"] = str(packaged_path)
+    _write_json(report_path, report)
+    packaged_report = copy.deepcopy(report)
+    packaged_report["status"] = "failed"
+    _write_json(packaged_path, packaged_report)
+    runtime_scene = (
+        validate_task_package.Path(manifest["overlay_root"])
+        / f"{manifest['runtime_usd_name']}.usda"
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="packaged_physics_override_json contents must match manifest report",
+    ):
         validate_task_package._validate_drying_box_physics_override_report(
             tmp_path / "assets_manifest.json",
             manifest,
@@ -1171,17 +1211,18 @@ def test_drying_box_material_bindings_resolve_inside_wrapper():
     )
 
     assert report["stage_opened"] is True
-    assert report["bound_material_count"] == 32
+    assert report["bound_material_count"] == 34
     assert report["unresolved_binding_target_count"] == 0
     assert report["stale_source_binding_paths"] == []
     assert report["expected_mismatch_paths"] == []
     assert report["authored_world_looks_binding_paths"] == []
     assert report["unexpected_unbound_mesh_paths"] == []
-    assert report["unbound_fallback_paths"] == sorted(
-        validate_task_package.EXPECTED_DRYING_BOX_FALLBACK_PATHS
-    )
+    assert report["source_resolved_unbound_parent_paths"] == [
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel"
+    ]
+    assert report["unbound_fallback_paths"] == []
     assert report["invalid_fallback_display_color_paths"] == []
-    assert report["material_status"] == "mixed_native_and_fallback"
+    assert report["material_status"] == "resolved_material_with_local_overrides"
 
 
 def test_drying_box_material_readback_reports_runtime_rebind_map_drift():
@@ -1336,7 +1377,10 @@ def test_validate_task_package_rejects_material_binding_target_mismatch(
         validate_task_package,
         "_inspect_drying_box_wrapper_materials",
         lambda _runtime_scene, _wrapper_report: {
-            "bound_material_count": validate_task_package.EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+            "bound_material_count": (
+                validate_task_package.EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT
+                + len(validate_task_package.EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS)
+            ),
             "unresolved_binding_target_count": 0,
             "stale_source_binding_paths": [],
             "expected_mismatch_paths": [
@@ -1347,10 +1391,11 @@ def test_validate_task_package_rejects_material_binding_target_mismatch(
                 }
             ],
             "missing_fallback_display_color_paths": [],
-            "unbound_fallback_paths": sorted(
-                validate_task_package.EXPECTED_DRYING_BOX_FALLBACK_PATHS
+            "source_resolved_unbound_parent_paths": sorted(
+                validate_task_package.EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS
             ),
-            "material_status": "mixed_native_and_fallback",
+            "unbound_fallback_paths": [],
+            "material_status": "resolved_material_with_local_overrides",
         },
     )
     monkeypatch.setattr(validate_task_package, "_validate_task_semantics", lambda: None)

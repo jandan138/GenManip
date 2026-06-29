@@ -403,8 +403,18 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
         "rel material:binding = "
         "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal>"
     ) in drying_box_block
+    assert 'def Material "task_button_mat"' in drying_box_block
+    assert 'def Material "task_indicator_mat"' in drying_box_block
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat>"
+    ) in drying_box_block
+    assert (
+        "rel material:binding = "
+        "</World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat>"
+    ) in drying_box_block
     assert "rel material:binding = </World/Looks/" not in drying_box_block
-    assert "primvars:displayColor" in drying_box_block
+    assert "primvars:displayColor" not in drying_box_block
     assert 'over "_900_1"' in drying_box_block
     assert "float physics:mass = 2" in drying_box_block
     assert "float physics:mass = 0.5" in drying_box_block
@@ -415,13 +425,21 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     drying_box_runtime_asset = manifest["drying_box_runtime_asset"]
     assert drying_box_runtime_asset["material_policy"] == (
-        "owned_world_looks_payload_with_wrapper_local_rebind"
+        "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides"
     )
     assert (
         drying_box_runtime_asset["material_scope_policy"]
         == "preserve_owned_world_looks"
     )
-    assert drying_box_runtime_asset["material_status"] == "mixed_native_and_fallback"
+    assert (
+        drying_box_runtime_asset["material_status"]
+        == "resolved_material_with_local_overrides"
+    )
+    assert drying_box_runtime_asset["material_closure_kept_open"] is False
+    assert drying_box_runtime_asset["native_material_closure_open"] is True
+    assert drying_box_runtime_asset["native_material_closure_reason"] == (
+        "wrapper_local_material_overrides_present"
+    )
 
     root_path = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
     report = manifest["drying_box_wrapper_composition"]
@@ -430,9 +448,9 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     assert report["source_prim_path"] == "/World/DryingBox_01"
     assert report["material_scope_policy"] == "preserve_owned_world_looks"
     assert report["material_policy"] == (
-        "owned_world_looks_payload_with_wrapper_local_rebind"
+        "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides"
     )
-    assert report["material_status"] == "mixed_native_and_fallback"
+    assert report["material_status"] == "resolved_material_with_local_overrides"
     assert report["source_material_scope"] == "/World/Looks"
     assert report["runtime_material_scope"] == f"{root_path}/Looks"
     assert report["material_scope_ownership"] == (
@@ -448,19 +466,25 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     assert report["unresolved_binding_target_count"] == 0
     assert report["compute_bound_material_summary"] == {
         "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
-        "bound_material_count": len(build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS),
-        "unbound_fallback_count": 3,
-        "status": "mixed_native_and_fallback",
+        "bound_material_count": len(build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS)
+        + len(build_overlay.DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES),
+        "unbound_fallback_count": 0,
+        "status": "resolved_material_with_local_overrides",
     }
-    expected_material_paths = {
+    expected_native_material_paths = {
         f"{root_path}/Looks/{material_name}"
         for material_name in set(build_overlay.DRYING_BOX_NATIVE_MATERIAL_BINDINGS.values())
     }
+    expected_local_material_paths = {
+        f"{root_path}/Looks/{material['material_name']}"
+        for material in build_overlay.DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES.values()
+    }
+    expected_material_paths = expected_native_material_paths | expected_local_material_paths
     assert set(report["owned_material_paths"]) == expected_material_paths
     assert {
         record["runtime_binding_target"]
         for record in report["source_binding_records"]
-    } == expected_material_paths
+    } == expected_native_material_paths
     assert all(
         record["source_binding_target"].startswith("/World/Looks/")
         for record in report["source_binding_records"]
@@ -470,16 +494,27 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
         for record in report["source_binding_records"]
     )
     fallback_policy = report["fallback_display_color_policy"]
-    assert fallback_policy["material_status"] == "mixed_native_and_fallback"
-    assert fallback_policy["policy"] == "stage3_task_visible_readability_overlay"
+    assert fallback_policy["material_status"] == (
+        "resolved_material_with_local_overrides"
+    )
+    assert fallback_policy["policy"] == (
+        "no_display_color_fallback_surfaces_after_material_closure"
+    )
+    assert fallback_policy["fallback_records"] == []
+    assert report["source_resolved_surface_count"] == 1
     assert {
         record["runtime_prim_path"]
-        for record in fallback_policy["fallback_records"]
-    } == {
-        f"{root_path}/button",
-        f"{root_path}/Group/_900_1",
-        f"{root_path}/panel",
-    }
+        for record in report["source_resolved_surface_records"]
+    } == {f"{root_path}/panel"}
+    assert report["authored_material_count"] == 2
+    assert {
+        record["runtime_prim_path"] for record in report["authored_material_records"]
+    } == {f"{root_path}/button", f"{root_path}/Group/_900_1"}
+    wrapper_local_policy = report["wrapper_local_material_policy"]
+    assert wrapper_local_policy["native_material_closure_claim_allowed"] is False
+    assert wrapper_local_policy["authored_material_records"] == report[
+        "authored_material_records"
+    ]
     assert report["payload_dependency_report"] == {
         "native_payload": "scene.usd</World/DryingBox_01>",
         "owned_material_scope_payload": "scene.usd</World/Looks>",
@@ -589,46 +624,52 @@ def test_manifest_contains_generic_asset_acceptance_material_closure(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     material = manifest["asset_acceptance"]["material_closure"]
     assert material["asset_id"] == "LabUtopia/DryingBox_01"
-    assert material["material_status"] == "mixed_native_and_fallback"
+    assert material["material_status"] == "resolved_material_with_local_overrides"
     assert material["derived_counts"] == {
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
-        "explicit_material_waiver_count": 3,
+        "explicit_material_waiver_count": 0,
         "local_mirror_count": 1,
         "unsupported_dependency_resolution_mode_count": 0,
-        "fallback_surface_count": 3,
+        "fallback_surface_count": 0,
+        "source_resolved_surface_count": 1,
+        "wrapper_authored_material_count": 2,
     }
-    assert material["blockers"] == [
-        "explicit_material_waiver_open",
-        "fallback_surfaces_remain_after_aluminum_local_mirror",
-    ]
+    assert material["blockers"] == []
+    assert material["fallback_surface_records"] == []
+    assert material["waiver_records"] == []
     assert {
-        record["runtime_prim_path"] for record in material["fallback_surface_records"]
+        record["runtime_prim_path"]
+        for record in material["source_resolved_surface_records"]
+    } == {
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+    }
+    panel_record = material["source_resolved_surface_records"][0]
+    assert panel_record["resolution_mode"] == "native_geomsubset_material_binding"
+    assert panel_record["geomsubset_coverage_status"] == "covers_all_faces"
+    assert panel_record["covered_face_count"] == 158
+    assert panel_record["face_count"] == 158
+    assert {
+        record["runtime_prim_path"] for record in material["authored_material_records"]
     } == {
         "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
         "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
-        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
-    }
-    assert {
-        record["runtime_prim_path"] for record in material["waiver_records"]
-    } == {
-        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
-        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
-        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
     }
     assert all(
-        record["disposition"] == "explicit_waiver"
-        and record["waiver_status"] == "open"
-        and record["blocked_claims"] == ["full_native_material_closure"]
-        for record in material["waiver_records"]
+        record["resolution_mode"] == "wrapper_local_preview_surface"
+        and record["runtime_material_path"].startswith(
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+        )
+        for record in material["authored_material_records"]
     )
+    assert material["closure_claim_allowed"] is True
+    assert material["full_material_closure_claim_allowed"] is True
     assert material["aluminum_material_closure_claim_allowed"] is True
     assert material["native_material_closure_claim_allowed"] is False
     assert material["full_native_material_closure_claim_allowed"] is False
 
 
-@pytest.mark.xfail(reason="Full Material Closure follow-up not implemented")
-def test_dryingbox_full_material_closure_has_no_fallback_surfaces(tmp_path):
+def test_dryingbox_material_closure_has_no_fallback_surfaces(tmp_path):
     labutopia_root = tmp_path / "LabUtopia"
     source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
     source_dir.mkdir(parents=True)
@@ -646,8 +687,13 @@ def test_dryingbox_full_material_closure_has_no_fallback_surfaces(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     material = manifest["asset_acceptance"]["material_closure"]
     assert material["derived_counts"]["fallback_surface_count"] == 0
-    assert material["material_status"] == "resolved_native_material"
-    assert material["full_native_material_closure_claim_allowed"] is True
+    assert material["derived_counts"]["explicit_material_waiver_count"] == 0
+    assert material["material_status"] == "resolved_material_with_local_overrides"
+    assert material["closure_claim_allowed"] is True
+    assert material["full_material_closure_claim_allowed"] is True
+    assert material["native_material_closure_claim_allowed"] is False
+    assert material["full_native_material_closure_claim_allowed"] is False
+    assert material["forbidden_claims"] == ["full_native_material_closure"]
 
 
 def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_report(
@@ -691,9 +737,10 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
     assert report["source_usd_path"] == str(source_scene)
     assert report["source_usd_sha256"] == build_overlay._sha256(source_scene)
     assert report["remote_aluminum_disposition"] == "local_mirror"
-    assert report["material_closure_kept_open"] is True
+    assert report["material_closure_kept_open"] is False
+    assert report["native_material_closure_open"] is True
     assert report["native_material_closure_reason"] == (
-        "fallback_surfaces_remain_after_aluminum_local_mirror"
+        "wrapper_local_material_overrides_present"
     )
 
     scene_text = (
@@ -781,12 +828,13 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
     assert saved_report["material_validator_summary"] == {
         "unresolved_binding_target_count": 0,
         "remote_only_dependency_count": 0,
-        "fallback_surface_count": 3,
+        "fallback_surface_count": 0,
         "waiver_count": 0,
         "remote_aluminum_disposition": "local_mirror",
+        "material_closure_closed": True,
         "native_material_closure_open": True,
         "native_material_closure_reason": (
-            "fallback_surfaces_remain_after_aluminum_local_mirror"
+            "wrapper_local_material_overrides_present"
         ),
     }
 

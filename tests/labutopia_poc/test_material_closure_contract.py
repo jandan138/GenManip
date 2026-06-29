@@ -185,6 +185,37 @@ def test_rejects_full_closure_overclaim_with_remote_dependency():
         assert_material_claims_are_derived(claimed)
 
 
+def test_rejects_native_closure_overclaim_with_wrapper_authored_material():
+    from standalone_tools.labutopia_poc.material_closure import (
+        assert_material_claims_are_derived,
+    )
+
+    claimed = {
+        "closure_claim_allowed": True,
+        "full_material_closure_claim_allowed": True,
+        "native_material_closure_claim_allowed": True,
+        "full_native_material_closure_claim_allowed": False,
+        "derived_counts": {
+            "fallback_surface_count": 0,
+            "wrapper_authored_material_count": 1,
+        },
+        "authored_material_records": [
+            {
+                "runtime_prim_path": (
+                    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+                ),
+                "resolution_mode": "wrapper_local_preview_surface",
+            }
+        ],
+    }
+
+    with pytest.raises(
+        AssertionError,
+        match="native material closure overclaim: wrapper-authored materials are not native",
+    ):
+        assert_material_claims_are_derived(claimed)
+
+
 def test_rejects_full_closure_overclaim_with_stale_counts():
     from standalone_tools.labutopia_poc.material_closure import (
         assert_material_claims_are_derived,
@@ -276,3 +307,59 @@ def test_explicit_waiver_blocks_full_closure_without_fallback_surface():
     assert report["blockers"] == ["explicit_material_waiver_open"]
     assert report["full_native_material_closure_claim_allowed"] is False
     assert report["forbidden_claims"] == ["full_native_material_closure"]
+
+
+def test_wrapper_local_material_closes_material_gate_without_native_claim():
+    from standalone_tools.labutopia_poc.material_closure import (
+        derive_material_closure_claims,
+    )
+
+    report = derive_material_closure_claims(
+        asset_id="LabUtopia/DryingBox_01",
+        dependency_records=[
+            {
+                "material_name": "Aluminum_Anodized_Charcoal",
+                "resolution_mode": "local_mirror",
+                "local_mirror_sha256": (
+                    "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+                ),
+            }
+        ],
+        fallback_surface_records=[],
+        waiver_records=[],
+        source_resolved_surface_records=[
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+                "resolution_mode": "native_geomsubset_material_binding",
+                "geomsubset_coverage_status": "covers_all_faces",
+            }
+        ],
+        authored_material_records=[
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+                "resolution_mode": "wrapper_local_preview_surface",
+                "runtime_material_path": (
+                    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat"
+                ),
+            },
+            {
+                "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+                "resolution_mode": "wrapper_local_preview_surface",
+                "runtime_material_path": (
+                    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat"
+                ),
+            },
+        ],
+    )
+
+    assert report["material_status"] == "resolved_material_with_local_overrides"
+    assert report["closure_claim_allowed"] is True
+    assert report["full_material_closure_claim_allowed"] is True
+    assert report["native_material_closure_claim_allowed"] is False
+    assert report["full_native_material_closure_claim_allowed"] is False
+    assert report["forbidden_claims"] == ["full_native_material_closure"]
+    assert report["blockers"] == []
+    assert report["derived_counts"]["fallback_surface_count"] == 0
+    assert report["derived_counts"]["explicit_material_waiver_count"] == 0
+    assert report["derived_counts"]["source_resolved_surface_count"] == 1
+    assert report["derived_counts"]["wrapper_authored_material_count"] == 2

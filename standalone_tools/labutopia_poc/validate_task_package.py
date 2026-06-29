@@ -151,12 +151,13 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
     "surrogate_kept_for_debug_baseline": True,
     "unit_policy": "preserve_native_unit_scale_0_001",
     "fixed_base_policy": "world_fixed_joint_body0_removed",
-    "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
+    "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides",
     "material_scope_policy": "preserve_owned_world_looks",
-    "material_status": "mixed_native_and_fallback",
+    "material_status": "resolved_material_with_local_overrides",
     "remote_aluminum_disposition": "local_mirror",
-    "material_closure_kept_open": True,
-    "native_material_closure_reason": "fallback_surfaces_remain_after_aluminum_local_mirror",
+    "material_closure_kept_open": False,
+    "native_material_closure_open": True,
+    "native_material_closure_reason": "wrapper_local_material_overrides_present",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -182,17 +183,28 @@ FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     'def Xform "obj_obj_DryingBox_01_handle" (',
 ]
 EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT = 32
-EXPECTED_DRYING_BOX_MATERIAL_PATHS = {
+EXPECTED_DRYING_BOX_SOURCE_MATERIAL_PATHS = {
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0007",
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0008",
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/mdl_0009",
 }
-EXPECTED_DRYING_BOX_FALLBACK_PATHS = {
+EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS = {
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+}
+EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS = {
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat",
+    "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
+}
+EXPECTED_DRYING_BOX_MATERIAL_PATHS = (
+    EXPECTED_DRYING_BOX_SOURCE_MATERIAL_PATHS
+    | EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS
+)
+EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS = {
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
 }
+EXPECTED_DRYING_BOX_FALLBACK_PATHS: set[str] = set()
 EXPECTED_DRYING_BOX_WORKER_MDL_SYSTEM_PATH = (
     "/isaac-sim/materials/:"
     "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:"
@@ -655,26 +667,24 @@ def _validate_asset_acceptance_material_closure(
     expected_counts = {
         "remote_unmirrored_unwaived_count": 0,
         "remote_waiver_count": 0,
-        "explicit_material_waiver_count": 3,
+        "explicit_material_waiver_count": 0,
         "local_mirror_count": 1,
         "unsupported_dependency_resolution_mode_count": 0,
-        "fallback_surface_count": 3,
+        "fallback_surface_count": 0,
+        "source_resolved_surface_count": 1,
+        "wrapper_authored_material_count": 2,
     }
     _assert(
         counts == expected_counts,
         f"{manifest_path}: material closure derived_counts mismatch",
     )
     _assert(
-        material.get("material_status") == "mixed_native_and_fallback",
-        f"{manifest_path}: material closure must stay mixed native/fallback",
+        material.get("material_status") == "resolved_material_with_local_overrides",
+        f"{manifest_path}: material closure must use local override status",
     )
     _assert(
-        material.get("blockers")
-        == [
-            "explicit_material_waiver_open",
-            "fallback_surfaces_remain_after_aluminum_local_mirror",
-        ],
-        f"{manifest_path}: material closure blockers must explain explicit waivers and fallback surfaces",
+        material.get("blockers") == [],
+        f"{manifest_path}: package material closure must not retain blockers",
     )
     waiver_records = material.get("waiver_records")
     _assert(
@@ -688,7 +698,8 @@ def _validate_asset_acceptance_material_closure(
         raise AssertionError(f"{manifest_path}: {exc}") from exc
     _assert(
         material.get("aluminum_material_closure_claim_allowed") is True
-        and material.get("closure_claim_allowed") is False
+        and material.get("closure_claim_allowed") is True
+        and material.get("full_material_closure_claim_allowed") is True
         and material.get("native_material_closure_claim_allowed") is False
         and material.get("full_native_material_closure_claim_allowed") is False,
         f"{manifest_path}: material closure claim boundary mismatch",
@@ -722,30 +733,52 @@ def _validate_asset_acceptance_material_closure(
         if isinstance(record, dict)
     }
     _assert(
-        isinstance(waiver_records, list) and len(waiver_records) == 3,
-        f"{manifest_path}: material closure must record three explicit waiver records",
+        isinstance(waiver_records, list) and len(waiver_records) == 0,
+        f"{manifest_path}: package material closure must not retain explicit waiver records",
     )
     _assert(
         {record.get("runtime_prim_path") for record in waiver_records}
         == fallback_runtime_paths,
-        f"{manifest_path}: material closure waiver records must cover wrapper fallback surfaces",
+        f"{manifest_path}: material closure waiver records must match wrapper fallback surfaces",
     )
-    for record in waiver_records:
+    source_resolved_records = material.get("source_resolved_surface_records")
+    _assert(
+        isinstance(source_resolved_records, list)
+        and {
+            record.get("runtime_prim_path")
+            for record in source_resolved_records
+            if isinstance(record, dict)
+        }
+        == EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS,
+        f"{manifest_path}: source_resolved_surface_records must cover panel GeomSubset material coverage",
+    )
+    for record in source_resolved_records:
         _assert(
             isinstance(record, dict)
-            and record.get("disposition") == "explicit_waiver"
-            and record.get("waiver_status") == "open"
-            and record.get("owner")
-            and record.get("review_date")
-            and record.get("expiry_date")
-            and record.get("reason")
-            and record.get("blocked_claims") == ["full_native_material_closure"],
-            f"{manifest_path}: explicit material waivers must include owner, reason, review date, expiry, and blocked claims",
+            and record.get("resolution_mode") == "native_geomsubset_material_binding"
+            and record.get("geomsubset_coverage_status") == "covers_all_faces"
+            and record.get("covered_face_count") == record.get("face_count"),
+            f"{manifest_path}: source-resolved surfaces must record full GeomSubset coverage",
         )
+    authored_material_records = material.get("authored_material_records")
+    _assert(
+        isinstance(authored_material_records, list)
+        and {
+            record.get("runtime_prim_path")
+            for record in authored_material_records
+            if isinstance(record, dict)
+        }
+        == EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS,
+        f"{manifest_path}: authored_material_records must cover local override surfaces",
+    )
+    for record in authored_material_records:
         _assert(
-            record.get("source_material_binding") is None
-            and record.get("compute_bound_material_success") is False,
-            f"{manifest_path}: explicit material waiver must record unbound native source evidence",
+            isinstance(record, dict)
+            and record.get("resolution_mode") == "wrapper_local_preview_surface"
+            and record.get("runtime_material_path")
+            in EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS
+            and record.get("native_material_closure_claim_allowed") is False,
+            f"{manifest_path}: wrapper-authored material record must keep native claim blocked",
         )
 
 
@@ -872,7 +905,7 @@ def _validate_drying_box_wrapper_composition(
             f"{manifest_path}: runtime_rebind_map entries must match source binding records",
         )
     _assert(
-        runtime_targets == EXPECTED_DRYING_BOX_MATERIAL_PATHS,
+        runtime_targets == EXPECTED_DRYING_BOX_SOURCE_MATERIAL_PATHS,
         f"{manifest_path}: runtime material targets must match expected DryingBox materials",
     )
     _assert(
@@ -885,11 +918,12 @@ def _validate_drying_box_wrapper_composition(
         compute_summary
         == {
             "checked_with": "UsdShade.MaterialBindingAPI.ComputeBoundMaterial",
-            "bound_material_count": EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
-            "unbound_fallback_count": 3,
-            "status": "mixed_native_and_fallback",
+            "bound_material_count": EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT
+            + len(EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS),
+            "unbound_fallback_count": 0,
+            "status": "resolved_material_with_local_overrides",
         },
-        f"{manifest_path}: compute_bound_material_summary must record mixed native/fallback status",
+        f"{manifest_path}: compute_bound_material_summary must record package material closure",
     )
     fallback_policy = report.get("fallback_display_color_policy")
     _assert(
@@ -897,8 +931,14 @@ def _validate_drying_box_wrapper_composition(
         f"{manifest_path}: missing fallback_display_color_policy",
     )
     _assert(
-        fallback_policy.get("material_status") == "mixed_native_and_fallback",
-        f"{manifest_path}: fallback displayColor must be labelled mixed_native_and_fallback",
+        fallback_policy.get("material_status")
+        == "resolved_material_with_local_overrides",
+        f"{manifest_path}: fallback displayColor policy must reflect closed package material gate",
+    )
+    _assert(
+        fallback_policy.get("policy")
+        == "no_display_color_fallback_surfaces_after_material_closure",
+        f"{manifest_path}: fallback displayColor policy must be closed",
     )
     fallback_records = fallback_policy.get("fallback_records")
     _assert(
@@ -911,14 +951,36 @@ def _validate_drying_box_wrapper_composition(
         if isinstance(record, dict)
     }
     _assert(
-        fallback_paths == EXPECTED_DRYING_BOX_FALLBACK_PATHS,
-        f"{manifest_path}: fallback_records must cover known Stage 2 material gaps",
+        fallback_paths == set(),
+        f"{manifest_path}: fallback_records must be empty after package material closure",
     )
-    for fallback_path in EXPECTED_DRYING_BOX_FALLBACK_PATHS:
-        relative_name = fallback_path.rsplit("/", 1)[-1]
+    source_resolved_records = report.get("source_resolved_surface_records")
+    _assert(
+        isinstance(source_resolved_records, list)
+        and {
+            record.get("runtime_prim_path")
+            for record in source_resolved_records
+            if isinstance(record, dict)
+        }
+        == EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS,
+        f"{manifest_path}: wrapper report must record panel GeomSubset source material coverage",
+    )
+    authored_material_records = report.get("authored_material_records")
+    _assert(
+        isinstance(authored_material_records, list)
+        and {
+            record.get("runtime_prim_path")
+            for record in authored_material_records
+            if isinstance(record, dict)
+        }
+        == EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS,
+        f"{manifest_path}: wrapper report must record wrapper-local material overrides",
+    )
+    for authored_path in EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS:
+        relative_name = authored_path.rsplit("/", 1)[-1]
         _assert(
             f'over "{relative_name}"' in runtime_scene_text,
-            f"{manifest_path}: runtime scene missing fallback override for {fallback_path}",
+            f"{manifest_path}: runtime scene missing material override for {authored_path}",
         )
     dependency_report = report.get("material_dependency_report")
     _assert(
@@ -1071,10 +1133,11 @@ def _validate_drying_box_wrapper_composition(
         f"{manifest_path}: wrapper report must record remote_aluminum_disposition=local_mirror",
     )
     _assert(
-        report.get("material_closure_kept_open") is True
+        report.get("material_closure_kept_open") is False
+        and report.get("native_material_closure_open") is True
         and report.get("native_material_closure_reason")
-        == "fallback_surfaces_remain_after_aluminum_local_mirror",
-        f"{manifest_path}: wrapper report must keep full material closure open only for fallback surfaces",
+        == "wrapper_local_material_overrides_present",
+        f"{manifest_path}: wrapper report must close package material gate while keeping native claim blocked",
     )
     followup = report.get("aluminum_local_mirror_followup")
     _assert(
@@ -1258,6 +1321,16 @@ def _validate_drying_box_physics_override_report(
         saved_report == report,
         f"{manifest_path}: physics_override_json contents must match manifest report",
     )
+    packaged_report_path = report.get("packaged_physics_override_json")
+    _assert(
+        isinstance(packaged_report_path, str) and Path(packaged_report_path).exists(),
+        f"{manifest_path}: packaged_physics_override_json must point to an existing report file",
+    )
+    packaged_report = _load_json(Path(packaged_report_path))
+    _assert(
+        packaged_report == report,
+        f"{manifest_path}: packaged_physics_override_json contents must match manifest report",
+    )
     source_path = report.get("source_usd_path")
     _assert(
         isinstance(source_path, str) and Path(source_path).exists(),
@@ -1287,10 +1360,11 @@ def _validate_drying_box_physics_override_report(
     )
     _assert(
         report.get("remote_aluminum_disposition") == "local_mirror"
-        and report.get("material_closure_kept_open") is True
+        and report.get("material_closure_kept_open") is False
+        and report.get("native_material_closure_open") is True
         and report.get("native_material_closure_reason")
-        == "fallback_surfaces_remain_after_aluminum_local_mirror",
-        f"{manifest_path}: physics override must record Aluminum local mirror with full closure still open for fallback surfaces",
+        == "wrapper_local_material_overrides_present",
+        f"{manifest_path}: physics override must record closed package material gate with native claim still blocked",
     )
     material_summary = report.get("material_validator_summary")
     _assert(
@@ -1298,12 +1372,13 @@ def _validate_drying_box_physics_override_report(
         == {
             "unresolved_binding_target_count": 0,
             "remote_only_dependency_count": 0,
-            "fallback_surface_count": 3,
+            "fallback_surface_count": 0,
             "waiver_count": 0,
             "remote_aluminum_disposition": "local_mirror",
+            "material_closure_closed": True,
             "native_material_closure_open": True,
             "native_material_closure_reason": (
-                "fallback_surfaces_remain_after_aluminum_local_mirror"
+                "wrapper_local_material_overrides_present"
             ),
         },
         f"{manifest_path}: material_validator_summary must record Stage 4 material boundary",
@@ -1372,12 +1447,20 @@ def _inspect_drying_box_wrapper_materials(
     full_subtree_bound_mesh_paths: list[str] = []
     full_subtree_unbound_mesh_paths: list[str] = []
     runtime_rebind_map = wrapper_report.get("runtime_rebind_map", {})
+    source_resolved_paths = {
+        str(record.get("runtime_prim_path"))
+        for record in wrapper_report.get("source_resolved_surface_records", [])
+        if isinstance(record, dict)
+    }
 
     def _is_inside_wrapper(path: str) -> bool:
         return path == root_path or path.startswith(f"{root_path}/")
 
     def _is_expected_fallback(path: str) -> bool:
         return path in EXPECTED_DRYING_BOX_FALLBACK_PATHS
+
+    def _is_source_resolved_parent(path: str) -> bool:
+        return path in source_resolved_paths
 
     def _display_color_value(value: Any) -> list[float] | None:
         if value is None or len(value) == 0:
@@ -1431,6 +1514,32 @@ def _inspect_drying_box_wrapper_materials(
                         "actual": bound_path,
                     }
                 )
+        bound_material_paths[runtime_prim_path] = bound_path
+
+    for record in wrapper_report.get("authored_material_records", []):
+        if not isinstance(record, dict):
+            continue
+        runtime_prim_path = str(record["runtime_prim_path"])
+        expected_target = str(record["runtime_material_path"])
+        prim = stage.GetPrimAtPath(runtime_prim_path)
+        if not prim or not prim.IsValid():
+            unresolved_binding_paths.append(runtime_prim_path)
+            continue
+        material, _relationship = UsdShade.MaterialBindingAPI(
+            prim
+        ).ComputeBoundMaterial()
+        if not material or not material.GetPrim().IsValid():
+            unresolved_binding_paths.append(runtime_prim_path)
+            continue
+        bound_path = str(material.GetPrim().GetPath())
+        if bound_path != expected_target:
+            expected_mismatch_paths.append(
+                {
+                    "runtime_prim_path": runtime_prim_path,
+                    "expected": expected_target,
+                    "actual": bound_path,
+                }
+            )
         bound_material_paths[runtime_prim_path] = bound_path
 
     for prim in stage.Traverse():
@@ -1533,6 +1642,12 @@ def _inspect_drying_box_wrapper_materials(
             path
             for path in full_subtree_unbound_mesh_paths
             if not _is_expected_fallback(path)
+            and not _is_source_resolved_parent(path)
+        ),
+        "source_resolved_unbound_parent_paths": sorted(
+            path
+            for path in full_subtree_unbound_mesh_paths
+            if _is_source_resolved_parent(path)
         ),
         "unbound_fallback_paths": sorted(unbound_fallback_paths),
         "missing_fallback_display_color_paths": sorted(
@@ -1544,6 +1659,8 @@ def _inspect_drying_box_wrapper_materials(
         "material_status": (
             "mixed_native_and_fallback"
             if unbound_fallback_paths
+            else "resolved_material_with_local_overrides"
+            if wrapper_report.get("authored_material_records")
             else "resolved_native_material"
         ),
     }
@@ -2326,7 +2443,8 @@ def validate_task_package() -> None:
     )
     _assert(
         material_report["bound_material_count"]
-        == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT,
+        == EXPECTED_DRYING_BOX_MATERIAL_BINDING_COUNT
+        + len(EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS),
         f"{runtime_scene}: DryingBox material bindings did not resolve: {material_report}",
     )
     _assert(
@@ -2363,16 +2481,21 @@ def validate_task_package() -> None:
     )
     _assert(
         material_report["unbound_fallback_paths"]
-        == sorted(EXPECTED_DRYING_BOX_FALLBACK_PATHS),
-        f"{runtime_scene}: DryingBox unbound fallback set must match known material gaps: {material_report}",
+        == [],
+        f"{runtime_scene}: DryingBox must not retain unbound fallback surfaces: {material_report}",
+    )
+    _assert(
+        material_report.get("source_resolved_unbound_parent_paths", [])
+        == sorted(EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS),
+        f"{runtime_scene}: DryingBox panel must be accounted for by source GeomSubset coverage: {material_report}",
     )
     _assert(
         material_report.get("unexpected_unbound_mesh_paths", []) == [],
         f"{runtime_scene}: DryingBox has unexpected unbound meshes: {material_report}",
     )
     _assert(
-        material_report["material_status"] == "mixed_native_and_fallback",
-        f"{runtime_scene}: DryingBox material status must remain mixed_native_and_fallback: {material_report}",
+        material_report["material_status"] == "resolved_material_with_local_overrides",
+        f"{runtime_scene}: DryingBox material status must be package-closed with local overrides: {material_report}",
     )
     _validate_task_semantics()
     _validate_camera_configs()

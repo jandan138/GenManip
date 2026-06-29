@@ -460,6 +460,39 @@ def test_material_closure_status_keeps_explicit_aluminum_waiver_open():
     assert "ALUMINUM_REMOTE_MDL_001" in report["open_waiver_ids"]
 
 
+def test_material_closure_status_accepts_wrapper_local_overrides_without_native_claim():
+    report = render_diag.classify_runtime_material_closure(
+        {
+            "remote_aluminum_disposition": "local_mirror",
+            "material_closure_kept_open": False,
+            "native_material_closure_open": True,
+            "native_material_closure_reason": "wrapper_local_material_overrides_present",
+        },
+        runtime_material_readback={
+            "records": [
+                {
+                    "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+                    "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
+                    "compute_bound_material_valid": True,
+                }
+            ],
+            "fallback_surface_count": 0,
+            "blocked": False,
+        },
+    )
+
+    assert (
+        report["native_material_closure_status"]
+        == "resolved_material_with_local_overrides"
+    )
+    assert report["runtime_material_dependency_status"] == "closed_local_or_mirrored"
+    assert report["material_closure_eligible"] is True
+    assert report["native_material_closure_claim_allowed"] is False
+    assert report["native_material_closure_reason"] == (
+        "wrapper_local_material_overrides_present"
+    )
+
+
 def test_material_closure_status_requires_runtime_readback():
     report = render_diag.classify_runtime_material_closure(
         {
@@ -496,6 +529,28 @@ def test_material_closure_status_blocks_unresolved_runtime_material_records():
     assert report["native_material_closure_status"] == "blocked"
     assert report["runtime_material_dependency_status"] == "blocked"
     assert "runtime_material_binding_unresolved" in report["blockers"]
+
+
+def test_runtime_material_readback_allows_source_resolved_geomsubset_parent():
+    blocked, blockers = render_diag._runtime_material_readback_blocked(
+        {
+            "records": [
+                {
+                    "prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/panel",
+                    "compute_bound_material_valid": False,
+                    "source_resolved_parent_without_direct_bound_material": True,
+                    "displayColor_fallback_status": (
+                        "source_resolved_parent_with_geomsubsets"
+                    ),
+                }
+            ],
+            "fallback_surface_count": 0,
+            "blocked": False,
+        }
+    )
+
+    assert blocked is False
+    assert blockers == []
 
 
 def test_native_runtime_material_root_path_comes_from_stage4_waiver():
@@ -778,18 +833,18 @@ def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
     assets_manifest = {
         "asset_acceptance": {
             "material_closure": {
-                "material_status": "mixed_native_and_fallback",
+                "material_status": "resolved_material_with_local_overrides",
                 "aluminum_material_closure_claim_allowed": True,
+                "full_material_closure_claim_allowed": True,
                 "native_material_closure_claim_allowed": False,
                 "full_native_material_closure_claim_allowed": False,
                 "derived_counts": {
-                    "fallback_surface_count": 3,
-                    "explicit_material_waiver_count": 3,
+                    "fallback_surface_count": 0,
+                    "explicit_material_waiver_count": 0,
+                    "source_resolved_surface_count": 1,
+                    "wrapper_authored_material_count": 2,
                 },
-                "blockers": [
-                    "explicit_material_waiver_open",
-                    "fallback_surfaces_remain_after_aluminum_local_mirror",
-                ],
+                "blockers": [],
             }
         }
     }
@@ -811,18 +866,23 @@ def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
         command="conda run -p ENV python capture_eval_render_diagnostics.py --task level1_open_door",
     )
 
-    assert record["status"] == "BLOCKED"
+    assert record["status"] == "WARN"
     assert record["gate_status"]["task_runtime"] == "PASS"
     assert record["gate_status"]["evaluator_robot_contract"] == "PASS"
-    assert record["gate_status"]["material_closure"] == "BLOCKED"
+    assert record["gate_status"]["material_closure"] == "PASS"
     assert record["allowed_claims"]["lift2_contract_ready"] is True
     assert record["allowed_claims"]["task_runtime_ready"] is True
     assert record["allowed_claims"]["aluminum_material_closure_claim_allowed"] is True
+    assert record["allowed_claims"]["full_material_closure_claim_allowed"] is True
     assert record["blocked_claims"]["native_material_closure_claim_allowed"] is False
     assert record["blocked_claims"]["full_native_material_closure_claim_allowed"] is False
     assert record["blocked_claims"]["official_leaderboard_claim_allowed"] is False
     assert record["blocked_claims"]["policy_success_claim_allowed"] is False
+    assert record["material_closure"]["full_material_closure_claim_allowed"] is True
     assert record["material_closure"]["native_material_closure_claim_allowed"] is False
+    assert record["material_closure"]["derived_counts"][
+        "wrapper_authored_material_count"
+    ] == 2
     assert record["artifact_sha256"][str(diagnostics_path)] == hashlib.sha256(
         diagnostics_path.read_bytes()
     ).hexdigest()

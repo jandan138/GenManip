@@ -19,6 +19,8 @@ def _derive_counts(
     dependency_records: list[dict[str, Any]],
     fallback_surface_records: list[dict[str, Any]],
     waiver_records: list[dict[str, Any]],
+    source_resolved_surface_records: list[dict[str, Any]] | None = None,
+    authored_material_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     local_mirror_count = sum(
         1
@@ -40,7 +42,7 @@ def _derive_counts(
         for record in waiver_records
         if record.get("disposition") == "explicit_waiver"
     )
-    return {
+    counts = {
         "remote_unmirrored_unwaived_count": remote_unmirrored_unwaived_count,
         "remote_waiver_count": len(waiver_records) - explicit_material_waiver_count,
         "explicit_material_waiver_count": explicit_material_waiver_count,
@@ -50,6 +52,11 @@ def _derive_counts(
         ),
         "fallback_surface_count": len(fallback_surface_records),
     }
+    if source_resolved_surface_records is not None:
+        counts["source_resolved_surface_count"] = len(source_resolved_surface_records)
+    if authored_material_records is not None:
+        counts["wrapper_authored_material_count"] = len(authored_material_records)
+    return counts
 
 
 def _derive_blockers(
@@ -82,10 +89,14 @@ def assert_material_claims_are_derived(report: dict[str, Any]) -> None:
         dependency_records = report.get("dependency_records") or []
         fallback_surface_records = report.get("fallback_surface_records") or []
         waiver_records = report.get("waiver_records") or []
+        source_resolved_surface_records = report.get("source_resolved_surface_records")
+        authored_material_records = report.get("authored_material_records")
         counts = _derive_counts(
             dependency_records=dependency_records,
             fallback_surface_records=fallback_surface_records,
             waiver_records=waiver_records,
+            source_resolved_surface_records=source_resolved_surface_records,
+            authored_material_records=authored_material_records,
         )
         dependency_evidence_missing = not bool(dependency_records)
     else:
@@ -97,6 +108,9 @@ def assert_material_claims_are_derived(report: dict[str, Any]) -> None:
         int(counts.get("explicit_material_waiver_count") or 0),
         int(counts.get("unsupported_dependency_resolution_mode_count") or 0),
         int(counts.get("fallback_surface_count") or 0),
+    )
+    wrapper_authored_material_count = int(
+        counts.get("wrapper_authored_material_count") or 0
     )
     blockers = report.get("blockers") or []
     overclaimed = any(
@@ -111,6 +125,20 @@ def assert_material_claims_are_derived(report: dict[str, Any]) -> None:
         any(blocker_counts) or blockers or dependency_evidence_missing
     ):
         raise AssertionError("full material closure overclaim: blockers remain")
+    if (
+        wrapper_authored_material_count
+        and report.get("full_native_material_closure_claim_allowed") is True
+    ):
+        raise AssertionError(
+            "full material closure overclaim: wrapper-authored materials are not native"
+        )
+    if (
+        wrapper_authored_material_count
+        and report.get("native_material_closure_claim_allowed") is True
+    ):
+        raise AssertionError(
+            "native material closure overclaim: wrapper-authored materials are not native"
+        )
 
 
 def derive_material_closure_claims(
@@ -119,14 +147,28 @@ def derive_material_closure_claims(
     dependency_records: list[dict[str, Any]],
     fallback_surface_records: list[dict[str, Any]],
     waiver_records: list[dict[str, Any]],
+    source_resolved_surface_records: list[dict[str, Any]] | None = None,
+    authored_material_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     dependency_records = deepcopy(dependency_records)
     fallback_surface_records = deepcopy(fallback_surface_records)
     waiver_records = deepcopy(waiver_records)
+    source_resolved_surface_records = (
+        deepcopy(source_resolved_surface_records)
+        if source_resolved_surface_records is not None
+        else None
+    )
+    authored_material_records = (
+        deepcopy(authored_material_records)
+        if authored_material_records is not None
+        else None
+    )
     counts = _derive_counts(
         dependency_records=dependency_records,
         fallback_surface_records=fallback_surface_records,
         waiver_records=waiver_records,
+        source_resolved_surface_records=source_resolved_surface_records,
+        authored_material_records=authored_material_records,
     )
     blockers = _derive_blockers(
         counts["remote_unmirrored_unwaived_count"],
@@ -140,24 +182,38 @@ def derive_material_closure_claims(
         and record.get("resolution_mode") == "local_mirror"
         for record in dependency_records
     )
-    full_allowed = (
+    dependency_records_resolved = (
         counts["remote_unmirrored_unwaived_count"] == 0
         and counts["remote_waiver_count"] == 0
-        and counts["explicit_material_waiver_count"] == 0
-        and counts["fallback_surface_count"] == 0
         and counts["unsupported_dependency_resolution_mode_count"] == 0
         and bool(dependency_records)
         and counts["local_mirror_count"] == len(dependency_records)
     )
-
-    material_status = (
-        "resolved_native_material" if full_allowed else "mixed_native_and_fallback"
+    material_closure_allowed = (
+        dependency_records_resolved
+        and counts["explicit_material_waiver_count"] == 0
+        and counts["fallback_surface_count"] == 0
     )
+    wrapper_authored_material_count = int(
+        counts.get("wrapper_authored_material_count") or 0
+    )
+    native_full_allowed = material_closure_allowed and wrapper_authored_material_count == 0
+
+    if native_full_allowed:
+        material_status = "resolved_native_material"
+    elif material_closure_allowed:
+        material_status = "resolved_material_with_local_overrides"
+    else:
+        material_status = "mixed_native_and_fallback"
     native_material_closure_reason = (
-        None if full_allowed else blockers[0]
+        None
+        if native_full_allowed
+        else "wrapper_local_material_overrides_present"
+        if material_closure_allowed and wrapper_authored_material_count
+        else blockers[0]
     )
 
-    return {
+    report = {
         "schema_version": 1,
         "asset_id": asset_id,
         "material_status": material_status,
@@ -166,10 +222,18 @@ def derive_material_closure_claims(
         "waiver_records": waiver_records,
         "derived_counts": counts,
         "blockers": blockers,
-        "closure_claim_allowed": full_allowed,
+        "closure_claim_allowed": material_closure_allowed,
         "aluminum_material_closure_claim_allowed": aluminum_local,
-        "native_material_closure_claim_allowed": full_allowed,
-        "full_native_material_closure_claim_allowed": full_allowed,
+        "native_material_closure_claim_allowed": native_full_allowed,
+        "full_native_material_closure_claim_allowed": native_full_allowed,
         "native_material_closure_reason": native_material_closure_reason,
-        "forbidden_claims": [] if full_allowed else ["full_native_material_closure"],
+        "forbidden_claims": (
+            [] if native_full_allowed else ["full_native_material_closure"]
+        ),
     }
+    if source_resolved_surface_records is not None:
+        report["source_resolved_surface_records"] = source_resolved_surface_records
+    if authored_material_records is not None:
+        report["authored_material_records"] = authored_material_records
+        report["full_material_closure_claim_allowed"] = material_closure_allowed
+    return report
