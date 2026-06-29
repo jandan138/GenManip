@@ -385,3 +385,253 @@ def expand_local_mdl_dependencies(
                 )
             )
     return records
+
+
+def derive_required_prim_paths(
+    manifest: dict[str, Any],
+    task_config: dict[str, Any],
+) -> list[str]:
+    paths: list[str] = []
+    runtime_asset = manifest.get("drying_box_runtime_asset") or {}
+    wrapper = runtime_asset.get("wrapper_prim_path")
+    if not wrapper:
+        for stage in (manifest.get("asset_acceptance") or {}).get(
+            "acceptance_stages", []
+        ):
+            evidence = stage.get("evidence") or {}
+            wrapper = evidence.get("wrapper_prim_path")
+            if wrapper:
+                break
+    if not wrapper:
+        wrapper = (manifest.get("wrapper_prim_paths") or {}).get("obj_DryingBox_01")
+    if wrapper:
+        paths.extend([wrapper, f"{wrapper}/Looks"])
+    handle = (manifest.get("articulation_part_paths") or {}).get(
+        "obj_DryingBox_01_handle"
+    )
+    if handle:
+        paths.append(handle)
+    joint = task_config.get("metric_joint_path") or task_config.get("joint_path")
+    if joint:
+        paths.append(joint)
+    return list(dict.fromkeys(paths))
+
+
+def _load_pxr_modules():
+    try:
+        from pxr import Sdf, Usd, UsdUtils  # type: ignore
+    except Exception as exc:
+        return None, None, None, exc
+    return Sdf, Usd, UsdUtils, None
+
+
+def _record_from_asset_value(
+    value: Any,
+    *,
+    dependency_type: str,
+    assets_dir: Path,
+    mdl_search_paths: list[Path],
+    builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+) -> RuntimeDependencyRecord | None:
+    if not hasattr(value, "path"):
+        return None
+    authored = str(value.path)
+    resolved = getattr(value, "resolvedPath", None)
+    resolved_path = Path(str(resolved)) if resolved else None
+    if resolved_path is None and authored.endswith(".mdl"):
+        resolved_path = _resolve_mdl_reference(
+            authored,
+            current_dir=assets_dir,
+            search_paths=mdl_search_paths,
+        )
+    return classify_runtime_dependency(
+        authored_value=authored,
+        resolved_path=resolved_path,
+        dependency_type=dependency_type,
+        assets_dir=assets_dir,
+        builtin_allowlist_roots=builtin_allowlist_roots,
+    )
+
+
+def _asset_path_values(value: Any, Sdf: Any) -> list[Any]:
+    if isinstance(value, Sdf.AssetPath):
+        return [value]
+    if isinstance(value, (str, bytes)):
+        return []
+    try:
+        iterator = iter(value)
+    except TypeError:
+        return []
+    values: list[Any] = []
+    for item in iterator:
+        values.extend(_asset_path_values(item, Sdf))
+    return values
+
+
+def iter_stage_asset_path_values(stage: Any, Sdf: Any) -> list[tuple[str, Any]]:
+    records: list[tuple[str, Any]] = []
+    for prim in stage.Traverse():
+        for key in prim.GetAllMetadata():
+            for value in _asset_path_values(prim.GetMetadata(key), Sdf):
+                records.append((f"{prim.GetPath()}:metadata:{key}", value))
+        for attr in prim.GetAttributes():
+            for value in _asset_path_values(attr.Get(), Sdf):
+                records.append((f"{attr.GetPath()}:value", value))
+            for key in attr.GetAllMetadata():
+                for value in _asset_path_values(attr.GetMetadata(key), Sdf):
+                    records.append((f"{attr.GetPath()}:metadata:{key}", value))
+        for rel in prim.GetRelationships():
+            for key in rel.GetAllMetadata():
+                for value in _asset_path_values(rel.GetMetadata(key), Sdf):
+                    records.append((f"{rel.GetPath()}:metadata:{key}", value))
+    return records
+
+
+def _expand_mdl_records_from_dependency(
+    *,
+    record: RuntimeDependencyRecord,
+    assets_dir: Path,
+    mdl_search_paths: list[Path],
+    builtin_allowlist_roots: tuple[Path, ...],
+) -> list[RuntimeDependencyRecord]:
+    candidate = record.resolved_path or record.authored_value
+    if not candidate.endswith(".mdl"):
+        return []
+    resolved: Path | None = Path(candidate)
+    if not resolved.is_absolute():
+        resolved = _resolve_mdl_reference(
+            candidate,
+            current_dir=assets_dir,
+            search_paths=mdl_search_paths,
+        )
+    if resolved is None or not resolved.exists():
+        return []
+    return expand_local_mdl_dependencies(
+        mdl_path=resolved,
+        assets_dir=assets_dir,
+        mdl_search_paths=mdl_search_paths,
+        builtin_allowlist_roots=builtin_allowlist_roots,
+    )
+
+
+def _dependency_item_to_path(item: Any) -> str:
+    identifier = getattr(item, "identifier", None)
+    if identifier:
+        return str(identifier)
+    path = getattr(item, "path", None)
+    if path:
+        return str(path)
+    return str(item)
+
+
+def run_child_pxr_compose(
+    *,
+    runtime_scene: Path,
+    assets_dir: Path,
+    required_prim_paths: list[str],
+    environment_report: dict[str, Any],
+    builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+) -> dict[str, Any]:
+    Sdf, Usd, UsdUtils, import_error = _load_pxr_modules()
+    if import_error is not None:
+        return {
+            "status": BLOCKED,
+            "runtime": {
+                "composition_ok": False,
+                "error": f"{type(import_error).__name__}: {import_error}",
+            },
+        }
+    try:
+        stage = Usd.Stage.Open(str(runtime_scene))
+        if stage is None:
+            raise RuntimeError(f"Usd.Stage.Open returned None for {runtime_scene}")
+        stage.Load()
+    except Exception as exc:
+        return {
+            "status": FAIL,
+            "runtime": {
+                "composition_ok": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        }
+
+    missing = [path for path in required_prim_paths if not stage.GetPrimAtPath(path)]
+    records: list[RuntimeDependencyRecord] = []
+    mdl_search_paths = [
+        Path(path)
+        for path in environment_report.get("effective_mdl_system_path_entries", [])
+    ]
+    try:
+        layers, assets, unresolved = UsdUtils.ComputeAllDependencies(
+            str(runtime_scene)
+        )
+    except Exception:
+        layers, assets, unresolved = [], [], []
+    for item in list(layers) + list(assets) + list(unresolved):
+        authored = _dependency_item_to_path(item)
+        record = classify_runtime_dependency(
+            authored_value=authored,
+            resolved_path=Path(authored) if Path(authored).is_absolute() else None,
+            dependency_type="usd_dependency",
+            assets_dir=assets_dir,
+            builtin_allowlist_roots=builtin_allowlist_roots,
+        )
+        records.append(record)
+        records.extend(
+            _expand_mdl_records_from_dependency(
+                record=record,
+                assets_dir=assets_dir,
+                mdl_search_paths=mdl_search_paths,
+                builtin_allowlist_roots=builtin_allowlist_roots,
+            )
+        )
+    for owner, asset_value in iter_stage_asset_path_values(stage, Sdf):
+        record = _record_from_asset_value(
+            asset_value,
+            dependency_type=f"asset_path:{owner}",
+            assets_dir=assets_dir,
+            mdl_search_paths=mdl_search_paths,
+            builtin_allowlist_roots=builtin_allowlist_roots,
+        )
+        if record is None:
+            continue
+        records.append(record)
+        records.extend(
+            _expand_mdl_records_from_dependency(
+                record=record,
+                assets_dir=assets_dir,
+                mdl_search_paths=mdl_search_paths,
+                builtin_allowlist_roots=builtin_allowlist_roots,
+            )
+        )
+    counts = summarize_dependency_records(records)
+    status = (
+        FAIL
+        if missing
+        or any(
+            counts.get(key, 0)
+            for key in (
+                "remote_uri_count",
+                "user_cache_path_count",
+                "unauthorized_outside_sandbox_runtime_path_count",
+            )
+        )
+        or environment_report.get("non_allowlisted_search_path_count", 0)
+        else PASS
+    )
+    return {
+        "status": status,
+        "runtime": {
+            "runtime_scene": str(runtime_scene),
+            "composition_ok": True,
+            "required_prim_records": [
+                {"prim_path": path, "exists": path not in missing}
+                for path in required_prim_paths
+            ],
+            "missing_required_prim_paths": missing,
+            "resolved_runtime_dependency_records": [
+                record.__dict__ for record in records
+            ],
+            **counts,
+        },
+    }

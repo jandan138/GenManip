@@ -243,3 +243,137 @@ def test_expand_local_mdl_dependencies_rejects_nested_remote_texture(tmp_path):
 
     counts = probe.summarize_dependency_records(records)
     assert counts["remote_uri_count"] == 1
+
+
+def test_derive_required_prims_uses_wrapper_fallback_order():
+    manifest = {
+        "drying_box_runtime_asset": {
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+        },
+        "articulation_part_paths": {
+            "obj_DryingBox_01_handle": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+            )
+        },
+    }
+    task_config = {
+        "metric_joint_path": (
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint"
+        )
+    }
+
+    records = probe.derive_required_prim_paths(manifest, task_config)
+
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01" in records
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle" in records
+    assert (
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint"
+        in records
+    )
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks" in records
+
+
+def test_child_pxr_compose_passes_tiny_usd(tmp_path):
+    scene = tmp_path / "assets/scene.usda"
+    _write(
+        scene,
+        b'''#usda 1.0
+def Xform "World"
+{
+    def Xform "labutopia_level1_poc"
+    {
+        def Xform "obj_obj_DryingBox_01"
+        {
+            def Xform "handle" {}
+            def Scope "Looks" {}
+            def PhysicsRevoluteJoint "RevoluteJoint" {}
+        }
+    }
+}
+''',
+    )
+
+    report = probe.run_child_pxr_compose(
+        runtime_scene=scene,
+        assets_dir=tmp_path / "assets",
+        required_prim_paths=[
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/RevoluteJoint",
+            "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks",
+        ],
+        environment_report={
+            "non_allowlisted_search_path_count": 0,
+            "effective_mdl_system_path_entries": [str(tmp_path / "assets")],
+        },
+    )
+
+    assert report["status"] == "PASS"
+    assert report["runtime"]["composition_ok"] is True
+    assert report["runtime"]["missing_required_prim_paths"] == []
+    assert any(
+        record["resolved_path"] == str(scene)
+        and record["is_under_assets_dir"] is True
+        for record in report["runtime"]["resolved_runtime_dependency_records"]
+    )
+
+
+def test_child_pxr_compose_fails_missing_required_prim(tmp_path):
+    scene = tmp_path / "assets/scene.usda"
+    _write(scene, b'#usda 1.0\ndef Xform "World" {}\n')
+
+    report = probe.run_child_pxr_compose(
+        runtime_scene=scene,
+        assets_dir=tmp_path / "assets",
+        required_prim_paths=["/World/missing"],
+        environment_report={
+            "non_allowlisted_search_path_count": 0,
+            "effective_mdl_system_path_entries": [str(tmp_path / "assets")],
+        },
+    )
+
+    assert report["status"] == "FAIL"
+    assert report["runtime"]["missing_required_prim_paths"] == ["/World/missing"]
+
+
+def test_child_pxr_compose_resolves_relative_mdl_source_asset(tmp_path):
+    assets = tmp_path / "assets"
+    scene = assets / "scene.usda"
+    _write(
+        assets / "miscs/mdl/Aluminum_Anodized_Charcoal.mdl",
+        b"export material M() = material();",
+    )
+    _write(
+        scene,
+        b'''#usda 1.0
+def Xform "World"
+{
+    def Material "Looks"
+    {
+        def Shader "Shader"
+        {
+            uniform token info:implementationSource = "sourceAsset"
+            asset info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@
+        }
+    }
+}
+''',
+    )
+
+    report = probe.run_child_pxr_compose(
+        runtime_scene=scene,
+        assets_dir=assets,
+        required_prim_paths=["/World"],
+        environment_report={
+            "non_allowlisted_search_path_count": 0,
+            "effective_mdl_system_path_entries": [str(assets / "miscs/mdl")],
+        },
+    )
+
+    assert report["status"] == "PASS"
+    assert any(
+        record["authored_value"] == "Aluminum_Anodized_Charcoal.mdl"
+        and record["resolved_path"]
+        and record["resolved_path"].endswith("Aluminum_Anodized_Charcoal.mdl")
+        for record in report["runtime"]["resolved_runtime_dependency_records"]
+    )
