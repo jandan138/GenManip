@@ -154,3 +154,92 @@ def test_build_child_environment_rewrites_assets_and_cache_paths(
     assert report["non_allowlisted_search_path_count"] == 1
     assert report["original_overlay_search_path_count"] == 0
     assert report["user_cache_env_count"] == 0
+
+
+def test_classify_runtime_dependency_counts_remote_cache_outside_and_builtin(
+    tmp_path,
+):
+    sandbox_assets = tmp_path / "sandbox/assets"
+    sandbox_assets.mkdir(parents=True)
+
+    records = [
+        probe.classify_runtime_dependency(
+            authored_value="HTTPS://example.invalid/material.mdl",
+            resolved_path=None,
+            dependency_type="mdl",
+            assets_dir=sandbox_assets,
+            builtin_allowlist_roots=(Path("/isaac-sim/materials"),),
+        ),
+        probe.classify_runtime_dependency(
+            authored_value=str(tmp_path / ".cache/texture.png"),
+            resolved_path=tmp_path / ".cache/texture.png",
+            dependency_type="texture",
+            assets_dir=sandbox_assets,
+            builtin_allowlist_roots=(Path("/isaac-sim/materials"),),
+        ),
+        probe.classify_runtime_dependency(
+            authored_value="/cpfs/source/scene.usd",
+            resolved_path=Path("/cpfs/source/scene.usd"),
+            dependency_type="usd",
+            assets_dir=sandbox_assets,
+            builtin_allowlist_roots=(Path("/isaac-sim/materials"),),
+        ),
+        probe.classify_runtime_dependency(
+            authored_value="/isaac-sim/materials/Base.mdl",
+            resolved_path=Path("/isaac-sim/materials/Base.mdl"),
+            dependency_type="mdl",
+            assets_dir=sandbox_assets,
+            builtin_allowlist_roots=(Path("/isaac-sim/materials"),),
+        ),
+    ]
+
+    counts = probe.summarize_dependency_records(records)
+
+    assert counts["remote_uri_count"] == 1
+    assert counts["user_cache_path_count"] == 1
+    assert counts["unauthorized_outside_sandbox_runtime_path_count"] == 1
+    assert counts["allowlisted_builtin_runtime_path_count"] == 1
+
+
+def test_parse_mdl_dependencies_supports_quoted_module_and_textures(tmp_path):
+    mdl = tmp_path / "materials/root.mdl"
+    _write(
+        mdl,
+        b'''
+import "helper.mdl";
+import helper_module;
+import ::pkg::other_helper;
+export material Root() = material(
+    surface: material_surface(scattering: df::diffuse_reflection_bsdf(
+        tint: texture_2d("textures/base.png").mono))
+);
+''',
+    )
+
+    deps = probe.parse_mdl_dependency_values(mdl.read_text(encoding="utf-8"))
+
+    assert deps == [
+        ("mdl_import", "helper.mdl"),
+        ("mdl_import", "helper_module"),
+        ("mdl_import", "::pkg::other_helper"),
+        ("texture", "textures/base.png"),
+    ]
+
+
+def test_expand_local_mdl_dependencies_rejects_nested_remote_texture(tmp_path):
+    assets_dir = tmp_path / "assets"
+    _write(assets_dir / "root.mdl", b'import "helper.mdl";')
+    _write(
+        assets_dir / "helper.mdl",
+        b'texture_2d("https://example.invalid/t.png")',
+    )
+
+    records = probe.expand_local_mdl_dependencies(
+        mdl_path=assets_dir / "root.mdl",
+        assets_dir=assets_dir,
+        mdl_search_paths=[assets_dir],
+        builtin_allowlist_roots=(Path("/isaac-sim/materials"),),
+    )
+
+    counts = probe.summarize_dependency_records(records)
+    assert counts["remote_uri_count"] == 1

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 from typing import Any
 
@@ -15,6 +16,7 @@ PASS = "PASS"
 FAIL = "FAIL"
 BLOCKED = "BLOCKED"
 CACHE_MARKERS = ("/.cache/", "/ov/pkg/", "/kit/cache/")
+REMOTE_URI_PREFIXES = ("http://", "https://", "omniverse://", "s3://")
 BUILTIN_ALLOWLIST_ROOTS = (Path("/isaac-sim/materials"),)
 
 
@@ -216,3 +218,170 @@ def build_child_environment(
         "user_cache_env_count": pxr_cache + mdl_cache + user_cache,
     }
     return env, report
+
+
+@dataclass(frozen=True)
+class RuntimeDependencyRecord:
+    dependency_type: str
+    authored_value: str
+    resolved_path: str | None
+    is_remote_uri: bool
+    is_user_cache_path: bool
+    is_under_assets_dir: bool
+    is_allowlisted_builtin: bool
+    is_unauthorized_outside_sandbox: bool
+
+
+def _is_remote_uri(value: str) -> bool:
+    return value.lower().startswith(REMOTE_URI_PREFIXES)
+
+
+def _is_cache_path(value: str) -> bool:
+    return any(marker in value.lower() for marker in CACHE_MARKERS)
+
+
+def classify_runtime_dependency(
+    *,
+    authored_value: str,
+    resolved_path: Path | None,
+    dependency_type: str,
+    assets_dir: Path,
+    builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+) -> RuntimeDependencyRecord:
+    resolved_text = str(resolved_path) if resolved_path is not None else None
+    path_text = resolved_text or authored_value
+    path = Path(path_text) if path_text else None
+    under_assets = bool(
+        path and path.is_absolute() and _is_relative_to(path, assets_dir)
+    )
+    builtin = bool(
+        path
+        and path.is_absolute()
+        and any(_is_relative_to(path, root) for root in builtin_allowlist_roots)
+    )
+    remote = _is_remote_uri(authored_value) or bool(
+        resolved_text and _is_remote_uri(resolved_text)
+    )
+    cache = _is_cache_path(authored_value) or bool(
+        resolved_text and _is_cache_path(resolved_text)
+    )
+    outside = bool(path and path.is_absolute() and not under_assets and not builtin)
+    return RuntimeDependencyRecord(
+        dependency_type=dependency_type,
+        authored_value=authored_value,
+        resolved_path=resolved_text,
+        is_remote_uri=remote,
+        is_user_cache_path=cache,
+        is_under_assets_dir=under_assets,
+        is_allowlisted_builtin=builtin,
+        is_unauthorized_outside_sandbox=outside and not remote and not cache,
+    )
+
+
+def summarize_dependency_records(
+    records: list[RuntimeDependencyRecord],
+) -> dict[str, int]:
+    return {
+        "remote_uri_count": sum(record.is_remote_uri for record in records),
+        "user_cache_path_count": sum(record.is_user_cache_path for record in records),
+        "unauthorized_outside_sandbox_runtime_path_count": sum(
+            record.is_unauthorized_outside_sandbox for record in records
+        ),
+        "allowlisted_builtin_runtime_path_count": sum(
+            record.is_allowlisted_builtin for record in records
+        ),
+    }
+
+
+QUOTED_MDL_IMPORT_RE = re.compile(r'import\s+"([^"]+\.mdl)"\s*;')
+MODULE_MDL_IMPORT_RE = re.compile(
+    r"import\s+((?:::)?[A-Za-z_][A-Za-z0-9_:]*)\s*;"
+)
+TEXTURE_2D_RE = re.compile(r'texture_2d\s*\(\s*"([^"]+)"')
+
+
+def parse_mdl_dependency_values(text: str) -> list[tuple[str, str]]:
+    records: list[tuple[str, str]] = []
+    for value in QUOTED_MDL_IMPORT_RE.findall(text):
+        records.append(("mdl_import", value))
+    for value in MODULE_MDL_IMPORT_RE.findall(text):
+        if not value.endswith(".mdl"):
+            records.append(("mdl_import", value))
+    for value in TEXTURE_2D_RE.findall(text):
+        records.append(("texture", value))
+    return records
+
+
+def _resolve_mdl_reference(
+    value: str,
+    *,
+    current_dir: Path,
+    search_paths: list[Path],
+) -> Path | None:
+    if _is_remote_uri(value):
+        return None
+    candidate_values = [value]
+    if value.startswith("::"):
+        candidate_values.append(value.strip(":").replace("::", "/") + ".mdl")
+    elif not value.endswith(".mdl") and "/" not in value:
+        candidate_values.append(value + ".mdl")
+    for candidate_value in candidate_values:
+        candidate = Path(candidate_value)
+        if candidate.is_absolute() and candidate.exists():
+            return candidate
+        local = current_dir / candidate
+        if local.exists():
+            return local
+        for root in search_paths:
+            rooted = root / candidate
+            if rooted.exists():
+                return rooted
+    return None
+
+
+def expand_local_mdl_dependencies(
+    *,
+    mdl_path: Path,
+    assets_dir: Path,
+    mdl_search_paths: list[Path],
+    builtin_allowlist_roots: tuple[Path, ...] = BUILTIN_ALLOWLIST_ROOTS,
+    _seen: set[Path] | None = None,
+) -> list[RuntimeDependencyRecord]:
+    seen = set() if _seen is None else _seen
+    resolved_mdl = mdl_path.resolve()
+    if resolved_mdl in seen:
+        return []
+    seen.add(resolved_mdl)
+    text = mdl_path.read_text(encoding="utf-8")
+    records: list[RuntimeDependencyRecord] = []
+    for dependency_type, value in parse_mdl_dependency_values(text):
+        resolved = None
+        if dependency_type == "mdl_import":
+            resolved = _resolve_mdl_reference(
+                value,
+                current_dir=mdl_path.parent,
+                search_paths=mdl_search_paths,
+            )
+        elif not _is_remote_uri(value):
+            texture = Path(value)
+            resolved = texture if texture.is_absolute() else mdl_path.parent / texture
+        records.append(
+            classify_runtime_dependency(
+                authored_value=value,
+                resolved_path=resolved,
+                dependency_type=dependency_type,
+                assets_dir=assets_dir,
+                builtin_allowlist_roots=builtin_allowlist_roots,
+            )
+        )
+        if dependency_type == "mdl_import" and resolved and resolved.exists():
+            records.extend(
+                expand_local_mdl_dependencies(
+                    mdl_path=resolved,
+                    assets_dir=assets_dir,
+                    mdl_search_paths=mdl_search_paths,
+                    builtin_allowlist_roots=builtin_allowlist_roots,
+                    _seen=seen,
+                )
+            )
+    return records
