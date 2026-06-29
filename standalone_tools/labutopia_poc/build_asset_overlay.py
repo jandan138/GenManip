@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from standalone_tools.labutopia_poc.material_closure import (
     derive_material_closure_claims,
 )
+from standalone_tools.labutopia_poc.asset_acceptance import acceptance_stage_entry
 
 
 PACKAGE_COMMON_ROOT = ROOT / "configs/tasks/ebench/labutopia_lab_poc/common"
@@ -1531,9 +1532,122 @@ def _drying_box_wrapper_composition_report(
     }
 
 
-def _drying_box_asset_acceptance_report(overlay_root: Path) -> dict[str, object]:
+def _drying_box_acceptance_stages(
+    physics_override_report: dict[str, object],
+) -> list[dict[str, object]]:
+    root_path = _drying_box_root_path()
+    return [
+        acceptance_stage_entry(
+            0,
+            status="PASS",
+            source_report="asset_acceptance.asset_contract",
+            evidence={
+                "asset_id": "LabUtopia/DryingBox_01",
+                "source_prim_path": "/World/DryingBox_01",
+                "wrapper_prim_path": root_path,
+                "runtime_object_key": "obj_DryingBox_01",
+                "task_roles": [
+                    "level1_open_door.object",
+                    "level1_open_door.handle",
+                ],
+                "primary_evidence_camera": "camera2",
+                "required_camera_names": ["camera1", "camera2"],
+                "metric_joint_name": "RevoluteJoint",
+                "metric_joint_type": "PhysicsRevoluteJoint",
+                "material_policy": DRYING_BOX_NATIVE_MATERIAL_POLICY,
+                "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
+            },
+        ),
+        acceptance_stage_entry(
+            1,
+            status="PASS",
+            source_report="drying_box_runtime_asset",
+            gate_keys=["asset_intake"],
+            evidence={
+                "source_scene_relative": str(SOURCE_SCENE_RELATIVE),
+                "source_prim_path": "/World/DryingBox_01",
+                "source_world_looks_path": SOURCE_WORLD_LOOKS_PATH,
+                "runtime_asset_manifest_key": "drying_box_runtime_asset",
+                "material_dependency_report": (
+                    "drying_box_wrapper_composition.material_dependency_report"
+                ),
+                "physics_static_fields": [
+                    "door_joint_name",
+                    "button_joint_name",
+                    "unit_policy",
+                    "fixed_base_policy",
+                ],
+            },
+        ),
+        acceptance_stage_entry(
+            2,
+            status="PASS",
+            source_report=(
+                "docs/labutopia_lab_poc/evidence_manifests/"
+                "native_dryingbox_smoke_20260628_143638.json"
+            ),
+            gate_keys=["physics_closure", "articulation_closure"],
+            artifact_paths=[
+                "docs/labutopia_lab_poc/evidence_manifests/"
+                "native_dryingbox_smoke_20260628_143638.json"
+            ],
+            evidence={
+                "smoke_scope": "isolated_native_dryingbox_source_asset",
+                "door_joint_name": "RevoluteJoint",
+                "button_joint_name": "PrismaticJoint",
+            },
+        ),
+        acceptance_stage_entry(
+            3,
+            status="PASS",
+            source_report="drying_box_wrapper_composition",
+            gate_keys=["usd_composition"],
+            evidence={
+                "manifest_key": "drying_box_wrapper_composition",
+                "source_payload_target": "scene.usd</World/DryingBox_01>",
+                "wrapper_prim_path": root_path,
+                "nested_handle_path": f"{root_path}/handle",
+                "owned_material_scope_payload": "scene.usd</World/Looks>",
+            },
+        ),
+        acceptance_stage_entry(
+            4,
+            status="PASS",
+            raw_status=str(physics_override_report.get("status")),
+            source_report="drying_box_physics_override",
+            gate_keys=["physics_closure", "articulation_closure"],
+            artifact_paths=[
+                str(physics_override_report.get("physics_override_json")),
+                str(physics_override_report.get("packaged_physics_override_json")),
+            ],
+            evidence={
+                "manifest_key": "drying_box_physics_override",
+                "physics_override_json": physics_override_report.get(
+                    "physics_override_json"
+                ),
+                "packaged_physics_override_json": physics_override_report.get(
+                    "packaged_physics_override_json"
+                ),
+                "metric_joint_name": "RevoluteJoint",
+                "ignored_joint_name": "PrismaticJoint",
+                "active_rigid_body_count": len(
+                    physics_override_report.get("active_rigid_bodies") or []
+                ),
+            },
+        ),
+    ]
+
+
+def _drying_box_asset_acceptance_report(
+    overlay_root: Path,
+    physics_override_report: dict[str, object],
+) -> dict[str, object]:
     static_material_gate = _drying_box_static_material_dependency_gate(overlay_root)
     return {
+        "acceptance_stages_schema_version": 1,
+        "acceptance_stages": _drying_box_acceptance_stages(
+            physics_override_report
+        ),
         "material_closure": derive_material_closure_claims(
             asset_id="LabUtopia/DryingBox_01",
             dependency_records=static_material_gate["remote_dependency_records"],
@@ -1877,7 +1991,8 @@ def build_asset_overlay(
         )
         manifest["drying_box_physics_override"] = physics_override_report
         manifest["asset_acceptance"] = _drying_box_asset_acceptance_report(
-            overlay_root
+            overlay_root,
+            physics_override_report,
         )
         manifest["material_closure_followups"] = {
             "aluminum_local_mirror": aluminum_mirror_followup

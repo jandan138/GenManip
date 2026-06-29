@@ -832,6 +832,48 @@ def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
     }
     assets_manifest = {
         "asset_acceptance": {
+            "acceptance_stages": [
+                {
+                    "stage_index": 0,
+                    "stage_id": "asset_contract_declaration",
+                    "stage_name": "Asset Contract Declaration",
+                    "status": "PASS",
+                    "evidence": {"source_prim_path": "/World/DryingBox_01"},
+                },
+                {
+                    "stage_index": 1,
+                    "stage_id": "static_usd_physics_audit",
+                    "stage_name": "Static USD/Physics Audit",
+                    "status": "PASS",
+                    "evidence": {"manifest_key": "drying_box_runtime_asset"},
+                },
+                {
+                    "stage_index": 2,
+                    "stage_id": "isolated_native_physics_smoke",
+                    "stage_name": "Isolated Native Physics Smoke",
+                    "status": "PASS",
+                    "evidence": {
+                        "evidence_manifest": (
+                            "docs/labutopia_lab_poc/evidence_manifests/"
+                            "native_dryingbox_smoke_20260628_143638.json"
+                        )
+                    },
+                },
+                {
+                    "stage_index": 3,
+                    "stage_id": "ebench_wrapper_composition",
+                    "stage_name": "EBench Wrapper Composition",
+                    "status": "PASS",
+                    "evidence": {"manifest_key": "drying_box_wrapper_composition"},
+                },
+                {
+                    "stage_index": 4,
+                    "stage_id": "additive_physics_articulation_override",
+                    "stage_name": "Additive Physics + Articulation Override",
+                    "status": "PASS",
+                    "evidence": {"manifest_key": "drying_box_physics_override"},
+                },
+            ],
             "material_closure": {
                 "material_status": "resolved_material_with_local_overrides",
                 "aluminum_material_closure_claim_allowed": True,
@@ -870,6 +912,33 @@ def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
     assert record["gate_status"]["task_runtime"] == "PASS"
     assert record["gate_status"]["evaluator_robot_contract"] == "PASS"
     assert record["gate_status"]["material_closure"] == "PASS"
+    acceptance_stages = record["acceptance_stages"]
+    assert [stage["stage_index"] for stage in acceptance_stages] == list(range(8))
+    stage_by_id = {stage["stage_id"]: stage for stage in acceptance_stages}
+    assert stage_by_id["task_runtime_eval_readback"]["status"] == "PASS"
+    assert (
+        stage_by_id["task_runtime_eval_readback"]["evidence"]["diagnostics_path"]
+        == str(diagnostics_path)
+    )
+    assert (
+        stage_by_id["evidence_package_claim_boundary"]["evidence"][
+            "allowed_claims"
+        ]["lift2_contract_ready"]
+        is True
+    )
+    assert (
+        stage_by_id["evidence_package_claim_boundary"]["evidence"][
+            "blocked_claims"
+        ]["pm_showcase_ready"]
+        is False
+    )
+    assert stage_by_id["evaluator_robot_contract"]["status"] == "PASS"
+    assert (
+        stage_by_id["evaluator_robot_contract"]["evidence"][
+            "local_official_baseline_style_contract_ready"
+        ]
+        is True
+    )
     assert record["allowed_claims"]["lift2_contract_ready"] is True
     assert record["allowed_claims"]["task_runtime_ready"] is True
     assert record["allowed_claims"]["aluminum_material_closure_claim_allowed"] is True
@@ -878,6 +947,21 @@ def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
     assert record["blocked_claims"]["full_native_material_closure_claim_allowed"] is False
     assert record["blocked_claims"]["official_leaderboard_claim_allowed"] is False
     assert record["blocked_claims"]["policy_success_claim_allowed"] is False
+    assert record["claim_boundary"]["blocked_claim_status"][
+        "pm_showcase_ready"
+    ] == {
+        "claim_allowed": False,
+        "blocked": True,
+    }
+    assert record["claim_boundary"]["blocked_claim_status"][
+        "official_leaderboard_claim_allowed"
+    ] == {
+        "claim_allowed": False,
+        "blocked": True,
+    }
+    assert record["claim_boundary"]["legacy_blocked_claim_allowed_flags"] == record[
+        "blocked_claims"
+    ]
     assert record["material_closure"]["full_material_closure_claim_allowed"] is True
     assert record["material_closure"]["native_material_closure_claim_allowed"] is False
     assert record["material_closure"]["derived_counts"][

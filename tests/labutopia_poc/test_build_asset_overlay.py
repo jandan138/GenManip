@@ -622,6 +622,37 @@ def test_manifest_contains_generic_asset_acceptance_material_closure(tmp_path):
 
     manifest_path = overlay_root / "manifests" / "labutopia_level1_poc.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    acceptance_stages = manifest["asset_acceptance"]["acceptance_stages"]
+    assert [stage["stage_index"] for stage in acceptance_stages] == [0, 1, 2, 3, 4]
+    assert [stage["stage_id"] for stage in acceptance_stages] == [
+        "asset_contract_declaration",
+        "static_usd_physics_audit",
+        "isolated_native_physics_smoke",
+        "ebench_wrapper_composition",
+        "additive_physics_articulation_override",
+    ]
+    stage0 = acceptance_stages[0]
+    assert stage0["status"] == "PASS"
+    assert stage0["evidence"]["source_prim_path"] == "/World/DryingBox_01"
+    assert (
+        stage0["evidence"]["wrapper_prim_path"]
+        == "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    )
+    assert stage0["evidence"]["task_roles"] == [
+        "level1_open_door.object",
+        "level1_open_door.handle",
+    ]
+    assert stage0["evidence"]["primary_evidence_camera"] == "camera2"
+    assert stage0["evidence"]["metric_joint_name"] == "RevoluteJoint"
+    assert (
+        stage0["evidence"]["material_policy"]
+        == "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides"
+    )
+    stage4 = acceptance_stages[4]
+    assert stage4["status"] == "PASS"
+    assert stage4["evidence"]["physics_override_json"].endswith(
+        "physics_override.json"
+    )
     material = manifest["asset_acceptance"]["material_closure"]
     assert material["asset_id"] == "LabUtopia/DryingBox_01"
     assert material["material_status"] == "resolved_material_with_local_overrides"

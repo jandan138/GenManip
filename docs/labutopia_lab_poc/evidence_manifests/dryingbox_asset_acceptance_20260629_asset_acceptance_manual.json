@@ -1,4 +1,277 @@
 {
+  "acceptance_stages": [
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "asset_id": "LabUtopia/DryingBox_01",
+        "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind_and_local_overrides",
+        "material_scope_policy": "preserve_owned_world_looks",
+        "metric_joint_name": "RevoluteJoint",
+        "metric_joint_type": "PhysicsRevoluteJoint",
+        "primary_evidence_camera": "camera2",
+        "required_camera_names": [
+          "camera1",
+          "camera2"
+        ],
+        "runtime_object_key": "obj_DryingBox_01",
+        "source_prim_path": "/World/DryingBox_01",
+        "task_roles": [
+          "level1_open_door.object",
+          "level1_open_door.handle"
+        ],
+        "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+      },
+      "gate_keys": [],
+      "source_report": "asset_acceptance.asset_contract",
+      "stage_id": "asset_contract_declaration",
+      "stage_index": 0,
+      "stage_name": "Asset Contract Declaration",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "material_dependency_report": "drying_box_wrapper_composition.material_dependency_report",
+        "physics_static_fields": [
+          "door_joint_name",
+          "button_joint_name",
+          "unit_policy",
+          "fixed_base_policy"
+        ],
+        "runtime_asset_manifest_key": "drying_box_runtime_asset",
+        "source_prim_path": "/World/DryingBox_01",
+        "source_scene_relative": "assets/chemistry_lab/lab_001/lab_001.usd",
+        "source_world_looks_path": "/World/Looks"
+      },
+      "gate_keys": [
+        "asset_intake"
+      ],
+      "source_report": "drying_box_runtime_asset",
+      "stage_id": "static_usd_physics_audit",
+      "stage_index": 1,
+      "stage_name": "Static USD/Physics Audit",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json"
+      ],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "button_joint_name": "PrismaticJoint",
+        "door_joint_name": "RevoluteJoint",
+        "smoke_scope": "isolated_native_dryingbox_source_asset"
+      },
+      "gate_keys": [
+        "physics_closure",
+        "articulation_closure"
+      ],
+      "source_report": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json",
+      "stage_id": "isolated_native_physics_smoke",
+      "stage_index": 2,
+      "stage_name": "Isolated Native Physics Smoke",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "manifest_key": "drying_box_wrapper_composition",
+        "nested_handle_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+        "owned_material_scope_payload": "scene.usd</World/Looks>",
+        "source_payload_target": "scene.usd</World/DryingBox_01>",
+        "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+      },
+      "gate_keys": [
+        "usd_composition"
+      ],
+      "source_report": "drying_box_wrapper_composition",
+      "stage_id": "ebench_wrapper_composition",
+      "stage_index": 3,
+      "stage_name": "EBench Wrapper Composition",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [
+        "saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror/physics_override.json",
+        "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/native_dryingbox_physics_override.json"
+      ],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "active_rigid_body_count": 4,
+        "ignored_joint_name": "PrismaticJoint",
+        "manifest_key": "drying_box_physics_override",
+        "metric_joint_name": "RevoluteJoint",
+        "packaged_physics_override_json": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Overlay/labutopia_level1_poc/assets/manifests/native_dryingbox_physics_override.json",
+        "physics_override_json": "saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror/physics_override.json"
+      },
+      "gate_keys": [
+        "physics_closure",
+        "articulation_closure"
+      ],
+      "raw_status": "passed",
+      "source_report": "drying_box_physics_override",
+      "stage_id": "additive_physics_articulation_override",
+      "stage_index": 4,
+      "stage_name": "Additive Physics + Articulation Override",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json"
+      ],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "camera_frame_count": 3,
+        "diagnostics_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json",
+        "native_eval_readback_ready": true,
+        "render_evidence_gate_status": "WARN",
+        "stage5_manifest_path": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json",
+        "task_render_accepted": true
+      },
+      "gate_keys": [
+        "task_runtime",
+        "render_evidence"
+      ],
+      "source_report": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json",
+      "stage_id": "task_runtime_eval_readback",
+      "stage_index": 5,
+      "stage_name": "Task Runtime + Eval Readback",
+      "status": "PASS"
+    },
+    {
+      "allowed_claim_keys": [
+        "task_runtime_ready",
+        "task_render_accepted",
+        "runtime_physics_stable",
+        "lift2_contract_ready",
+        "local_official_baseline_style_contract_ready",
+        "aluminum_material_closure_claim_allowed",
+        "full_material_closure_claim_allowed"
+      ],
+      "artifact_paths": [
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json",
+        "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png"
+      ],
+      "artifact_sha256": {
+        "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json": "22c57210c20bbbf1e9f404d73f3ce4929579883d8f539aefd0d78e03eaf0a749",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json": "39075c15162750e9653b84d4ff9f8bb1a3dacad6680bade402ca6f576cf8cebd",
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json": "3dc9a07d42a6013f80346bf94bb29c2367aac6a75bcd7a7b00545fc78521314a",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json": "023582943f9b376ff59589eb4e4278122904aff632d57abe2744b0d20d678fa5",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png": "30c8b45708daaa7260d44aeb1733967effc10d890e86d10a79032601b03ad75e",
+        "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png": "b4f58233c50859986c74141058b8635b877537b5127e7ee0dadc3191682794a8"
+      },
+      "blocked_claim_keys": [
+        "native_material_closure_claim_allowed",
+        "full_native_material_closure_claim_allowed",
+        "official_baseline_evaluable",
+        "official_leaderboard_claim_allowed",
+        "official_leaderboard_reproduction_claim_allowed",
+        "official_ebench_score_release_claim_allowed",
+        "policy_success_claim_allowed",
+        "pm_showcase_ready"
+      ],
+      "blockers": [],
+      "evidence": {
+        "allowed_claims": {
+          "aluminum_material_closure_claim_allowed": true,
+          "full_material_closure_claim_allowed": true,
+          "lift2_contract_ready": true,
+          "local_official_baseline_style_contract_ready": true,
+          "runtime_physics_stable": true,
+          "task_render_accepted": true,
+          "task_runtime_ready": true
+        },
+        "blocked_claims": {
+          "full_native_material_closure_claim_allowed": false,
+          "native_material_closure_claim_allowed": false,
+          "official_baseline_evaluable": false,
+          "official_ebench_score_release_claim_allowed": false,
+          "official_leaderboard_claim_allowed": false,
+          "official_leaderboard_reproduction_claim_allowed": false,
+          "pm_showcase_ready": false,
+          "policy_success_claim_allowed": false
+        },
+        "claim_boundary_status": "WARN",
+        "gate_status": {
+          "articulation_closure": "PASS",
+          "asset_intake": "PASS",
+          "evaluator_robot_contract": "PASS",
+          "material_closure": "PASS",
+          "physics_closure": "PASS",
+          "render_evidence": "WARN",
+          "task_runtime": "PASS",
+          "usd_composition": "PASS"
+        }
+      },
+      "gate_keys": [
+        "asset_intake",
+        "usd_composition",
+        "material_closure",
+        "physics_closure",
+        "articulation_closure",
+        "task_runtime",
+        "render_evidence",
+        "evaluator_robot_contract"
+      ],
+      "source_report": "asset_acceptance_record",
+      "stage_id": "evidence_package_claim_boundary",
+      "stage_index": 6,
+      "stage_name": "Evidence Package + Claim Boundary",
+      "status": "WARN"
+    },
+    {
+      "allowed_claim_keys": [],
+      "artifact_paths": [
+        "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json"
+      ],
+      "artifact_sha256": {},
+      "blocked_claim_keys": [],
+      "blockers": [],
+      "evidence": {
+        "lift2_contract_ready": true,
+        "local_official_baseline_style_contract_ready": true,
+        "official_baseline_evaluable": false,
+        "stage7_status": "Stage 7 passed"
+      },
+      "gate_keys": [
+        "evaluator_robot_contract"
+      ],
+      "source_report": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json",
+      "stage_id": "evaluator_robot_contract",
+      "stage_index": 7,
+      "stage_name": "Evaluator Robot Contract",
+      "status": "PASS"
+    }
+  ],
+  "acceptance_stages_schema_version": 1,
   "allowed_claims": {
     "aluminum_material_closure_claim_allowed": true,
     "full_material_closure_claim_allowed": true,
@@ -18,7 +291,7 @@
     "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png"
   ],
   "artifact_sha256": {
-    "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json": "fe5c9b1a66f2af58632ad6ad47e347906c9c6647a7880fba205473ae03078b56",
+    "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json": "22c57210c20bbbf1e9f404d73f3ce4929579883d8f539aefd0d78e03eaf0a749",
     "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_eval_20260629_asset_acceptance_manual.json": "39075c15162750e9653b84d4ff9f8bb1a3dacad6680bade402ca6f576cf8cebd",
     "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json": "3dc9a07d42a6013f80346bf94bb29c2367aac6a75bcd7a7b00545fc78521314a",
     "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json": "023582943f9b376ff59589eb4e4278122904aff632d57abe2744b0d20d678fa5",
@@ -36,6 +309,63 @@
     "official_leaderboard_reproduction_claim_allowed": false,
     "pm_showcase_ready": false,
     "policy_success_claim_allowed": false
+  },
+  "claim_boundary": {
+    "allowed_claims": {
+      "aluminum_material_closure_claim_allowed": true,
+      "full_material_closure_claim_allowed": true,
+      "lift2_contract_ready": true,
+      "local_official_baseline_style_contract_ready": true,
+      "runtime_physics_stable": true,
+      "task_render_accepted": true,
+      "task_runtime_ready": true
+    },
+    "blocked_claim_status": {
+      "full_native_material_closure_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "native_material_closure_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "official_baseline_evaluable": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "official_ebench_score_release_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "official_leaderboard_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "official_leaderboard_reproduction_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "pm_showcase_ready": {
+        "blocked": true,
+        "claim_allowed": false
+      },
+      "policy_success_claim_allowed": {
+        "blocked": true,
+        "claim_allowed": false
+      }
+    },
+    "compatibility_note": "Top-level blocked_claims is a legacy map of claim_allowed flags; use blocked_claim_status.*.blocked for direct blocked semantics.",
+    "legacy_blocked_claim_allowed_flags": {
+      "full_native_material_closure_claim_allowed": false,
+      "native_material_closure_claim_allowed": false,
+      "official_baseline_evaluable": false,
+      "official_ebench_score_release_claim_allowed": false,
+      "official_leaderboard_claim_allowed": false,
+      "official_leaderboard_reproduction_claim_allowed": false,
+      "pm_showcase_ready": false,
+      "policy_success_claim_allowed": false
+    },
+    "schema_version": 1
   },
   "command": "python standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py --config ebench/labutopia_lab_poc/franka_poc --task level1_open_door --run-id labutopia_native_open_door_eval_20260629_asset_acceptance_manual --output-dir saved/diagnostics/dryingbox_asset_acceptance_manual --native-asset-audit-json saved/diagnostics/native_dryingbox_material_audit_manual/audit.json --native-smoke-json docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json --native-physics-override-json saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror/physics_override.json --assets-manifest configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json --stage7-contract-manifest docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json --asset-acceptance-record-output docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json",
   "gate_status": {

@@ -18,10 +18,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from standalone_tools.labutopia_poc.asset_acceptance import (
+    ACCEPTANCE_STAGE_SCHEMA_VERSION,
+    acceptance_stage_entry,
+    assert_acceptance_stages_are_ordered,
+)
 
 NATIVE_DRYING_BOX_STRATEGY = "native_complex_with_additive_physics_override"
 NATIVE_DRYING_BOX_UID = "obj_DryingBox_01"
@@ -1114,6 +1119,159 @@ def _derive_acceptance_record_status(gate_status: dict[str, str]) -> str:
     return "PASS"
 
 
+def _package_acceptance_stage_or_placeholder(
+    package_stages: dict[int, dict[str, Any]],
+    stage_index: int,
+) -> dict[str, Any]:
+    if stage_index in package_stages:
+        return copy.deepcopy(package_stages[stage_index])
+    return acceptance_stage_entry(
+        stage_index,
+        status="WARN",
+        source_report="asset_acceptance.acceptance_stages",
+        evidence={"missing_from_assets_manifest": True},
+        blockers=["package_acceptance_stage_missing"],
+    )
+
+
+def _first_matching_artifact_path(
+    artifact_paths: list[str],
+    *needles: str,
+) -> str | None:
+    for path in artifact_paths:
+        if all(needle in path for needle in needles):
+            return path
+    return None
+
+
+def _build_acceptance_stages(
+    *,
+    assets_manifest: dict[str, Any],
+    stage5_manifest: dict[str, Any],
+    stage7_manifest: dict[str, Any],
+    diagnostics: dict[str, Any],
+    gate_status: dict[str, str],
+    allowed_claims: dict[str, bool],
+    blocked_claims: dict[str, bool],
+    artifact_paths: list[str],
+    artifact_sha256: dict[str, str],
+) -> list[dict[str, Any]]:
+    package_stage_list = (
+        (assets_manifest.get("asset_acceptance") or {}).get("acceptance_stages")
+        or []
+    )
+    package_stages = {
+        int(stage["stage_index"]): stage
+        for stage in package_stage_list
+        if isinstance(stage, dict) and "stage_index" in stage
+    }
+    stages = [
+        _package_acceptance_stage_or_placeholder(package_stages, stage_index)
+        for stage_index in range(5)
+    ]
+    diagnostics_path = _first_matching_artifact_path(
+        artifact_paths,
+        "diagnostics.json",
+    )
+    stage5_path = _first_matching_artifact_path(
+        artifact_paths,
+        "native_dryingbox_eval",
+    )
+    stage7_boundary = stage7_manifest.get("claim_boundary") or {}
+    stage5_camera_frames = stage5_manifest.get("camera_frames")
+    diagnostics_camera_frames = diagnostics.get("camera_frames")
+    camera_frames = (
+        stage5_camera_frames
+        if isinstance(stage5_camera_frames, list)
+        else diagnostics_camera_frames
+    )
+    stages.append(
+        acceptance_stage_entry(
+            5,
+            status=gate_status["task_runtime"],
+            source_report=stage5_path,
+            gate_keys=["task_runtime", "render_evidence"],
+            artifact_paths=[path for path in (diagnostics_path, stage5_path) if path],
+            evidence={
+                "diagnostics_path": diagnostics_path
+                or stage5_manifest.get("diagnostics_path"),
+                "stage5_manifest_path": stage5_path,
+                "native_eval_readback_ready": bool(
+                    diagnostics.get("native_eval_readback_ready")
+                    or stage5_manifest.get("native_eval_readback_ready")
+                ),
+                "task_render_accepted": allowed_claims["task_render_accepted"],
+                "render_evidence_gate_status": gate_status["render_evidence"],
+                "camera_frame_count": len(camera_frames or []),
+            },
+        )
+    )
+    record_status = _derive_acceptance_record_status(gate_status)
+    stages.append(
+        acceptance_stage_entry(
+            6,
+            status=record_status,
+            source_report="asset_acceptance_record",
+            gate_keys=list(gate_status),
+            artifact_paths=artifact_paths,
+            artifact_sha256=artifact_sha256,
+            allowed_claim_keys=list(allowed_claims),
+            blocked_claim_keys=list(blocked_claims),
+            evidence={
+                "allowed_claims": allowed_claims,
+                "blocked_claims": blocked_claims,
+                "gate_status": gate_status,
+                "claim_boundary_status": record_status,
+            },
+        )
+    )
+    stage7_path = _first_matching_artifact_path(
+        artifact_paths,
+        "native_dryingbox_stage7_lift2_contract",
+    )
+    stages.append(
+        acceptance_stage_entry(
+            7,
+            status=gate_status["evaluator_robot_contract"],
+            source_report=stage7_path,
+            gate_keys=["evaluator_robot_contract"],
+            artifact_paths=[stage7_path] if stage7_path else [],
+            evidence={
+                "lift2_contract_ready": allowed_claims["lift2_contract_ready"],
+                "local_official_baseline_style_contract_ready": allowed_claims[
+                    "local_official_baseline_style_contract_ready"
+                ],
+                "stage7_status": stage7_boundary.get("stage7_status"),
+                "official_baseline_evaluable": blocked_claims[
+                    "official_baseline_evaluable"
+                ],
+            },
+        )
+    )
+    assert_acceptance_stages_are_ordered(stages, required_indices=range(8))
+    return stages
+
+
+def _build_claim_boundary_report(
+    *,
+    allowed_claims: dict[str, bool],
+    blocked_claims: dict[str, bool],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "allowed_claims": allowed_claims,
+        "blocked_claim_status": {
+            key: {"claim_allowed": value, "blocked": not value}
+            for key, value in blocked_claims.items()
+        },
+        "legacy_blocked_claim_allowed_flags": blocked_claims,
+        "compatibility_note": (
+            "Top-level blocked_claims is a legacy map of claim_allowed flags; "
+            "use blocked_claim_status.*.blocked for direct blocked semantics."
+        ),
+    }
+
+
 def build_asset_acceptance_record(
     *,
     asset_id: str,
@@ -1211,6 +1369,17 @@ def build_asset_acceptance_record(
         ),
         "pm_showcase_ready": False,
     }
+    acceptance_stages = _build_acceptance_stages(
+        assets_manifest=assets_manifest,
+        stage5_manifest=stage5_manifest,
+        stage7_manifest=stage7_manifest,
+        diagnostics=diagnostics,
+        gate_status=gate_status,
+        allowed_claims=allowed_claims,
+        blocked_claims=blocked_claims,
+        artifact_paths=artifact_path_strings,
+        artifact_sha256=artifact_sha256,
+    )
     return {
         "schema_version": 1,
         "recorded_at_utc": recorded_at_utc,
@@ -1221,8 +1390,14 @@ def build_asset_acceptance_record(
         "run_id": diagnostics.get("run_id") or stage5_manifest.get("run_id"),
         "command": command,
         "gate_status": gate_status,
+        "acceptance_stages_schema_version": ACCEPTANCE_STAGE_SCHEMA_VERSION,
+        "acceptance_stages": acceptance_stages,
         "allowed_claims": allowed_claims,
         "blocked_claims": blocked_claims,
+        "claim_boundary": _build_claim_boundary_report(
+            allowed_claims=allowed_claims,
+            blocked_claims=blocked_claims,
+        ),
         "material_closure": {
             "material_status": material.get("material_status"),
             "derived_counts": material.get("derived_counts"),

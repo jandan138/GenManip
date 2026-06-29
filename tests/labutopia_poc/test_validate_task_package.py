@@ -568,6 +568,56 @@ def test_assets_manifest_rejects_missing_asset_acceptance(
         validate_task_package._validate_assets_manifest()
 
 
+def test_assets_manifest_rejects_missing_acceptance_stages(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    manifest["asset_acceptance"].pop("acceptance_stages", None)
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(
+        AssertionError,
+        match="missing asset_acceptance.acceptance_stages",
+    ):
+        validate_task_package._validate_assets_manifest()
+
+
+def test_assets_manifest_rejects_unordered_acceptance_stages(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    manifest["asset_acceptance"]["acceptance_stages"] = list(
+        reversed(manifest["asset_acceptance"]["acceptance_stages"])
+    )
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(
+        AssertionError,
+        match="acceptance_stages indices must be \\[0, 1, 2, 3, 4\\]",
+    ):
+        validate_task_package._validate_assets_manifest()
+
+
 def test_assets_manifest_rejects_full_material_closure_overclaim(
     tmp_path,
     monkeypatch,

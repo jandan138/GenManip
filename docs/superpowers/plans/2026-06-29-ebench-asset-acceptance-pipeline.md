@@ -8,18 +8,30 @@
 
 **Tech Stack:** Python 3.10, USD Python APIs (`pxr.Usd`, `pxr.UsdShade`, `pxr.UsdPhysics`, `pxr.UsdGeom`), Isaac Sim 4.1 runtime, GenManip/EBench task configs, pytest, JSON manifests, static Markdown/HTML docs.
 
+**Current Stage/Gate convention:** `Acceptance Stage` is execution order; `Gate` is claim status. `Stage 7` is the local Lift2 evaluator robot contract, while `Gate 7` remains render evidence. The two number systems do not map 1:1.
+
+**2026-06-29 update:** Stage 0-7 now has a shared machine-readable registry:
+
+- `standalone_tools/labutopia_poc/asset_acceptance.py` defines `ACCEPTANCE_STAGE_CONTRACT`, `acceptance_stage_entry()`, and `assert_acceptance_stages_are_ordered()`.
+- `configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json` records package-side Stage 0-4 in `asset_acceptance.acceptance_stages`.
+- `docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json` records final Stage 0-7 in `acceptance_stages`.
+- `gate_status` remains the backward-compatible claim summary and must not replace `acceptance_stages`.
+- `blocked_claims` remains a legacy claim-allowed map; new consumers should read `claim_boundary.blocked_claim_status.*.blocked`.
+
 ---
 
 ## File Map
 
 | File | Responsibility |
 | --- | --- |
+| `standalone_tools/labutopia_poc/asset_acceptance.py` | Shared Stage 0-7 registry and ordered-stage validator. |
 | `standalone_tools/labutopia_poc/material_closure.py` | New reusable material dependency, binding, fallback, waiver, and claim derivation module. |
+| `tests/labutopia_poc/test_asset_acceptance_contract.py` | Unit tests for Stage 0-7 ordering and ids. |
 | `tests/labutopia_poc/test_material_closure_contract.py` | New unit tests for material closure positive and negative cases. |
-| `standalone_tools/labutopia_poc/build_asset_overlay.py` | Emit `asset_acceptance.material_closure` while keeping current Aluminum compatibility fields. |
-| `standalone_tools/labutopia_poc/validate_task_package.py` | Validate generic `asset_acceptance` fields and reject overclaims. |
+| `standalone_tools/labutopia_poc/build_asset_overlay.py` | Emit `asset_acceptance.acceptance_stages` and `asset_acceptance.material_closure` while keeping current Aluminum compatibility fields. |
+| `standalone_tools/labutopia_poc/validate_task_package.py` | Validate generic `asset_acceptance` stage/material fields and reject overclaims. |
 | `tests/labutopia_poc/test_validate_task_package.py` | Add package-level negative tests for stale bindings, fallback overclaim, and missing mirror evidence. |
-| `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py` | Include `asset_acceptance` claim boundary in eval-path diagnostics. |
+| `standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py` | Include Stage 0-7 `acceptance_stages` and claim boundary in eval-path diagnostics. |
 | `docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md` | Canonical PM/engineering SOP. |
 | `docs/labutopia_lab_poc/evidence_manifests/README.md` | Machine-readable manifest field guide. |
 | `docs/records/2026-06-22-labutopia-ebench-weekly-report.md` | PM status entry and link to the SOP. |
@@ -526,7 +538,7 @@ Run:
 python -m pytest tests/labutopia_poc/test_material_closure_contract.py tests/labutopia_poc/test_build_asset_overlay.py tests/labutopia_poc/test_validate_task_package.py -q
 ```
 
-Expected: PASS. Remove the `xfail` only when `fallback_surface_count=0`.
+Expected: PASS. Remove the `xfail` only when package fallback surfaces are zero and full native material closure is still gated by source-native material provenance, not by fallback count alone.
 
 - [ ] **Step 6: Commit**
 
@@ -678,7 +690,7 @@ Run:
 rg -n "official leaderboard|policy success|full native material closure|EBench Asset Acceptance Pipeline|asset_acceptance" docs configs/tasks/ebench/README.md
 ```
 
-Expected: docs consistently say local Lift2 contract is not official leaderboard, policy success is not proven, and full native material closure is only true after fallback surfaces are closed.
+Expected: docs consistently say local Lift2 contract is not official leaderboard, policy success is not proven, package material closure can pass with `fallback_surface_count=0`, and full native material closure is only true after wrapper-local authored materials have source-native provenance.
 
 - [ ] **Step 5: Commit final docs if needed**
 

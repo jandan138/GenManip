@@ -17,7 +17,9 @@ HTML 版产品汇报页：
 
 2026-06-29 资产验收规范补充：我们把上述经验整理成 `EBench Asset Acceptance Pipeline`。这不是“模型拿分流水线”，而是把外部 asset package 验收到 GenManip/EBench 可评链路里的 evidence-gated workflow：asset intake、USD composition、material closure、physics、articulation、task runtime、render evidence 和 Lift2-style evaluator contract 每一项都要有 manifest 证据。PM 周报以后只引用 `allowed_claims`，不能把 `diagnostic/WARN` 图、单项材质 mirror 或本地 contract pass 写成 full closure、policy success 或 official leaderboard 成绩。
 
-2026-06-29 Task 6 补充：`DryingBox_01` 已生成第一份 `asset_acceptance_record`，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：它明确写出哪些门已过、哪些话可以对外说、哪些话还不能说。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、`full_material_closure_claim_allowed=true`；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路、包级材质闭环和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“source-native full material closure 完成”。
+2026-06-29 `asset_acceptance_record` 补充：`DryingBox_01` 已生成第一份机器可读验收总表，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：`acceptance_stages` 按 Stage 0-7 记录“工程推进到哪一步”，`gate_status` 和 `allowed_claims/blocked_claims` 记录“哪些话可以汇报，哪些话必须拦住”；同时新增 `claim_boundary.blocked_claim_status`，让机器消费者直接读到 `blocked=true`，避免把历史兼容字段里的 `false` 读反。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、`full_material_closure_claim_allowed=true`；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路、包级材质闭环和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“source-native full material closure 完成”。
+
+术语边界也已收口：`Gate` 是质量/宣称分类，`Acceptance Stage` 是执行顺序。`Gate 7` 是 `Render Evidence Gate`，而 `Stage 7` 是 `Evaluator Robot Contract`；两者编号不一一对应。Stage 5 的图可以证明 eval-path readback 存在，但 PM showcase 是否可用仍要看 `render_evidence` gate 和 `pm_showcase_ready=false` 的边界。
 
 ## 本周完成了什么
 
@@ -238,7 +240,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
 | 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
-| 资产验收 Record | 已生成 reference asset 记录 | `DryingBox_01` 已生成 `asset_acceptance_record`：task runtime、runtime physics、evaluator robot contract、USD composition 和 package material closure 通过；overall 仍是 `WARN`，因为 Stage 5 图是诊断证据且官方榜单/策略成功/full native material closure 仍不可声明 |
+| 资产验收 Record | 已生成 reference asset 记录 | `DryingBox_01` 已生成 `asset_acceptance_record`：`acceptance_stages` 记录 Stage 0-7，`gate_status` 记录 claim gates；task runtime、runtime physics、evaluator robot contract、USD composition 和 package material closure 通过；overall 仍是 `WARN`，因为 Stage 5 图是诊断证据且官方榜单/策略成功/full native material closure 仍不可声明 |
 
 ## 验证证据
 
@@ -264,7 +266,7 @@ python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
 
 report display QA
-Playwright/Chromium desktop/tablet/mobile full-page audits passed; weekly report has 10 loaded images, tutorial has 4 loaded images, the DOM contains the old/P1/old-P2/P2-retake open_door evidence section, native gate pass wording, tutorial link, and official-baseline-not-yet-validated boundary text. Evidence: `/tmp/labutopia_native_retake_browser_review_20260624_final2/audit.json`, plus `weekly-desktop.png`, `weekly-tablet.png`, `weekly-mobile.png`, `tutorial-desktop.png`, `tutorial-tablet.png`, `tutorial-mobile.png`. This checks report display only, not official baseline evaluability.
+Chromium desktop/mobile screenshots passed for the updated weekly report. The DOM contains `acceptance_stages`, `Stage 0-7`, `gate_status`, `asset_acceptance_record`, and `claim_boundary.blocked_claim_status`; 11 local images and 41 local links resolve to files. Evidence: `/tmp/labutopia_stage_registry_browser_review_20260629/weekly-desktop.png`, `weekly-mobile.png`, and `weekly-mobile-tall.png`. This checks report display only, not official baseline evaluability.
 ```
 
 结果文件：
@@ -321,7 +323,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 polished showcase；material follow-up 已单独把 package material closure 收口。
 8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
 9. Material follow-up：package material closure 已通过：Aluminum local mirror、`panel` 原生 `GeomSubset` 覆盖、`button` 和 `Group/_900_1` wrapper-local material override 都有证据；full native material closure 仍未完成，因为 wrapper-local override 不能冒充 source-native material。
-10. Asset acceptance record：已生成 DryingBox reference record。下一步不是重开原来的 acceptance stages，而是在这个 reference record 基础上进入真实 Lift2 baseline/policy gate；如果后续需要论文级 source-native material provenance，再单独做 full native material closure follow-up。
+10. Asset acceptance record：已生成 DryingBox reference record，并已把 Stage 0-7 写成机器可读 `acceptance_stages`。下一步不是重开原来的 acceptance stages，而是在这个 reference record 基础上进入真实 Lift2 baseline/policy gate；如果后续需要论文级 source-native material provenance，再单独做 full native material closure follow-up。
 
 ## 新增调研和计划文档
 

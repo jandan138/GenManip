@@ -414,7 +414,7 @@
       <div>
         <p class="eyebrow">Weekly report · 2026-06-22 · PM-facing evidence page</p>
         <h1><span>LabUtopia x EBench</span><span>接入周报</span></h1>
-          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。2026-06-29 Stage 7 已通过本地 Lift2 official-baseline-style contract：composite asset root 已合入 <code>robot_usds/lift2</code>、<code>miscs/curobo/R5a</code> 和 LabUtopia overlay，三条 <code>lift2_candidate</code> 任务都能 reset/step/result_info/metric logging，三条 live probe 的 observation、camera、action、reward/success 和 logging schema 都是 <code>PASS</code>。随后 Aluminum 材质作为独立 follow-up 已做 local mirror，<code>panel</code> 通过原生 <code>GeomSubset material binding</code> 证明覆盖完整，<code>button</code> 和 <code>Group/_900_1</code> 采用 wrapper-local material override；Task 6 又生成了 DryingBox <code>asset_acceptance_record</code>。现在可以把 <code>DryingBox_01</code> 作为 EBench Asset Acceptance Pipeline 的 reference asset 来汇报：task runtime、runtime physics、package material closure、render readback 和 Lift2 contract 都有 allowed claims；但 official leaderboard、policy success 和 full native material closure 仍是 blocked claims。</p>
+          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。2026-06-29 Stage 7 已通过本地 Lift2 official-baseline-style contract：composite asset root 已合入 <code>robot_usds/lift2</code>、<code>miscs/curobo/R5a</code> 和 LabUtopia overlay，三条 <code>lift2_candidate</code> 任务都能 reset/step/result_info/metric logging，三条 live probe 的 observation、camera、action、reward/success 和 logging schema 都是 <code>PASS</code>。随后 Aluminum 材质作为独立 follow-up 已做 local mirror，<code>panel</code> 通过原生 <code>GeomSubset material binding</code> 证明覆盖完整，<code>button</code> 和 <code>Group/_900_1</code> 采用 wrapper-local material override；DryingBox <code>asset_acceptance_record</code> 现在已把 Stage 0-7 写进机器可读 <code>acceptance_stages</code>，并新增 <code>claim_boundary.blocked_claim_status</code> 防止机器消费者读反 blocked claims。现在可以把 <code>DryingBox_01</code> 作为 EBench Asset Acceptance Pipeline 的 reference asset 来汇报：task runtime、runtime physics、package material closure、render readback 和 Lift2 contract 都有 allowed claims；但 official leaderboard、policy success 和 full native material closure 仍是 blocked claims。</p>
         <div class="pill-row">
           <span class="pill ok">wiring smoke complete</span>
           <span class="pill ok">3/3 episodes finalized</span>
@@ -431,7 +431,7 @@
       </div>
       <aside class="hero-note">
         <b>给产品经理的一句话</b>
-	          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，Stage 5 证明原生复杂 <code>DryingBox_01</code> 已通过 Franka/native eval-path readback。Stage 7 现在也通过了本地 Lift2 official-baseline-style contract。Task 6 的 <code>asset_acceptance_record</code> 把话术边界写清楚：可以汇报“DryingBox 是 reference asset，本地 task runtime、render readback、physics、package material closure 和 Lift2 contract 可评”；但还不能汇报“official leaderboard 已复现”“策略已经成功完成任务”或“source-native full material closure 已完成”。
+	          LabUtopia 已经接入到 GenManip/EBench 的本地评测链路里，3 个 POC 任务能跑完并写结果；旧图的问题保留为对照，P1 图证明任务渲染门禁已过，Stage 5 证明原生复杂 <code>DryingBox_01</code> 已通过 Franka/native eval-path readback。Stage 7 现在也通过了本地 Lift2 official-baseline-style contract。<code>asset_acceptance_record</code> 把话术边界写清楚：<code>acceptance_stages</code> 记录 Stage 0-7 的执行顺序，<code>gate_status</code> 记录 claim gates，<code>claim_boundary.blocked_claim_status</code> 明确哪些 claim 被阻止；可以汇报“DryingBox 是 reference asset，本地 task runtime、render readback、physics、package material closure 和 Lift2 contract 可评”；但还不能汇报“official leaderboard 已复现”“策略已经成功完成任务”或“source-native full material closure 已完成”。
       </aside>
     </div>
   </header>
@@ -582,7 +582,7 @@
           <text x="646" y="72" font-size="18" font-weight="700" fill="#1f2933">Franka POC runtime</text>
           <text x="646" y="98" font-size="14" fill="#44566b">scene.usda + object map verified</text>
           <rect x="36" y="176" width="260" height="78" rx="8" fill="#fff2d8" stroke="#e3c178"/>
-          <text x="58" y="207" font-size="18" font-weight="700" fill="#906211">Lift2 contract gate</text>
+          <text x="58" y="207" font-size="18" font-weight="700" fill="#906211">Stage 7 contract</text>
           <text x="58" y="232" font-size="14" fill="#44566b">Stage 7 passed locally</text>
           <path d="M296 215 L395 215" stroke="#7f8fa3" stroke-width="3"/>
           <path d="M395 215 L384 208 M395 215 L384 222" stroke="#7f8fa3" stroke-width="3" fill="none"/>
@@ -600,7 +600,7 @@
       <div class="split" style="margin-top: 16px;">
         <div class="panel ok">
           <h3>已经闭环的部分</h3>
-          <p>LabUtopia 场景 overlay 能被 Franka POC 加载，相关对象名能通过运行时对象映射进入 evaluator。P1 后，静态 USD 坐标已经归一到工作区，门把手保留为干燥箱内部子路径，三任务任务渲染门禁也已通过。P2 后，<code>open_door</code> 已经改用 LabUtopia native complex <code>DryingBox_01</code>，并在 EBench eval readback 中看到原生箱体和 nested handle。Stage 7 后，<code>lift2_candidate</code> 三任务又通过本地 Lift2 contract。Task 6 进一步生成 <code>asset_acceptance_record</code>：<code>task_runtime</code>、<code>physics_closure</code>、<code>evaluator_robot_contract</code> 和 <code>usd_composition</code> 都是 <code>PASS</code>。这证明接入路径、静态资产组织、native DryingBox wrapper、任务读图链路和本地 Lift2 eval contract 已闭环；它不证明策略成功或官方榜单成绩。</p>
+          <p>LabUtopia 场景 overlay 能被 Franka POC 加载，相关对象名能通过运行时对象映射进入 evaluator。P1 后，静态 USD 坐标已经归一到工作区，门把手保留为干燥箱内部子路径，三任务任务渲染门禁也已通过。P2 后，<code>open_door</code> 已经改用 LabUtopia native complex <code>DryingBox_01</code>，并在 EBench eval readback 中看到原生箱体和 nested handle。Stage 7 后，<code>lift2_candidate</code> 三任务又通过本地 Lift2 contract。<code>asset_acceptance_record</code> 进一步记录：<code>acceptance_stages</code> 覆盖 Stage 0-7，<code>task_runtime</code>、<code>physics_closure</code>、<code>evaluator_robot_contract</code> 和 <code>usd_composition</code> 都是 <code>PASS</code>。这证明接入路径、静态资产组织、native DryingBox wrapper、任务读图链路和本地 Lift2 eval contract 已闭环；它不证明策略成功或官方榜单成绩。</p>
         </div>
         <div class="panel warn">
           <h3>仍要守住的边界</h3>
@@ -812,7 +812,7 @@
         </div>
         <div class="panel warn">
           <h3>渲染证据状态</h3>
-          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 native complex <code>DryingBox_01</code> eval-path readback。Stage 5 最终诊断为 <code>native_eval_readback_ready=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>metric_reads_door_revolute_joint=true</code>；Stage 7 进一步记录 <code>lift2_contract_ready=true</code>、<code>local_official_baseline_style_contract_ready=true</code>。Task 6 最新记录为 <code>task_render_accepted=true</code>、<code>task_runtime_ready=true</code>、<code>full_material_closure_claim_allowed=true</code>；但 PM 展示图和 full native material closure 仍不能自动宣称完成。</p>
+          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 native complex <code>DryingBox_01</code> eval-path readback。Stage 5 最终诊断为 <code>native_eval_readback_ready=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>metric_reads_door_revolute_joint=true</code>；Stage 7 进一步记录 <code>lift2_contract_ready=true</code>、<code>local_official_baseline_style_contract_ready=true</code>。最新 <code>asset_acceptance_record</code> 记录 <code>task_render_accepted=true</code>、<code>task_runtime_ready=true</code>、<code>full_material_closure_claim_allowed=true</code>；但 PM 展示图和 full native material closure 仍不能自动宣称完成。</p>
       </div>
 
       <div class="panel warn">
@@ -1012,7 +1012,7 @@
             <tr>
               <td>report display QA</td>
               <td class="status-ok"><code>passed</code></td>
-              <td>Playwright/Chromium 桌面、平板、移动端长截图已复跑通过；周报 10 张图片、教程 4 张图片全部加载，旧 P2 反例、P2 retake PASS、native gate 通过和 official baseline 未验证边界文案都存在，无请求失败、console error 或页面级横向溢出。证据在 <code>/tmp/labutopia_native_retake_browser_review_20260624_final2/audit.json</code>。</td>
+              <td>Chromium 桌面和移动端截图已复跑通过；页面 DOM 包含 <code>acceptance_stages</code>、<code>Stage 0-7</code>、<code>gate_status</code>、<code>asset_acceptance_record</code> 和 <code>claim_boundary.blocked_claim_status</code>，11 张本地图片和 41 个本地链接都能解析到文件。证据在 <code>/tmp/labutopia_stage_registry_browser_review_20260629/weekly-desktop.png</code>、<code>weekly-mobile.png</code> 和 <code>weekly-mobile-tall.png</code>。</td>
             </tr>
             <tr>
               <td>pytest</td>
@@ -1188,7 +1188,7 @@
             <tr>
               <td>Task runtime / render evidence</td>
               <td>任务必须能 reset、step、写 result，并且 evaluator camera 能拍到可读图。</td>
-              <td class="status-ok">Task 6 record 已确认 <code>task_runtime=PASS</code>、<code>task_render_accepted=true</code>；诊断图仍不能当 PM showcase。</td>
+              <td class="status-ok"><code>asset_acceptance_record</code> 已确认 <code>task_runtime=PASS</code>、<code>task_render_accepted=true</code>；诊断图仍不能当 PM showcase。</td>
             </tr>
             <tr>
               <td>Lift2 evaluator contract</td>
@@ -1247,7 +1247,7 @@
 	        <div class="milestone">
 	          <span class="tag">SOP</span>
 	          <h3>Asset acceptance pipeline</h3>
-	          <p>已把多 agent 评审结果整理成通用 SOP，并生成 DryingBox reference <code>asset_acceptance_record</code>。后续执行顺序是：抽通用 validator/schema，保持 source-native full material closure 边界，再进入真实 Lift2 baseline/policy gate。</p>
+	          <p>已把多 agent 评审结果整理成通用 SOP，并生成 DryingBox reference <code>asset_acceptance_record</code>。Stage 0-7 的通用 <code>acceptance_stages</code> registry 和 validator 已落地；后续执行顺序是保持 source-native full material closure 边界，再进入真实 Lift2 baseline/policy gate。</p>
 	        </div>
 	        <div class="milestone">
 	          <span class="tag">Showcase</span>
@@ -1346,7 +1346,7 @@
 		            </tr>
 		            <tr>
 		              <td>DryingBox asset acceptance record</td>
-		              <td>Task 6 机器证据：DryingBox reference asset 的 gate status、allowed claims、blocked claims、artifact hash 和验证命令。</td>
+		              <td>机器证据：DryingBox reference asset 的 Stage 0-7 <code>acceptance_stages</code>、gate status、allowed claims、blocked claims、artifact hash 和验证命令。</td>
 		              <td><a href="../../../labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json">打开</a></td>
 		            </tr>
 		            <tr>

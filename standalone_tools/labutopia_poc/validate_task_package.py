@@ -23,6 +23,9 @@ if str(ROOT) not in sys.path:
 from standalone_tools.labutopia_poc.material_closure import (
     assert_material_claims_are_derived,
 )
+from standalone_tools.labutopia_poc.asset_acceptance import (
+    assert_acceptance_stages_are_ordered,
+)
 
 
 TASK_ROOT = ROOT / "configs/tasks"
@@ -602,6 +605,7 @@ def _validate_assets_manifest() -> None:
         "primvars:displayColor" in runtime_scene_text,
         f"{runtime_scene}: missing task object displayColor overrides",
     )
+    _validate_asset_acceptance_stages(path, manifest)
     _validate_asset_acceptance_material_closure(path, manifest)
     _validate_drying_box_wrapper_composition(path, manifest, runtime_scene_text)
     _validate_drying_box_physics_override_report(path, manifest, runtime_scene)
@@ -635,6 +639,68 @@ def _validate_assets_manifest() -> None:
             manifest.get(common_key) == generated.get(generated_key),
             f"{path}: {common_key} differs from {generated_path}:{generated_key}",
         )
+
+
+def _validate_asset_acceptance_stages(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+) -> None:
+    asset_acceptance = manifest.get("asset_acceptance")
+    _assert(
+        isinstance(asset_acceptance, dict),
+        f"{manifest_path}: missing asset_acceptance",
+    )
+    stages = asset_acceptance.get("acceptance_stages")
+    _assert(
+        isinstance(stages, list),
+        f"{manifest_path}: missing asset_acceptance.acceptance_stages",
+    )
+    try:
+        assert_acceptance_stages_are_ordered(stages, required_indices=range(5))
+    except AssertionError as exc:
+        raise AssertionError(f"{manifest_path}: {exc}") from exc
+    stage_by_index = {stage["stage_index"]: stage for stage in stages}
+    runtime_asset = manifest.get("drying_box_runtime_asset")
+    _assert(
+        isinstance(runtime_asset, dict),
+        f"{manifest_path}: drying_box_runtime_asset must exist for Stage 0 validation",
+    )
+    stage0_evidence = stage_by_index[0].get("evidence")
+    _assert(
+        isinstance(stage0_evidence, dict),
+        f"{manifest_path}: Stage 0 evidence must be a mapping",
+    )
+    for key in ("source_prim_path", "wrapper_prim_path", "material_policy"):
+        _assert(
+            stage0_evidence.get(key) == runtime_asset.get(key),
+            f"{manifest_path}: Stage 0 {key} must match drying_box_runtime_asset",
+        )
+    _assert(
+        stage0_evidence.get("primary_evidence_camera") == "camera2"
+        and stage0_evidence.get("metric_joint_name") == "RevoluteJoint",
+        f"{manifest_path}: Stage 0 must declare camera2 and RevoluteJoint contract",
+    )
+    stage3_evidence = stage_by_index[3].get("evidence")
+    _assert(
+        isinstance(stage3_evidence, dict)
+        and stage3_evidence.get("manifest_key") == "drying_box_wrapper_composition",
+        f"{manifest_path}: Stage 3 must reference drying_box_wrapper_composition",
+    )
+    stage4_evidence = stage_by_index[4].get("evidence")
+    physics_report = manifest.get("drying_box_physics_override")
+    _assert(
+        isinstance(stage4_evidence, dict) and isinstance(physics_report, dict),
+        f"{manifest_path}: Stage 4 evidence and physics report must exist",
+    )
+    for key in ("physics_override_json", "packaged_physics_override_json"):
+        _assert(
+            stage4_evidence.get(key) == physics_report.get(key),
+            f"{manifest_path}: Stage 4 {key} must match drying_box_physics_override",
+        )
+    _assert(
+        stage4_evidence.get("metric_joint_name") == "RevoluteJoint",
+        f"{manifest_path}: Stage 4 must record the metric RevoluteJoint",
+    )
 
 
 def _validate_asset_acceptance_material_closure(
