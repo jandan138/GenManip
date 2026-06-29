@@ -174,7 +174,7 @@ Pass condition:
 
 Implementation rule: generic material shape checks live in `asset_acceptance_validation.py`. Asset-specific validators pass a `MaterialClosureExpectation` that includes expected claim flags and native provenance status; they should not reimplement provenance blocker path/count/status checks by hand.
 
-Offline dependency rule: package-local MDL/texture records use `offline_package_validation.py` for reusable local-file, SHA256, byte-count, remote URI, and waiver-claim checks. Asset-specific validators still own exact expected material names, expected texture sets, and task-specific claim boundaries.
+Offline dependency rule: package-local MDL/texture records, source-scene copied MDL/texture records, helper MDL imports, and `static_material_dependency_gate.remote_dependency_records` use `offline_package_validation.py` for reusable local-file, SHA256, byte-count, remote URI, allowed-root, and waiver-claim checks. Configured runtime path fields must resolve under the packaged `common/` root, the asset overlay root, or an explicit staged scene root such as `overlay_root / scene_usds/.../lab_001`, and must point to files that actually exist. Asset-specific validators still own exact expected material names, expected texture sets, and task-specific claim boundaries.
 
 Material states:
 

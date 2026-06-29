@@ -132,8 +132,13 @@ Reusable validator boundary:
 Offline dependency record checklist:
 
 - Runtime path fields must be package-relative, `{ASSETS_DIR}`-relative, or under an explicit staged overlay root.
+- Configured runtime path fields must resolve to files that actually exist; a missing `{ASSETS_DIR}/...` file or slashless `does_not_exist.mdl` value is a validation failure even if the path syntax is under an allowed root.
+- Remote URI checks are case-insensitive, so `HTTPS://...` is rejected the same way as `https://...`.
+- For source-scene copied records, `relative_path` is relative to the staged source scene directory, for example `overlay_root / scene_usds/labutopia/level1_poc/lab_001`, not necessarily the overlay asset root itself.
+- `static_material_dependency_gate.remote_dependency_records`, `material_dependency_report`, nested `texture_dependency_records`, and `helper_mdl_imports` should all go through the reusable offline dependency validator when they claim local runtime closure.
 - `source_url` is provenance only; it cannot be the runtime dependency path.
-- Package-local files must record SHA256 and byte count, and validators must reject hash or byte drift.
+- Package-local and source-scene copied files must record SHA256 and byte count, and validators must reject hash or byte drift.
+- Any record claiming local runtime closure must include at least one local path field, such as `local_mirror_path` or `relative_path`.
 - `explicit_waiver` may explain an open dependency, but it cannot allow package/full/native closure claims by itself.
 - Offline dependency pass does not upgrade native material closure, official leaderboard, policy success, or PM showcase claims.
 

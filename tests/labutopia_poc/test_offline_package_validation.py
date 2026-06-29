@@ -93,6 +93,32 @@ def test_offline_dependency_records_reject_remote_runtime_uri(tmp_path):
         )
 
 
+def test_offline_dependency_records_reject_uppercase_remote_runtime_uri(tmp_path):
+    package_root = tmp_path / "package/common"
+    digest = _write(package_root / "test.mdl", b"mdl")
+    records = [
+        {
+            "material_name": "UppercaseRemoteRuntime",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "local_mirror_path": "test.mdl",
+            "sha256": digest,
+            "bytes": 3,
+            "worker_resolved_path": "HTTPS://example.invalid/test.mdl",
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="worker_resolved_path must not point to a remote URI",
+    ):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=package_root),
+            _expectation(),
+        )
+
+
 def test_offline_dependency_records_reject_missing_file(tmp_path):
     records = [
         {
@@ -105,6 +131,28 @@ def test_offline_dependency_records_reject_missing_file(tmp_path):
     ]
 
     with pytest.raises(AssertionError, match="local_mirror_path file does not exist"):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=tmp_path),
+            _expectation(),
+        )
+
+
+def test_offline_dependency_records_reject_local_claim_without_local_path(tmp_path):
+    records = [
+        {
+            "material_name": "NoLocalPath",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "sha256": "0" * 64,
+            "bytes": 3,
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="must include one local path field",
+    ):
         assert_offline_dependency_records(
             "assets_manifest.json",
             records,
@@ -180,6 +228,137 @@ def test_offline_dependency_records_reject_absolute_outside_root(tmp_path):
             OfflineDependencyRoots(package_root=tmp_path / "package/common"),
             _expectation(),
         )
+
+
+def test_offline_dependency_records_reject_outside_worker_path(tmp_path):
+    package_root = tmp_path / "package/common"
+    digest = _write(package_root / "test.mdl", b"mdl")
+    outside_file = tmp_path / "outside/test.mdl"
+    _write(outside_file, b"other")
+    records = [
+        {
+            "material_name": "OutsideWorker",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "local_mirror_path": "test.mdl",
+            "sha256": digest,
+            "bytes": 3,
+            "worker_resolved_path": str(outside_file),
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="worker_resolved_path must stay under an allowed root",
+    ):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=package_root),
+            _expectation(),
+        )
+
+
+def test_offline_dependency_records_reject_missing_worker_path(tmp_path):
+    package_root = tmp_path / "package/common"
+    digest = _write(package_root / "test.mdl", b"mdl")
+    records = [
+        {
+            "material_name": "MissingWorker",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "local_mirror_path": "test.mdl",
+            "sha256": digest,
+            "bytes": 3,
+            "worker_resolved_path": "{ASSETS_DIR}/missing_runtime.mdl",
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="worker_resolved_path file does not exist",
+    ):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=package_root),
+            _expectation(),
+        )
+
+
+def test_offline_dependency_records_reject_slashless_missing_worker_path(tmp_path):
+    package_root = tmp_path / "package/common"
+    digest = _write(package_root / "test.mdl", b"mdl")
+    records = [
+        {
+            "material_name": "SlashlessMissingWorker",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "local_mirror_path": "test.mdl",
+            "sha256": digest,
+            "bytes": 3,
+            "worker_resolved_path": "does_not_exist.mdl",
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="worker_resolved_path file does not exist",
+    ):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=package_root),
+            _expectation(),
+        )
+
+
+def test_offline_dependency_records_reject_uppercase_cache_path(tmp_path):
+    package_root = tmp_path / "package/common"
+    digest = _write(package_root / "test.mdl", b"mdl")
+    records = [
+        {
+            "material_name": "UppercaseCache",
+            "dependency_location_status": "local_mirror_copied_with_package",
+            "local_mirror_path": "test.mdl",
+            "sha256": digest,
+            "bytes": 3,
+            "diagnostic_path": "/HOME/USER/.CACHE/test.mdl",
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="diagnostic_path must not point to user cache",
+    ):
+        assert_offline_dependency_records(
+            "assets_manifest.json",
+            records,
+            OfflineDependencyRoots(package_root=package_root),
+            _expectation(),
+        )
+
+
+def test_offline_dependency_records_resolve_relative_path_under_staged_root(tmp_path):
+    package_root = tmp_path / "package/common"
+    staged_root = tmp_path / "overlay/scene_usds/labutopia/level1_poc/lab_001"
+    digest = _write(staged_root / "SubUSDs/materials/material_08.mdl", b"mdl")
+    records = [
+        {
+            "material_name": "SceneCopied",
+            "dependency_location_status": "local_file_copied_with_source_scene",
+            "relative_path": "SubUSDs/materials/material_08.mdl",
+            "sha256": digest,
+            "bytes": 3,
+        }
+    ]
+
+    assert_offline_dependency_records(
+        "assets_manifest.json",
+        records,
+        OfflineDependencyRoots(
+            package_root=package_root,
+            staged_roots=(staged_root,),
+        ),
+        _expectation(),
+    )
 
 
 def test_offline_dependency_records_reject_waiver_overclaim(tmp_path):

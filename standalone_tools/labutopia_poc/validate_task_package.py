@@ -275,8 +275,11 @@ def _drying_box_material_closure_expectation() -> MaterialClosureExpectation:
 
 def _drying_box_offline_dependency_expectation() -> OfflineDependencyExpectation:
     return OfflineDependencyExpectation(
-        allowed_location_statuses={"local_mirror_copied_with_package"},
-        local_path_fields={"local_mirror_path"},
+        allowed_location_statuses={
+            "local_mirror_copied_with_package",
+            "local_file_copied_with_source_scene",
+        },
+        local_path_fields={"local_mirror_path", "relative_path"},
         remote_checked_fields={
             "local_mirror_path",
             "relative_path",
@@ -838,13 +841,41 @@ def _validate_asset_acceptance_material_closure(
 
 
 def _drying_box_package_local_dependency_records(
+    manifest: dict[str, Any],
     dependency_report: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    return [
-        record
-        for record in dependency_report
-        if record.get("dependency_location_status") == "local_mirror_copied_with_package"
-    ]
+    records: list[dict[str, Any]] = []
+    static_gate = manifest.get("drying_box_wrapper_composition", {}).get(
+        "static_material_dependency_gate",
+        {},
+    )
+    remote_dependency_records = static_gate.get("remote_dependency_records") or []
+    records.extend(
+        record for record in remote_dependency_records if isinstance(record, dict)
+    )
+    expectation = _drying_box_offline_dependency_expectation()
+    for record in dependency_report:
+        status = record.get("dependency_location_status")
+        if status in expectation.allowed_location_statuses:
+            records.append(_drying_box_record_with_relative_path(record))
+        helper_imports = record.get("helper_mdl_imports") or []
+        records.extend(helper for helper in helper_imports if isinstance(helper, dict))
+    return records
+
+
+def _drying_box_record_with_relative_path(record: dict[str, Any]) -> dict[str, Any]:
+    if "relative_path" in record:
+        return record
+    source_asset = record.get("mdl_source_asset")
+    if (
+        record.get("dependency_location_status") == "local_file_copied_with_source_scene"
+        and isinstance(source_asset, str)
+        and source_asset.startswith("./")
+    ):
+        copied = dict(record)
+        copied["relative_path"] = source_asset[2:]
+        return copied
+    return record
 
 
 def _validate_drying_box_offline_package_dependencies(
@@ -854,10 +885,13 @@ def _validate_drying_box_offline_package_dependencies(
 ) -> None:
     assert_offline_dependency_records(
         manifest_path,
-        _drying_box_package_local_dependency_records(dependency_report),
+        _drying_box_package_local_dependency_records(manifest, dependency_report),
         OfflineDependencyRoots(
             package_root=PACKAGE_ROOT / "common",
             overlay_root=Path(str(manifest["overlay_root"])),
+            staged_roots=(
+                Path(str(manifest["overlay_root"])) / Path(RUNTIME_USD_NAME).parent,
+            ),
         ),
         _drying_box_offline_dependency_expectation(),
     )

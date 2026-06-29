@@ -4,7 +4,7 @@
 
 **Goal:** Add a reusable static offline dependency validator for package-local MDL/texture records and integrate it into the DryingBox validator without changing manifest schema.
 
-**Architecture:** Create `standalone_tools/labutopia_poc/offline_package_validation.py` with dataclass expectations and pure assertion helpers. Keep DryingBox constants and exact Aluminum checks in `validate_task_package.py`; use the helper only for records that already claim package-local/local-mirror dependency closure.
+**Architecture:** Create `standalone_tools/labutopia_poc/offline_package_validation.py` with dataclass expectations and pure assertion helpers. Keep DryingBox constants and exact Aluminum checks in `validate_task_package.py`; use the helper only for records that already claim package-local/local-mirror/source-scene copied dependency closure or appear in the static material dependency gate.
 
 **Tech Stack:** Python 3.10, dataclasses, pathlib, hashlib, pytest, existing LabUtopia POC validator.
 
@@ -16,8 +16,8 @@
 | --- | --- |
 | `standalone_tools/labutopia_poc/offline_package_validation.py` | New reusable offline dependency assertions for local paths, SHA256, byte counts, remote runtime URI rejection, and waiver claim boundaries. |
 | `tests/labutopia_poc/test_offline_package_validation.py` | Focused unit tests for valid local mirror, remote runtime URI, missing file, SHA mismatch, byte mismatch, outside-root path, source URL provenance, and waiver overclaim. |
-| `standalone_tools/labutopia_poc/validate_task_package.py` | DryingBox integration point; flatten only package-local Aluminum MDL/texture records into the reusable helper while preserving exact DryingBox checks. |
-| `tests/labutopia_poc/test_validate_task_package.py` | Add one regression proving corrupted Aluminum texture dependency evidence is rejected through the package validator. |
+| `standalone_tools/labutopia_poc/validate_task_package.py` | DryingBox integration point; flatten package-local Aluminum records, source-scene copied MDL/texture records, helper MDL imports, and static material gate records into the reusable helper while preserving exact DryingBox checks. |
+| `tests/labutopia_poc/test_validate_task_package.py` | Add regressions proving corrupted static gate evidence, source-scene MDL/texture evidence, worker runtime paths, and Aluminum texture evidence are rejected through the package validator. |
 | `docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md` | Document that cold/offline validation currently means static local-file/hash closure, not a network-blocking runtime sandbox. |
 | `docs/labutopia_lab_poc/evidence_manifests/README.md` | Add a PM/intern-readable checklist for offline dependency records and claim boundaries. |
 
@@ -260,6 +260,7 @@ CACHE_PATH_MARKERS = ("/.cache/", "/ov/pkg/", "/kit/cache/")
 class OfflineDependencyRoots:
     package_root: Path
     overlay_root: Path | None = None
+    staged_roots: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -293,7 +294,7 @@ def _assert_record(
     if not isinstance(record, dict):
         raise AssertionError(f"{prefix}: offline dependency record {index} must be a mapping")
     identity = _record_identity(record, index)
-    _assert_remote_fields(prefix, identity, record, expectation)
+    _assert_remote_fields(prefix, identity, record, roots, expectation)
     _assert_waiver_boundary(prefix, identity, record)
     status = record.get("dependency_location_status")
     resolution_mode = record.get("resolution_mode")
@@ -303,6 +304,10 @@ def _assert_record(
     )
     if requires_local:
         _assert_local_evidence(prefix, identity, record)
+        if not any(field in record for field in expectation.local_path_fields):
+            raise AssertionError(
+                f"{prefix}: {identity} must include one local path field"
+            )
         for field in expectation.local_path_fields:
             if field in record:
                 _assert_local_path_field(prefix, identity, record, field, roots)
@@ -314,6 +319,7 @@ def _assert_remote_fields(
     prefix: str,
     identity: str,
     record: dict[str, Any],
+    roots: OfflineDependencyRoots,
     expectation: OfflineDependencyExpectation,
 ) -> None:
     for field in expectation.remote_checked_fields:
@@ -322,6 +328,16 @@ def _assert_remote_fields(
             raise AssertionError(
                 f"{prefix}: {identity} {field} must not point to a remote URI"
             )
+        if isinstance(value, str) and value:
+            path = _resolve_allowed_path(value, roots)
+            if path is None:
+                raise AssertionError(
+                    f"{prefix}: {identity} {field} must stay under an allowed root"
+                )
+            if not path.exists():
+                raise AssertionError(
+                    f"{prefix}: {identity} {field} file does not exist"
+                )
     for field, value in record.items():
         if field in expectation.informational_uri_fields:
             continue
@@ -388,23 +404,32 @@ def _resolve_allowed_path(value: str, roots: OfflineDependencyRoots) -> Path | N
     allowed_roots = [roots.package_root.resolve()]
     if roots.overlay_root is not None:
         allowed_roots.append(roots.overlay_root.resolve())
+    allowed_roots.extend(root.resolve() for root in roots.staged_roots)
     candidates = [candidate] if candidate.is_absolute() else [
         roots.package_root / raw,
         *( [roots.overlay_root / raw] if roots.overlay_root is not None else [] ),
+        *(root / raw for root in roots.staged_roots),
     ]
+    allowed_candidates: list[Path] = []
     for item in candidates:
         resolved = item.resolve()
         if any(_is_relative_to(resolved, root) for root in allowed_roots):
-            return resolved
+            if resolved.exists():
+                return resolved
+            allowed_candidates.append(resolved)
+    if allowed_candidates:
+        return allowed_candidates[0]
     return None
 
 
 def _is_remote_or_cache_path(value: str) -> bool:
-    return value.startswith(REMOTE_URI_PREFIXES) or _is_cache_path(value)
+    normalized = value.lower()
+    return normalized.startswith(REMOTE_URI_PREFIXES) or _is_cache_path(normalized)
 
 
 def _is_cache_path(value: str) -> bool:
-    return any(marker in value for marker in CACHE_PATH_MARKERS)
+    normalized = value.lower()
+    return any(marker in normalized for marker in CACHE_PATH_MARKERS)
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -476,8 +501,11 @@ Add near DryingBox constants:
 ```python
 def _drying_box_offline_dependency_expectation() -> OfflineDependencyExpectation:
     return OfflineDependencyExpectation(
-        allowed_location_statuses={"local_mirror_copied_with_package"},
-        local_path_fields={"local_mirror_path"},
+        allowed_location_statuses={
+            "local_mirror_copied_with_package",
+            "local_file_copied_with_source_scene",
+        },
+        local_path_fields={"local_mirror_path", "relative_path"},
         remote_checked_fields={
             "local_mirror_path",
             "relative_path",
@@ -493,20 +521,41 @@ Add:
 
 ```python
 def _drying_box_package_local_dependency_records(
+    manifest: dict[str, Any],
     dependency_report: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
+    static_gate = manifest.get("drying_box_wrapper_composition", {}).get(
+        "static_material_dependency_gate",
+        {},
+    )
+    remote_dependency_records = static_gate.get("remote_dependency_records") or []
+    records.extend(
+        record for record in remote_dependency_records if isinstance(record, dict)
+    )
+    expectation = _drying_box_offline_dependency_expectation()
     for record in dependency_report:
-        if record.get("dependency_location_status") == "local_mirror_copied_with_package":
-            records.append(record)
-        for texture_record in record.get("texture_dependency_records", []) or []:
-            if (
-                isinstance(texture_record, dict)
-                and texture_record.get("dependency_location_status")
-                == "local_mirror_copied_with_package"
-            ):
-                records.append(texture_record)
+        status = record.get("dependency_location_status")
+        if status in expectation.allowed_location_statuses:
+            records.append(_drying_box_record_with_relative_path(record))
+        helper_imports = record.get("helper_mdl_imports") or []
+        records.extend(helper for helper in helper_imports if isinstance(helper, dict))
     return records
+
+
+def _drying_box_record_with_relative_path(record: dict[str, Any]) -> dict[str, Any]:
+    if "relative_path" in record:
+        return record
+    source_asset = record.get("mdl_source_asset")
+    if (
+        record.get("dependency_location_status") == "local_file_copied_with_source_scene"
+        and isinstance(source_asset, str)
+        and source_asset.startswith("./")
+    ):
+        copied = dict(record)
+        copied["relative_path"] = source_asset[2:]
+        return copied
+    return record
 ```
 
 - [ ] **Step 4: Call helper in `_validate_drying_box_wrapper_composition()`**
@@ -516,10 +565,11 @@ After `dependency_report` is verified as a list and `overlay_root` is computed, 
 ```python
     assert_offline_dependency_records(
         manifest_path,
-        _drying_box_package_local_dependency_records(dependency_report),
+        _drying_box_package_local_dependency_records(manifest, dependency_report),
         OfflineDependencyRoots(
             package_root=PACKAGE_ROOT / "common",
             overlay_root=overlay_root,
+            staged_roots=(overlay_root / Path(RUNTIME_USD_NAME).parent,),
         ),
         _drying_box_offline_dependency_expectation(),
     )
@@ -527,9 +577,9 @@ After `dependency_report` is verified as a list and `overlay_root` is computed, 
 
 Keep all existing exact Aluminum mirror and texture hash checks.
 
-- [ ] **Step 5: Add regression test**
+- [ ] **Step 5: Add regression tests**
 
-Add a test in `tests/labutopia_poc/test_validate_task_package.py` that copies the manifest, corrupts the first Aluminum texture `sha256`, monkeypatches `PACKAGE_ROOT`, writes required temp files, and expects `_validate_drying_box_wrapper_composition()` to raise `hash mismatch`.
+Add tests in `tests/labutopia_poc/test_validate_task_package.py` that corrupt static gate hash evidence, source-scene MDL hash evidence, source-scene texture hash evidence, worker runtime path evidence, and Aluminum texture hash evidence. Each test should expect `_validate_drying_box_offline_package_dependencies()` or `_validate_drying_box_wrapper_composition()` to raise `hash mismatch` or the relevant path-boundary error.
 
 - [ ] **Step 6: Run package tests**
 

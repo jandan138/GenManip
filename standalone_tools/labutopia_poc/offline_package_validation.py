@@ -14,6 +14,7 @@ CACHE_PATH_MARKERS = ("/.cache/", "/ov/pkg/", "/kit/cache/")
 class OfflineDependencyRoots:
     package_root: Path
     overlay_root: Path | None = None
+    staged_roots: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,7 @@ def _assert_record(
             f"{prefix}: offline dependency record {index} must be a mapping"
         )
     identity = _record_identity(record, index)
-    _assert_remote_fields(prefix, identity, record, expectation)
+    _assert_remote_fields(prefix, identity, record, roots, expectation)
     _assert_waiver_boundary(prefix, identity, record)
     status = record.get("dependency_location_status")
     resolution_mode = record.get("resolution_mode")
@@ -59,6 +60,10 @@ def _assert_record(
     )
     if requires_local:
         _assert_local_evidence(prefix, identity, record)
+        if not any(field in record for field in expectation.local_path_fields):
+            raise AssertionError(
+                f"{prefix}: {identity} must include one local path field"
+            )
         for field in expectation.local_path_fields:
             if field in record:
                 _assert_local_path_field(prefix, identity, record, field, roots)
@@ -70,6 +75,7 @@ def _assert_remote_fields(
     prefix: str,
     identity: str,
     record: dict[str, Any],
+    roots: OfflineDependencyRoots,
     expectation: OfflineDependencyExpectation,
 ) -> None:
     for field in expectation.remote_checked_fields:
@@ -78,6 +84,16 @@ def _assert_remote_fields(
             raise AssertionError(
                 f"{prefix}: {identity} {field} must not point to a remote URI"
             )
+        if isinstance(value, str) and value:
+            path = _resolve_allowed_path(value, roots)
+            if path is None:
+                raise AssertionError(
+                    f"{prefix}: {identity} {field} must stay under an allowed root"
+                )
+            if not path.exists():
+                raise AssertionError(
+                    f"{prefix}: {identity} {field} file does not exist"
+                )
     for field, value in record.items():
         if field in expectation.informational_uri_fields:
             continue
@@ -152,25 +168,34 @@ def _resolve_allowed_path(value: str, roots: OfflineDependencyRoots) -> Path | N
     allowed_roots = [roots.package_root.resolve()]
     if roots.overlay_root is not None:
         allowed_roots.append(roots.overlay_root.resolve())
+    allowed_roots.extend(root.resolve() for root in roots.staged_roots)
     if candidate.is_absolute():
         candidates = [candidate]
     else:
         candidates = [roots.package_root / raw]
         if roots.overlay_root is not None:
             candidates.append(roots.overlay_root / raw)
+        candidates.extend(root / raw for root in roots.staged_roots)
+    allowed_candidates: list[Path] = []
     for item in candidates:
         resolved = item.resolve()
         if any(_is_relative_to(resolved, root) for root in allowed_roots):
-            return resolved
+            if resolved.exists():
+                return resolved
+            allowed_candidates.append(resolved)
+    if allowed_candidates:
+        return allowed_candidates[0]
     return None
 
 
 def _is_remote_or_cache_path(value: str) -> bool:
-    return value.startswith(REMOTE_URI_PREFIXES) or _is_cache_path(value)
+    normalized = value.lower()
+    return normalized.startswith(REMOTE_URI_PREFIXES) or _is_cache_path(normalized)
 
 
 def _is_cache_path(value: str) -> bool:
-    return any(marker in value for marker in CACHE_PATH_MARKERS)
+    normalized = value.lower()
+    return any(marker in normalized for marker in CACHE_PATH_MARKERS)
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:

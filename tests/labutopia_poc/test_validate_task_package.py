@@ -849,6 +849,143 @@ def test_drying_box_offline_dependency_validator_rejects_texture_hash_drift(
         )
 
 
+def test_drying_box_offline_dependency_validator_rejects_static_gate_hash_drift(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    package_root = tmp_path / "package"
+    common_root = package_root / "common"
+    manifest["overlay_root"] = str(tmp_path / "overlay/assets")
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    aluminum = next(
+        record
+        for record in dependency_report
+        if record["material_name"] == "Aluminum_Anodized_Charcoal"
+    )
+    source_paths = [aluminum["local_mirror_path"]] + [
+        record["local_mirror_path"]
+        for record in aluminum["texture_dependency_records"]
+    ]
+    for relative_path in source_paths:
+        source = validate_task_package.PACKAGE_ROOT / "common" / relative_path
+        target = common_root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    static_record = manifest["drying_box_wrapper_composition"][
+        "static_material_dependency_gate"
+    ]["remote_dependency_records"][0]
+    static_record["local_mirror_sha256"] = "0" * 64
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="hash mismatch"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            tmp_path / "assets_manifest.json",
+            manifest,
+            dependency_report,
+        )
+
+
+def test_drying_box_offline_dependency_validator_rejects_static_gate_worker_path_missing():
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    static_record = manifest["drying_box_wrapper_composition"][
+        "static_material_dependency_gate"
+    ]["remote_dependency_records"][0]
+    static_record["worker_resolved_path"] = "does_not_exist.mdl"
+
+    with pytest.raises(AssertionError, match="worker_resolved_path file does not exist"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+            dependency_report,
+        )
+
+
+def test_drying_box_offline_dependency_validator_rejects_source_mdl_hash_drift():
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    record = next(
+        record for record in dependency_report if record["material_name"] == "mdl_0008"
+    )
+    record["sha256"] = "0" * 64
+
+    with pytest.raises(AssertionError, match="hash mismatch"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+            dependency_report,
+        )
+
+
+def test_drying_box_offline_dependency_validator_rejects_source_texture_hash_drift():
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    record = next(
+        record for record in dependency_report if record["material_name"] == "mdl_0008"
+    )
+    record["texture_dependency_records"][0]["sha256"] = "0" * 64
+
+    with pytest.raises(AssertionError, match="hash mismatch"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+            dependency_report,
+        )
+
+
+def test_drying_box_offline_dependency_validator_rejects_worker_path_drift(
+    tmp_path,
+):
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    dependency_report = manifest["drying_box_wrapper_composition"][
+        "material_dependency_report"
+    ]
+    aluminum = next(
+        record
+        for record in dependency_report
+        if record["material_name"] == "Aluminum_Anodized_Charcoal"
+    )
+    outside_file = tmp_path / "outside.mdl"
+    outside_file.write_text("outside", encoding="utf-8")
+    aluminum["worker_resolved_path"] = str(outside_file)
+
+    with pytest.raises(AssertionError, match="worker_resolved_path"):
+        validate_task_package._validate_drying_box_offline_package_dependencies(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+            dependency_report,
+        )
+
+
 def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     manifest_path = (
         validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"

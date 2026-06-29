@@ -8,7 +8,7 @@ Current validation already checks many DryingBox facts, but the logic is embedde
 
 ## Approaches Considered
 
-1. **Recommended: static offline dependency helper.** Add a pure helper module such as `offline_package_validation.py` that consumes existing dependency records and allowed roots. It validates local paths, hashes, byte counts, remote URI blocking, and explicit waiver boundaries. `validate_task_package.py` keeps DryingBox-specific expectations and calls the helper for reusable file-dependency checks.
+1. **Recommended: static offline dependency helper.** Add a pure helper module such as `offline_package_validation.py` that consumes existing dependency records and allowed roots. It validates local paths, hashes, byte counts, remote URI blocking, and explicit waiver boundaries. Allowed roots include the packaged `common/` root, the asset overlay root, and any explicit staged scene roots used by source-scene copied files. `validate_task_package.py` keeps DryingBox-specific expectations and calls the helper for reusable file-dependency checks.
 
 2. **New manifest section.** Add `asset_acceptance.offline_package` with a full dependency inventory for every USD, MDL, texture, payload, and reference. This may be cleaner later, but it changes the manifest contract before the current fields have proven insufficient and would duplicate existing `material_dependency_report`, `static_material_dependency_gate`, and `acceptance_stages` data.
 
@@ -29,6 +29,7 @@ It should expose:
 class OfflineDependencyRoots:
     package_root: Path
     overlay_root: Path | None = None
+    staged_roots: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,14 +53,16 @@ The helper is read-only. It should not crawl USD or mutate manifests in this pha
 
 - `drying_box_wrapper_composition.material_dependency_report`
 - nested `texture_dependency_records`
+- nested `helper_mdl_imports`
 - `static_material_dependency_gate.remote_dependency_records`
 
 The helper should validate:
 
-- Fields such as `local_mirror_path`, `relative_path`, and `worker_resolved_path` resolve under `package_root` or explicit `overlay_root`.
-- Runtime dependency fields cannot point to `http://`, `https://`, `omniverse://`, S3, user cache, or arbitrary absolute paths.
+- Configured runtime fields such as `local_mirror_path`, `relative_path`, and `worker_resolved_path` resolve under `package_root`, explicit `overlay_root`, or explicit `staged_roots`, and must point to an existing local file even when the value is slashless, for example `does_not_exist.mdl`.
+- Runtime dependency fields cannot point to `http://`, `https://`, `omniverse://`, S3, user cache, or arbitrary absolute paths. URI scheme checks are case-insensitive.
 - `source_url` remains allowed only as provenance metadata for records that have local mirror evidence.
-- Any record claiming `local_mirror_copied_with_package`, `local_file_copied_with_source_scene`, or `resolution_mode=local_mirror` has a local file, positive byte count, and SHA256.
+- Any record claiming `local_mirror_copied_with_package`, `local_file_copied_with_source_scene`, or `resolution_mode=local_mirror` has at least one local path field, a local file, positive byte count, and SHA256.
+- Source-scene copied MDL/texture records may use `relative_path` under the staged scene root. If a DryingBox material record only has `mdl_source_asset="./SubUSDs/..."`, the DryingBox orchestrator normalizes that into `relative_path="SubUSDs/..."` before calling the reusable helper.
 - Hash and byte-count mismatches fail.
 - `explicit_waiver` records are allowed only when they do not claim package/full/native material closure.
 
@@ -107,12 +110,17 @@ Tests should cover:
 - valid local mirror MDL and texture records
 - remote runtime URI rejection while preserving informational `source_url`
 - missing file rejection
+- local dependency claims without any local path field
 - SHA256 mismatch rejection
 - byte-count mismatch rejection
 - absolute outside-root path rejection
+- `worker_resolved_path` outside allowed roots
+- uppercase remote runtime URI rejection
+- missing local `worker_resolved_path` rejection
+- source-scene copied records resolved through explicit `staged_roots`
 - explicit waiver does not allow closure claims
 
-Then integrate with `validate_task_package.py` and keep existing DryingBox tests passing. A narrow DryingBox regression test should corrupt one copied dependency record in a fixture and prove the package validator rejects it.
+Then integrate with `validate_task_package.py` and keep existing DryingBox tests passing. Narrow DryingBox regression tests should corrupt static gate evidence, source-scene MDL evidence, source-scene texture evidence, worker runtime path evidence, and Aluminum texture evidence, then prove the package validator rejects each case.
 
 ## Non-Goals
 
