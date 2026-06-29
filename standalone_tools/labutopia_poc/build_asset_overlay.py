@@ -1390,6 +1390,40 @@ def _drying_box_authored_material_records() -> list[dict[str, object]]:
     return records
 
 
+def _drying_box_native_material_provenance() -> dict[str, object]:
+    root_path = _drying_box_root_path()
+    blocker_records = []
+    for relative_path, material in sorted(
+        DRYING_BOX_WRAPPER_LOCAL_MATERIAL_OVERRIDES.items()
+    ):
+        material_name = str(material["material_name"])
+        blocker_records.append(
+            {
+                "source_prim_path": f"/World/DryingBox_01/{relative_path}",
+                "runtime_prim_path": f"{root_path}/{relative_path}",
+                "source_binding_status": material["source_binding_status"],
+                "source_material_binding": None,
+                "runtime_material_path": f"{root_path}/Looks/{material_name}",
+                "replacement_required_for_full_native_closure": True,
+                "blocked_claims": [
+                    "native_material_closure",
+                    "full_native_material_closure",
+                ],
+            }
+        )
+    return {
+        "schema_version": 1,
+        "status": (
+            "blocked_by_wrapper_local_overrides"
+            if blocker_records
+            else "resolved_source_native"
+        ),
+        "source_native_blocker_surface_count": len(blocker_records),
+        "native_wrapper_override_surface_count": len(blocker_records),
+        "native_claim_blocker_records": blocker_records,
+    }
+
+
 def _drying_box_material_waiver_records() -> list[dict[str, object]]:
     root_path = _drying_box_root_path()
     records = []
@@ -1643,21 +1677,25 @@ def _drying_box_asset_acceptance_report(
     physics_override_report: dict[str, object],
 ) -> dict[str, object]:
     static_material_gate = _drying_box_static_material_dependency_gate(overlay_root)
+    material_closure = derive_material_closure_claims(
+        asset_id="LabUtopia/DryingBox_01",
+        dependency_records=static_material_gate["remote_dependency_records"],
+        fallback_surface_records=_drying_box_fallback_display_records(),
+        waiver_records=_drying_box_material_waiver_records(),
+        source_resolved_surface_records=(
+            _drying_box_source_resolved_surface_records()
+        ),
+        authored_material_records=_drying_box_authored_material_records(),
+    )
+    material_closure["native_material_provenance"] = (
+        _drying_box_native_material_provenance()
+    )
     return {
         "acceptance_stages_schema_version": 1,
         "acceptance_stages": _drying_box_acceptance_stages(
             physics_override_report
         ),
-        "material_closure": derive_material_closure_claims(
-            asset_id="LabUtopia/DryingBox_01",
-            dependency_records=static_material_gate["remote_dependency_records"],
-            fallback_surface_records=_drying_box_fallback_display_records(),
-            waiver_records=_drying_box_material_waiver_records(),
-            source_resolved_surface_records=(
-                _drying_box_source_resolved_surface_records()
-            ),
-            authored_material_records=_drying_box_authored_material_records(),
-        )
+        "material_closure": material_closure,
     }
 
 

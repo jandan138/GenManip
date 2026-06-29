@@ -217,6 +217,38 @@
       "material_status": "resolved_material_with_local_overrides",
       "native_material_closure_claim_allowed": false,
       "native_material_closure_reason": "wrapper_local_material_overrides_present",
+      "native_material_provenance": {
+        "native_claim_blocker_records": [
+          {
+            "blocked_claims": [
+              "native_material_closure",
+              "full_native_material_closure"
+            ],
+            "replacement_required_for_full_native_closure": true,
+            "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat",
+            "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+            "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+            "source_material_binding": null,
+            "source_prim_path": "/World/DryingBox_01/Group/_900_1"
+          },
+          {
+            "blocked_claims": [
+              "native_material_closure",
+              "full_native_material_closure"
+            ],
+            "replacement_required_for_full_native_closure": true,
+            "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
+            "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+            "source_binding_status": "unbound_in_stage2_source_readback",
+            "source_material_binding": null,
+            "source_prim_path": "/World/DryingBox_01/button"
+          }
+        ],
+        "native_wrapper_override_surface_count": 2,
+        "schema_version": 1,
+        "source_native_blocker_surface_count": 2,
+        "status": "blocked_by_wrapper_local_overrides"
+      },
       "schema_version": 1,
       "source_resolved_surface_records": [
         {

@@ -698,6 +698,48 @@ def test_manifest_contains_generic_asset_acceptance_material_closure(tmp_path):
     assert material["aluminum_material_closure_claim_allowed"] is True
     assert material["native_material_closure_claim_allowed"] is False
     assert material["full_native_material_closure_claim_allowed"] is False
+    provenance = material["native_material_provenance"]
+    assert provenance["status"] == "blocked_by_wrapper_local_overrides"
+    assert provenance["source_native_blocker_surface_count"] == 2
+    assert provenance["native_wrapper_override_surface_count"] == 2
+    assert provenance["native_claim_blocker_records"] == [
+        {
+            "source_prim_path": "/World/DryingBox_01/Group/_900_1",
+            "runtime_prim_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1"
+            ),
+            "source_binding_status": (
+                "empty_authored_binding_in_stage2_source_readback"
+            ),
+            "source_material_binding": None,
+            "runtime_material_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                "task_indicator_mat"
+            ),
+            "replacement_required_for_full_native_closure": True,
+            "blocked_claims": [
+                "native_material_closure",
+                "full_native_material_closure",
+            ],
+        },
+        {
+            "source_prim_path": "/World/DryingBox_01/button",
+            "runtime_prim_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button"
+            ),
+            "source_binding_status": "unbound_in_stage2_source_readback",
+            "source_material_binding": None,
+            "runtime_material_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                "task_button_mat"
+            ),
+            "replacement_required_for_full_native_closure": True,
+            "blocked_claims": [
+                "native_material_closure",
+                "full_native_material_closure",
+            ],
+        },
+    ]
 
 
 def test_dryingbox_material_closure_has_no_fallback_surfaces(tmp_path):
