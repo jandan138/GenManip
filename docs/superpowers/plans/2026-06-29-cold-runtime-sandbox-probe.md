@@ -8,6 +8,15 @@
 
 **Tech Stack:** Python 3.10, pathlib, dataclasses, argparse, subprocess, tempfile, shutil, hashlib, json, pytest, pxr.Usd, pxr.Sdf, pxr.UsdUtils.
 
+**2026-06-29 execution update:** The probe exposed one real packaging gap after the initial implementation: the wrapper `scene.usda` had local material overrides, but copied source `scene.usd` still contained remote MDL source assets and remote Sektion cabinet payloads. `build_asset_overlay.py` now sanitizes the copied source layer with USD APIs before writing the wrapper. The current verification command is:
+
+```bash
+python standalone_tools/labutopia_poc/build_asset_overlay.py --drying-box-strategy native_complex --physics-override-output-root saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror
+python standalone_tools/labutopia_poc/cold_runtime_sandbox_probe.py --output /tmp/labutopia_cold_runtime_probe_after_material_shim.json
+```
+
+The latest probe result is `status=PASS` with `remote_uri_count=0`, `missing_local_dependency_count=0`, `dependency_scan_error_count=0`, `unauthorized_outside_sandbox_runtime_path_count=0`, `user_cache_path_count=0`, and `missing_required_prim_paths=[]`. This evidence is only a cold runtime dependency-closure claim; it does not upgrade official leaderboard, policy success, PM showcase, native material closure, or full native material closure.
+
 ---
 
 ## File Map

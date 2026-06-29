@@ -19,6 +19,8 @@ HTML 版产品汇报页：
 
 2026-06-29 `asset_acceptance_record` 补充：`DryingBox_01` 已生成第一份机器可读验收总表，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：`acceptance_stages` 按 Stage 0-7 记录“工程推进到哪一步”，`gate_status` 和 `allowed_claims/blocked_claims` 记录“哪些话可以汇报，哪些话必须拦住”；同时新增 `claim_boundary.blocked_claim_status`，让机器消费者直接读到 `blocked=true`，避免把历史兼容字段里的 `false` 读反。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、`full_material_closure_claim_allowed=true`；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路、包级材质闭环和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“source-native full material closure 完成”。
 
+2026-06-29 cold runtime sandbox 补充：我们又用更严格的“冷目录运行时依赖扫描”复查 copied package。之前发现的问题是 wrapper 外层已经改了本地材质，但被 payload 进来的 `scene.usd` 里还保留 remote MDL 和 remote Sektion cabinet payload；dependency scanner 会继续看到这些远端引用。现在 overlay 生成器会在复制 `lab_001.usd` 后做 source scene payload sanitization：Aluminum 指向本地 mirror，Steel/Stainless 指向本地 `SubUSDs/materials`，非任务关键的 remote Sektion cabinet payload 被移除。最新 `cold_runtime_sandbox_probe` 为 `PASS`，`remote_uri_count=0`、`missing_local_dependency_count=0`。这只能说明 copied package 的 runtime dependency 不再回源；它不等于 official leaderboard、policy success、PM showcase，也不等于 full native material closure。
+
 术语边界也已收口：`Gate` 是质量/宣称分类，`Acceptance Stage` 是执行顺序。`Gate 7` 是 `Render Evidence Gate`，而 `Stage 7` 是 `Evaluator Robot Contract`；两者编号不一一对应。Stage 5 的图可以证明 eval-path readback 存在，但 PM showcase 是否可用仍要看 `render_evidence` gate 和 `pm_showcase_ready=false` 的边界。
 
 ## 本周完成了什么
@@ -237,6 +239,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 结果落盘 | 已完成 | per-task 和 final result 都能写出 |
 | 渲染图/视频验收 | 任务渲染通过 | 三任务 eval readback 已非黑；pick 已清楚，place 关系可读，open_door 关闭位正确、门板/框架/细把手可识别；三任务最新正式诊断均为 `render_validation.passed=true` |
 | Native complex DryingBox | Franka POC gate 已通过 | P2 open_door 证据来自 LabUtopia native complex `DryingBox_01`；保留 native visual/hierarchy/nested handle，只用 `additive physics override` 修 runtime 物理 |
+| Cold runtime sandbox | 运行时依赖闭环已通过 | copied package 在冷目录里 compose 成功，`remote_uri_count=0`、`missing_local_dependency_count=0`；这不升级 official/policy/showcase/native material claims |
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
 | 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
@@ -324,6 +327,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
 9. Material follow-up：package material closure 已通过：Aluminum local mirror、`panel` 原生 `GeomSubset` 覆盖、`button` 和 `Group/_900_1` wrapper-local material override 都有证据；full native material closure 仍未完成，因为 wrapper-local override 不能冒充 source-native material。
 10. Asset acceptance record：已生成 DryingBox reference record，并已把 Stage 0-7 写成机器可读 `acceptance_stages`。下一步不是重开原来的 acceptance stages，而是在这个 reference record 基础上进入真实 Lift2 baseline/policy gate；如果后续需要论文级 source-native material provenance，再单独做 full native material closure follow-up。
+11. Cold runtime sandbox：已补上 copied package 的冷目录 runtime dependency scan。当前 `status=PASS`、`remote_uri_count=0`、`missing_local_dependency_count=0`，说明 overlay 不再在运行时解析到公网/S3/原始目录/cache；但 official leaderboard、policy success、PM showcase 和 full native material closure 仍保持 blocked。
 
 ## 新增调研和计划文档
 

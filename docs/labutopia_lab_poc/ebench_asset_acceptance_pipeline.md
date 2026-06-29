@@ -110,16 +110,21 @@ Pass condition:
 - 远端依赖必须二选一：`local_mirror` 或 `explicit_waiver`。
 - `explicit_waiver` 必须有 waiver id、reason、owner 和关闭计划。
 
-Cold/offline package validation 当前指静态依赖闭环：已知 runtime MDL、texture、package-local records 必须能在 package root 或 staged overlay root 下找到，SHA256/bytes 必须匹配，runtime path 不能指向公网、S3、`omniverse://` 或用户 cache。它还不是 network-blocked Isaac sandbox run；sandbox run 应在静态依赖闭环稳定后作为后续阶段补上。
+Cold/offline package validation 分两层。第一层是静态依赖闭环：已知 runtime MDL、texture、package-local records 必须能在 package root 或 staged overlay root 下找到，SHA256/bytes 必须匹配，runtime path 不能指向公网、S3、`omniverse://` 或用户 cache。第二层是 cold runtime sandbox probe：把 package config、`common/` runtime files 和 overlay copy 到临时 `sandbox_root`，只用 sandbox copy 里的 search path compose runtime scene，确认实际 USD dependency scan 不会回源到公网、原始 `/cpfs` 或用户 cache。
+
+DryingBox 当前的关键修复是 source scene payload sanitization。之前 overlay wrapper 的 `scene.usda` 已经把 Aluminum 指向本地 mirror，但被 payload 的 `scene.usd` 仍保留了源 LabUtopia layer 里的 remote MDL 和 remote Sektion cabinet payload。`UsdUtils.ComputeAllDependencies` 会递归扫描这个 payload layer，所以 cold runtime 仍能看到 remote URI。现在 `build_asset_overlay.py` 在复制 `lab_001.usd` 后用 USD API 做三件事：把 `Aluminum_Anodized_Charcoal.mdl` 指向本地 package mirror，把 `Steel_Stainless.mdl` / `Stainless_Steel.mdl` 指向 `SubUSDs/materials` 下的本地文件，并清掉 remote Sektion cabinet payload。这样解决的是 runtime dependency closure，不改变原始资产的 claim boundary。
 
 DryingBox 当前对应状态：
 
 ```text
 Aluminum_Anodized_Charcoal.mdl: local_mirror
 Aluminum_Anodized textures: local_mirror
+source scene remote MDL/payload references: sanitized to local package paths or removed when non-task-critical
+Stainless_Steel.mdl: local shim derived from local Steel_Stainless.mdl for runtime dependency closure
 panel: source-resolved by native GeomSubset material binding
 button, Group/_900_1: wrapper-local PreviewSurface material overrides
 runtime fallback_only surfaces: 0
+cold_runtime_sandbox_probe: PASS with remote_uri_count=0, missing_local_dependency_count=0
 full native material closure: blocked by wrapper-local overrides
 ```
 
@@ -177,6 +182,8 @@ Implementation rule: generic material shape checks live in `asset_acceptance_val
 Offline dependency rule: package-local MDL/texture records, source-scene copied MDL/texture records, helper MDL imports, and `static_material_dependency_gate.remote_dependency_records` use `offline_package_validation.py` for reusable local-file, SHA256, byte-count, remote URI, allowed-root, and waiver-claim checks. Configured runtime path fields must resolve under the packaged `common/` root, the asset overlay root, or an explicit staged scene root such as `overlay_root / scene_usds/.../lab_001`, and must point to files that actually exist. Asset-specific validators still own exact expected material names, expected texture sets, and task-specific claim boundaries.
 
 Cold runtime sandbox probe 是 static offline validation 后的下一层。它会把 package config、`common/` runtime files 和 overlay copy 到临时 `sandbox_root`，把 `{ASSETS_DIR}`、`MDL_SYSTEM_PATH`、`PXR_AR_DEFAULT_SEARCH_PATH` 指向 sandbox copy，再用 `pxr.Usd.Stage.Open` compose runtime scene。通过后只能说 `cold_runtime_sandbox_probe_passed=true`；它仍不等于 kernel-level network block、official leaderboard、policy success 或 PM showcase-ready。
+
+Source scene sanitization rule: 如果 wrapper payload 的原始 source layer 仍包含 remote `info:mdl:sourceAsset`、remote `payload` 或 remote `reference`，必须在生成 overlay 时用 USD API 改写到 package-local path，或在有证据证明该 prim 非 task-critical 时删除对应 remote payload。不能只在 wrapper layer 外面盖一个本地 material override，因为 dependency scanner 会继续看到 payload layer 里的 remote dependency。派生 shim 例如 `Stainless_Steel.mdl` 必须写明 `resolution_mode=local_shim_for_runtime_dependency_closure` 的含义：它允许 cold runtime dependency closure，但不允许升级 `full_native_material_closure_claim_allowed`。
 
 Material states:
 

@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 import pytest
+from pxr import Sdf
 
 import standalone_tools.labutopia_poc.build_asset_overlay as build_overlay
 from standalone_tools.labutopia_poc.build_asset_overlay import build_asset_overlay
@@ -27,6 +28,9 @@ def _write_native_material_fixture(source_dir):
     texture_bytes = {
         "image4.jpg": b"fixture texture 4",
         "image1.JPG": b"fixture texture 1",
+        "Steel_Stainless_BaseColor.png": b"fixture steel base color",
+        "Steel_Stainless_ORM.png": b"fixture steel orm",
+        "Steel_Stainless_N.png": b"fixture steel normal",
     }
     texture_hashes = {}
     for texture_name, texture_content in texture_bytes.items():
@@ -50,6 +54,13 @@ import vray_maps::*;
     (materials_dir / "material_09.mdl").write_text(
         shared_imports
         + 'export material mdl_0009() = material(surface: material_surface(scattering: df::diffuse_reflection_bsdf(tint: texture_2d("../textures/image1.JPG", ::tex::gamma_srgb))));\n',
+        encoding="utf-8",
+    )
+    (materials_dir / "Steel_Stainless.mdl").write_text(
+        shared_imports
+        + 'export material Steel_Stainless(*) = material(surface: material_surface(scattering: df::diffuse_reflection_bsdf(tint: texture_2d("../textures/Steel_Stainless_BaseColor.png", ::tex::gamma_srgb))));\n'
+        + 'export color steel_orm_probe() = texture_2d("../textures/Steel_Stainless_ORM.png", ::tex::gamma_linear).tint;\n'
+        + 'export color steel_normal_probe() = texture_2d("../textures/Steel_Stainless_N.png", ::tex::gamma_linear).tint;\n',
         encoding="utf-8",
     )
     return helper_bytes, helper_hashes, texture_hashes
@@ -910,6 +921,221 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
             "wrapper_local_material_overrides_present"
         ),
     }
+
+
+def test_native_overlay_sanitizes_remote_source_payload_dependencies(tmp_path):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    local_payload = source_dir / "SubUSDs" / "local_cabinet_payload.usda"
+    local_payload.parent.mkdir(parents=True)
+    local_payload.write_text(
+        '#usda 1.0\n\ndef Xform "LocalCabinetPayload" {}\n',
+        encoding="utf-8",
+    )
+    (source_dir / "lab_001.usd").write_text(
+        """#usda 1.0
+
+def Xform "World"
+{
+    def Scope "Looks"
+    {
+        def Material "Aluminum_Anodized_Charcoal"
+        {
+            def Shader "Shader"
+            {
+                asset info:mdl:sourceAsset = @https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl@
+                token info:mdl:sourceAsset:subIdentifier = "Aluminum_Anodized_Charcoal"
+            }
+        }
+
+        def Material "Steel_Stainless"
+        {
+            def Shader "Shader"
+            {
+                asset info:mdl:sourceAsset = @https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Steel_Stainless.mdl@
+                token info:mdl:sourceAsset:subIdentifier = "Steel_Stainless"
+            }
+        }
+
+        def Material "Stainless_Steel"
+        {
+            def Shader "Shader"
+            {
+                asset info:mdl:sourceAsset = @https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/vMaterials_2/Metal/Stainless_Steel.mdl@
+                token info:mdl:sourceAsset:subIdentifier = "Stainless_Steel"
+            }
+        }
+    }
+
+    def Xform "Cabinet_01" (
+        prepend payload = [
+            @SubUSDs/local_cabinet_payload.usda@,
+            @http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.2/Isaac/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd@
+        ]
+    )
+    {
+    }
+}
+""",
+        encoding="utf-8",
+    )
+    _write_native_material_fixture(source_dir)
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(
+        labutopia_root=labutopia_root,
+        overlay_root=overlay_root,
+        drying_box_strategy="native_complex",
+    )
+
+    scene_usd = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene.usd"
+    )
+    scene_text = scene_usd.read_text(encoding="utf-8")
+    assert "omniverse-content-production" not in scene_text
+    assert "sektion_cabinet_instanceable.usd" not in scene_text
+    assert "@SubUSDs/local_cabinet_payload.usda@" in scene_text
+    assert "@./SubUSDs/materials/Steel_Stainless.mdl@" in scene_text
+    assert "@./SubUSDs/materials/Stainless_Steel.mdl@" in scene_text
+    assert (
+        "@../../../../miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl@"
+        in scene_text
+    )
+    stainless_mdl = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "SubUSDs"
+        / "materials"
+        / "Stainless_Steel.mdl"
+    )
+    assert stainless_mdl.exists()
+    stainless_text = stainless_mdl.read_text(encoding="utf-8")
+    assert "export material Stainless_Steel" in stainless_text
+    assert "../textures/Steel_Stainless_BaseColor.png" in stainless_text
+    assert "../textures/Steel_Stainless_ORM.png" in stainless_text
+    assert "../textures/Steel_Stainless_N.png" in stainless_text
+
+
+def test_source_payload_filter_preserves_explicit_local_payloads():
+    local_payload = Sdf.Payload("SubUSDs/local_cabinet_payload.usda")
+    remote_payload = Sdf.Payload(build_overlay.REMOTE_SEKTION_CABINET_SOURCE_URL)
+    payload_list = Sdf.PayloadListOp.CreateExplicit([local_payload, remote_payload])
+
+    filtered, removed, kept = build_overlay._filtered_source_scene_payload_list(
+        payload_list
+    )
+
+    assert removed is True
+    assert kept is True
+    assert filtered.isExplicit is True
+    assert filtered.explicitItems == [local_payload]
+    assert filtered.prependedItems == []
+    assert filtered.appendedItems == []
+    assert filtered.addedItems == []
+
+    remote_only_payload_list = Sdf.PayloadListOp.CreateExplicit([remote_payload])
+    filtered_remote_only, removed_remote_only, should_author_remote_only = (
+        build_overlay._filtered_source_scene_payload_list(remote_only_payload_list)
+    )
+
+    assert removed_remote_only is True
+    assert should_author_remote_only is True
+    assert filtered_remote_only.isExplicit is True
+    assert filtered_remote_only.explicitItems == []
+
+
+def test_source_payload_filter_preserves_delete_and_order_ops():
+    local_payload = Sdf.Payload("SubUSDs/local_cabinet_payload.usda")
+    remote_payload = Sdf.Payload(build_overlay.REMOTE_SEKTION_CABINET_SOURCE_URL)
+    payload_list = Sdf.PayloadListOp()
+    payload_list.prependedItems = [remote_payload]
+    payload_list.deletedItems = [remote_payload]
+    payload_list.orderedItems = [local_payload]
+
+    filtered, removed, kept = build_overlay._filtered_source_scene_payload_list(
+        payload_list
+    )
+
+    assert removed is True
+    assert kept is True
+    assert filtered.prependedItems == []
+    assert filtered.deletedItems == [remote_payload]
+    assert filtered.orderedItems == [local_payload]
+
+    delete_only_payload_list = Sdf.PayloadListOp()
+    delete_only_payload_list.deletedItems = [remote_payload]
+    filtered_delete_only, removed_delete_only, kept_delete_only = (
+        build_overlay._filtered_source_scene_payload_list(delete_only_payload_list)
+    )
+
+    assert removed_delete_only is False
+    assert kept_delete_only is True
+    assert filtered_delete_only.deletedItems == [remote_payload]
+
+
+def test_default_overlay_copies_aluminum_mirror_when_source_scene_is_sanitized(
+    tmp_path,
+):
+    labutopia_root = tmp_path / "LabUtopia"
+    source_dir = labutopia_root / "assets" / "chemistry_lab" / "lab_001"
+    source_dir.mkdir(parents=True)
+    (source_dir / "lab_001.usd").write_text(
+        """#usda 1.0
+
+def Xform "World"
+{
+    def Scope "Looks"
+    {
+        def Material "Aluminum_Anodized_Charcoal"
+        {
+            def Shader "Shader"
+            {
+                asset info:mdl:sourceAsset = @https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl@
+                token info:mdl:sourceAsset:subIdentifier = "Aluminum_Anodized_Charcoal"
+            }
+        }
+    }
+}
+""",
+        encoding="utf-8",
+    )
+    _write_native_material_fixture(source_dir)
+
+    overlay_root = tmp_path / "overlay" / "assets"
+    build_asset_overlay(labutopia_root=labutopia_root, overlay_root=overlay_root)
+
+    scene_usd = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene.usd"
+    )
+    scene_text = scene_usd.read_text(encoding="utf-8")
+    assert "omniverse-content-production" not in scene_text
+    assert (
+        "@../../../../miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl@"
+        in scene_text
+    )
+    assert (overlay_root / build_overlay.DRYING_BOX_ALUMINUM_MIRROR_RELATIVE).exists()
+
+    manifest = json.loads(
+        (
+            overlay_root / "manifests" / "labutopia_level1_poc.json"
+        ).read_text(encoding="utf-8")
+    )
+    copied_paths = {item["relative_path"] for item in manifest["copied_files"]}
+    assert build_overlay.DRYING_BOX_ALUMINUM_MIRROR_RELATIVE in copied_paths
 
 
 def test_parse_args_accepts_native_drying_box_strategy(monkeypatch):

@@ -176,6 +176,15 @@ Offline dependency record checklist:
 
 PM 可以说：复制到冷目录后，解析到的 runtime dependency 没有回源到原始 `/cpfs`、公网 URI 或用户 cache。PM 不能说：这已经是系统级断网证明，或 official/policy/render showcase 已完成。
 
+Source scene payload sanitization 是 cold runtime probe 的常见配套修复。即使 wrapper layer 已经有本地 material override，dependency scanner 仍会递归读取 payload 进来的 source layer；如果 source layer 里还留着 remote `info:mdl:sourceAsset`、remote `payload` 或 remote `reference`，cold runtime 仍会失败。DryingBox 的当前处理是：
+
+- `Aluminum_Anodized_Charcoal.mdl`: rewrite to package-local mirror under `miscs/mdl/labutopia/mdl`.
+- `Steel_Stainless.mdl`: rewrite to existing `SubUSDs/materials/Steel_Stainless.mdl`.
+- `Stainless_Steel.mdl`: rewrite to a generated local shim derived from `Steel_Stainless.mdl`, only for runtime dependency closure.
+- remote Sektion cabinet payload: removed from copied source layer because it is not task-critical for `level1_open_door`.
+
+PM 可以说：DryingBox copied package 的 runtime dependency 已经闭环，cold runtime probe 没有看到 remote URI。PM 不能说：`Stainless_Steel.mdl` 已经恢复成原始 remote vMaterials 的视觉等价材质，或 `full_native_material_closure_claim_allowed=true`。
+
 ## PM 文案映射
 
 | Manifest 字段 | PM 可以怎么说 | PM 不能怎么说 |
@@ -185,6 +194,7 @@ PM 可以说：复制到冷目录后，解析到的 runtime dependency 没有回
 | `lift2_contract_ready=true` | 本地 Lift2 official-baseline-style contract 通过 | official leaderboard 已发布 |
 | `aluminum_material_closure_claim_allowed=true` | Aluminum 远端材质依赖已 local mirror | DryingBox 全部 native 材质已恢复 |
 | `full_material_closure_claim_allowed=true` | EBench package material gate 已通过 | source-native full material closure 已完成 |
+| `cold_runtime_sandbox_probe_passed=true` | copied package 在冷目录 compose 时没有 remote URI 或缺失本地依赖 | official leaderboard、policy success 或 PM showcase 已完成 |
 | `full_native_material_closure_claim_allowed=false` | 仍不能宣称 source-native 全闭环 | 把它解读为 package material gate 未通过 |
 | `pm_showcase_ready=false` | 当前图只能作为诊断证据 | 当前图可直接对外展示 |
 

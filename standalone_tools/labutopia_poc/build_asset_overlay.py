@@ -10,6 +10,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from pxr import Sdf, Usd
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -303,6 +305,28 @@ DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES = (
     "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
     "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
     "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+)
+SCENE_LOCAL_ALUMINUM_MDL_SOURCE_ASSET = (
+    "../../../../miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+)
+SCENE_LOCAL_STEEL_STAINLESS_MDL_SOURCE_ASSET = (
+    "./SubUSDs/materials/Steel_Stainless.mdl"
+)
+SCENE_LOCAL_STAINLESS_STEEL_MDL_SOURCE_ASSET = (
+    "./SubUSDs/materials/Stainless_Steel.mdl"
+)
+REMOTE_STEEL_STAINLESS_SOURCE_URL = (
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+    "Materials/Base/Metals/Steel_Stainless.mdl"
+)
+REMOTE_STAINLESS_STEEL_SOURCE_URL = (
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+    "Materials/vMaterials_2/Metal/Stainless_Steel.mdl"
+)
+REMOTE_SEKTION_CABINET_SOURCE_URL = (
+    "http://omniverse-content-production.s3-us-west-2.amazonaws.com/"
+    "Assets/Isaac/4.2/Isaac/Props/Sektion_Cabinet/"
+    "sektion_cabinet_instanceable.usd"
 )
 DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON = (
     "wrapper_local_material_overrides_present"
@@ -964,6 +988,161 @@ def _copy_aluminum_local_mirror(overlay_root: Path) -> dict[str, object]:
         shutil.copy2(source, destination)
         records.append(_file_record(destination, relative_path))
     return {"mdl": records[0], "textures": records[1:]}
+
+
+def _canonical_remote_asset_path(asset_path: str) -> str:
+    for scheme in ("http", "https", "omniverse", "s3"):
+        single_slash = f"{scheme}:/"
+        if asset_path.startswith(single_slash) and not asset_path.startswith(
+            f"{scheme}://"
+        ):
+            return f"{scheme}://{asset_path[len(single_slash):]}"
+    return asset_path
+
+
+def _source_scene_asset_rewrite(asset_path: str) -> str | None:
+    rewrites = {
+        DRYING_BOX_ALUMINUM_SOURCE_URL: SCENE_LOCAL_ALUMINUM_MDL_SOURCE_ASSET,
+        REMOTE_STEEL_STAINLESS_SOURCE_URL: SCENE_LOCAL_STEEL_STAINLESS_MDL_SOURCE_ASSET,
+        REMOTE_STAINLESS_STEEL_SOURCE_URL: (
+            SCENE_LOCAL_STAINLESS_STEEL_MDL_SOURCE_ASSET
+        ),
+    }
+    return rewrites.get(_canonical_remote_asset_path(asset_path))
+
+
+def _source_scene_payload_dependency_list_attributes() -> tuple[str, ...]:
+    return (
+        "addedItems",
+        "prependedItems",
+        "appendedItems",
+    )
+
+
+def _source_scene_payload_non_dependency_list_attributes() -> tuple[str, ...]:
+    return ("deletedItems", "orderedItems")
+
+
+def _is_remote_sektion_payload(payload: Sdf.Payload) -> bool:
+    return (
+        _canonical_remote_asset_path(payload.assetPath)
+        == REMOTE_SEKTION_CABINET_SOURCE_URL
+    )
+
+
+def _filtered_source_scene_payload_list(
+    payload_list: object,
+) -> tuple[Sdf.PayloadListOp, bool, bool]:
+    removed_remote_payload = False
+
+    if getattr(payload_list, "isExplicit", False):
+        kept_items = []
+        for payload in getattr(payload_list, "explicitItems", []) or []:
+            if _is_remote_sektion_payload(payload):
+                removed_remote_payload = True
+                continue
+            kept_items.append(payload)
+        return (
+            Sdf.PayloadListOp.CreateExplicit(kept_items),
+            removed_remote_payload,
+            removed_remote_payload or bool(kept_items),
+        )
+
+    filtered = Sdf.PayloadListOp()
+    should_author_payload_op = False
+
+    for attribute_name in _source_scene_payload_dependency_list_attributes():
+        kept_items = []
+        for payload in getattr(payload_list, attribute_name, []) or []:
+            if _is_remote_sektion_payload(payload):
+                removed_remote_payload = True
+                continue
+            kept_items.append(payload)
+        if kept_items:
+            should_author_payload_op = True
+        setattr(filtered, attribute_name, kept_items)
+
+    for attribute_name in _source_scene_payload_non_dependency_list_attributes():
+        items = list(getattr(payload_list, attribute_name, []) or [])
+        if items:
+            should_author_payload_op = True
+            setattr(filtered, attribute_name, items)
+
+    return filtered, removed_remote_payload, should_author_payload_op
+
+
+def _write_stainless_steel_local_mdl(overlay_scene_dir: Path) -> None:
+    destination = overlay_scene_dir / "SubUSDs/materials/Stainless_Steel.mdl"
+    if destination.exists():
+        return
+    source = overlay_scene_dir / "SubUSDs/materials/Steel_Stainless.mdl"
+    if not source.is_file():
+        raise FileNotFoundError(
+            "Cannot synthesize local Stainless_Steel.mdl shim because "
+            f"Steel_Stainless.mdl is missing: {source}"
+        )
+    source_text = source.read_text(encoding="utf-8")
+    if "export material Steel_Stainless" not in source_text:
+        raise ValueError(
+            "Cannot synthesize local Stainless_Steel.mdl shim because "
+            f"{source} does not export Steel_Stainless"
+        )
+    destination.write_text(
+        source_text.replace(
+            "export material Steel_Stainless",
+            "export material Stainless_Steel",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _sanitize_source_payload_layer(
+    scene_usd: Path, overlay_scene_dir: Path
+) -> dict[str, bool]:
+    stage = Usd.Stage.Open(str(scene_usd), load=Usd.Stage.LoadNone)
+    if stage is None:
+        raise RuntimeError(
+            f"failed to open copied source scene for sanitization: {scene_usd}"
+        )
+
+    rewrote_aluminum_mdl = False
+    wrote_stainless_mdl = False
+    removed_remote_cabinet_payload = False
+    for prim in stage.TraverseAll():
+        payload_list = prim.GetMetadata("payload")
+        if payload_list is not None:
+            filtered_payloads, removed, should_author = (
+                _filtered_source_scene_payload_list(payload_list)
+            )
+            if removed:
+                removed_remote_cabinet_payload = True
+            if removed and should_author:
+                prim.SetMetadata("payload", filtered_payloads)
+            elif removed:
+                prim.GetPayloads().ClearPayloads()
+
+        for attr in prim.GetAttributes():
+            value = attr.Get()
+            if not isinstance(value, Sdf.AssetPath):
+                continue
+            replacement = _source_scene_asset_rewrite(value.path)
+            if replacement is None:
+                continue
+            attr.Set(Sdf.AssetPath(replacement))
+            if replacement == SCENE_LOCAL_ALUMINUM_MDL_SOURCE_ASSET:
+                rewrote_aluminum_mdl = True
+            if replacement == SCENE_LOCAL_STAINLESS_STEEL_MDL_SOURCE_ASSET:
+                wrote_stainless_mdl = True
+
+    if wrote_stainless_mdl:
+        _write_stainless_steel_local_mdl(overlay_scene_dir)
+    stage.GetRootLayer().Save()
+    return {
+        "rewrote_aluminum_mdl": rewrote_aluminum_mdl,
+        "wrote_stainless_mdl": wrote_stainless_mdl,
+        "removed_remote_cabinet_payload": removed_remote_cabinet_payload,
+    }
 
 
 def _aluminum_local_mirror_mdl_record(overlay_root: Path) -> dict[str, object]:
@@ -1966,11 +2145,16 @@ def build_asset_overlay(
 
     scene_usd = overlay_scene_dir / "scene.usd"
     shutil.copy2(source_scene, scene_usd)
+    source_sanitization = _sanitize_source_payload_layer(scene_usd, overlay_scene_dir)
     scene_usda = overlay_scene_dir / "scene.usda"
     _write_scene_wrapper(scene_usda, drying_box_strategy=drying_box_strategy)
     aluminum_mirror_paths: list[Path] = []
     aluminum_mirror_followup = None
-    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+    needs_aluminum_mirror = (
+        drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX
+        or source_sanitization["rewrote_aluminum_mdl"]
+    )
+    if needs_aluminum_mirror:
         _copy_aluminum_local_mirror(overlay_root)
         aluminum_mirror_paths = [
             overlay_root / relative_path
@@ -1979,6 +2163,7 @@ def build_asset_overlay(
                 *DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES,
             )
         ]
+    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
         aluminum_mirror_followup = _aluminum_local_mirror_followup(overlay_root)
 
     copied_paths = [
