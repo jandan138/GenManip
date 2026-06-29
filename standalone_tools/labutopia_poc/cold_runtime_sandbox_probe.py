@@ -3,20 +3,34 @@
 
 from __future__ import annotations
 
+import argparse
+from datetime import datetime, timezone
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
+import sys
+import tempfile
 from typing import Any
 
 
+ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_ROOT = ROOT / "configs/tasks/ebench/labutopia_lab_poc"
+DEFAULT_MANIFEST = PACKAGE_ROOT / "common/assets_manifest.json"
+DEFAULT_VALIDATION_COMMAND = [
+    sys.executable,
+    "standalone_tools/labutopia_poc/validate_task_package.py",
+]
 PASS = "PASS"
 FAIL = "FAIL"
 BLOCKED = "BLOCKED"
 CACHE_MARKERS = ("/.cache/", "/ov/pkg/", "/kit/cache/")
 REMOTE_URI_PREFIXES = ("http://", "https://", "omniverse://", "s3://")
+DEFAULT_CHILD_TIMEOUT_SECONDS = 120
 BUILTIN_ALLOWLIST_ROOTS = (Path("/isaac-sim/materials"),)
 
 
@@ -635,3 +649,352 @@ def run_child_pxr_compose(
             **counts,
         },
     }
+
+
+def _utc_now() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _artifact_hashes(paths: dict[str, Path]) -> dict[str, str]:
+    return {key: _sha256(path) for key, path in paths.items() if path.exists()}
+
+
+def run_static_validation_command(command: list[str] | None = None) -> dict[str, Any]:
+    actual = DEFAULT_VALIDATION_COMMAND if command is None else command
+    completed = subprocess.run(
+        actual,
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    status = PASS if completed.returncode == 0 else FAIL
+    return {
+        "status": status,
+        "command": " ".join(actual),
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def run_child_probe_subprocess(
+    *,
+    layout: SandboxLayout,
+    runtime_scene: Path,
+    assets_dir: Path,
+    required_prim_paths: list[str],
+    environment_report: dict[str, Any],
+    child_env: dict[str, str],
+    child_timeout_seconds: int,
+) -> dict[str, Any]:
+    required_path = layout.reports / "required_prims.json"
+    environment_path = layout.reports / "environment.json"
+    child_report_path = layout.reports / "child_report.json"
+    stdout_path = layout.reports / "child.stdout.txt"
+    stderr_path = layout.reports / "child.stderr.txt"
+    _write_json(required_path, required_prim_paths)
+    _write_json(environment_path, environment_report)
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--child-pxr-compose",
+        "--runtime-scene",
+        str(runtime_scene),
+        "--assets-dir",
+        str(assets_dir),
+        "--required-prims-json",
+        str(required_path),
+        "--environment-report-json",
+        str(environment_path),
+        "--child-report-output",
+        str(child_report_path),
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=child_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=child_timeout_seconds,
+            check=False,
+        )
+        stdout_path.write_text(completed.stdout, encoding="utf-8")
+        stderr_path.write_text(completed.stderr, encoding="utf-8")
+        if child_report_path.exists():
+            try:
+                child_report = json.loads(child_report_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                child_report = {
+                    "status": FAIL,
+                    "runtime": {
+                        "composition_ok": False,
+                        "error": f"child report malformed: {exc}",
+                    },
+                }
+        else:
+            child_report = {
+                "status": FAIL,
+                "runtime": {
+                    "composition_ok": False,
+                    "error": "child report missing",
+                },
+            }
+        child_exit_code = completed.returncode
+        if child_exit_code != 0 and child_report.get("status") == PASS:
+            child_report["status"] = FAIL
+            child_report.setdefault("runtime", {})["error"] = (
+                f"child exited nonzero despite PASS report: {child_exit_code}"
+            )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or "child process timed out"
+        stdout_path.write_text(stdout, encoding="utf-8")
+        stderr_path.write_text(stderr, encoding="utf-8")
+        child_report = {
+            "status": BLOCKED,
+            "runtime": {
+                "composition_ok": False,
+                "error": f"child process timed out after {child_timeout_seconds}s",
+            },
+        }
+        _write_json(child_report_path, child_report)
+        child_exit_code = -1
+    artifact_paths = {
+        "stdout_path": stdout_path,
+        "stderr_path": stderr_path,
+        "child_report_path": child_report_path,
+    }
+    return {
+        "child_report": child_report,
+        "artifacts": {
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "child_report_path": str(child_report_path),
+            "child_exit_code": child_exit_code,
+            "sha256": _artifact_hashes(artifact_paths),
+        },
+    }
+
+
+def run_parent_probe(
+    *,
+    manifest_path: Path,
+    package_root: Path,
+    overlay_root: Path,
+    runtime_scene_relative: Path,
+    required_prim_paths: list[str],
+    static_validation_runner,
+    mode: str,
+    sandbox_root: Path | None = None,
+    child_timeout_seconds: int = DEFAULT_CHILD_TIMEOUT_SECONDS,
+    task_env_vars: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    started_at_utc = _utc_now()
+    static_validation = static_validation_runner()
+    if static_validation.get("status") != PASS:
+        status = FAIL if static_validation.get("status") == FAIL else BLOCKED
+        return {
+            "schema_version": 1,
+            "status": status,
+            "mode": mode,
+            "started_at_utc": started_at_utc,
+            "ended_at_utc": _utc_now(),
+            "child_timeout_seconds": child_timeout_seconds,
+            "static_validation": static_validation,
+            "artifacts": {
+                "stdout_path": "",
+                "stderr_path": "",
+                "child_report_path": "",
+                "sha256": {},
+            },
+            "claim_boundary": build_claim_boundary(status),
+        }
+    root = sandbox_root or Path(tempfile.mkdtemp(prefix="labutopia_cold_runtime_"))
+    try:
+        layout = build_sandbox_layout(
+            sandbox_root=root,
+            package_root=package_root,
+            overlay_root=overlay_root,
+        )
+        child_env, environment_report = build_child_environment(
+            layout,
+            base_env=os.environ,
+            task_env_vars=task_env_vars,
+        )
+        runtime_scene = layout.assets_dir / runtime_scene_relative
+        child_result = run_child_probe_subprocess(
+            layout=layout,
+            runtime_scene=runtime_scene,
+            assets_dir=layout.assets_dir,
+            required_prim_paths=required_prim_paths,
+            environment_report=environment_report,
+            child_env=child_env,
+            child_timeout_seconds=child_timeout_seconds,
+        )
+        child_report = child_result["child_report"]
+        runtime = child_report.get("runtime") or {}
+        runtime_counts = {
+            "remote_uri_count": int(runtime.get("remote_uri_count") or 0),
+            "user_cache_path_count": int(runtime.get("user_cache_path_count") or 0),
+            "unauthorized_outside_sandbox_runtime_path_count": int(
+                runtime.get("unauthorized_outside_sandbox_runtime_path_count") or 0
+            ),
+            "non_allowlisted_search_path_count": int(
+                environment_report.get("non_allowlisted_search_path_count") or 0
+            ),
+            "missing_required_prim_count": len(
+                runtime.get("missing_required_prim_paths") or []
+            ),
+        }
+        status = derive_parent_status(
+            static_validation_status=static_validation["status"],
+            child_status=child_report["status"],
+            runtime_counts=runtime_counts,
+        )
+        return {
+            "schema_version": 1,
+            "status": status,
+            "mode": mode,
+            "started_at_utc": started_at_utc,
+            "ended_at_utc": _utc_now(),
+            "command": sys.argv,
+            "child_timeout_seconds": child_timeout_seconds,
+            "static_validation": static_validation,
+            "sandbox": {
+                "sandbox_root": str(layout.sandbox_root),
+                "package_config_root": str(layout.package_config_root),
+                "assets_dir": str(layout.assets_dir),
+                "home": str(layout.home),
+                "xdg_cache_home": str(layout.cache),
+                "network_isolation_mode": (
+                    "best_effort_env_and_resolved_dependency_probe"
+                ),
+            },
+            "environment": environment_report,
+            "runtime": runtime,
+            "artifacts": child_result["artifacts"],
+            "claim_boundary": build_claim_boundary(status),
+        }
+    except SandboxBuildError as exc:
+        return {
+            "schema_version": 1,
+            "status": FAIL,
+            "mode": mode,
+            "started_at_utc": started_at_utc,
+            "ended_at_utc": _utc_now(),
+            "static_validation": static_validation,
+            "error": str(exc),
+            "artifacts": {
+                "stdout_path": "",
+                "stderr_path": "",
+                "child_report_path": "",
+                "sha256": {},
+            },
+            "claim_boundary": build_claim_boundary(FAIL),
+        }
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--child-pxr-compose", action="store_true")
+    parser.add_argument(
+        "--mode",
+        default="pxr-compose",
+        choices=["pxr-compose", "isaac-python-smoke", "lift2-contract"],
+    )
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--package-root", type=Path, default=PACKAGE_ROOT)
+    parser.add_argument("--overlay-root", type=Path)
+    parser.add_argument(
+        "--runtime-scene-relative",
+        type=Path,
+        default=Path("scene_usds/labutopia/level1_poc/lab_001/scene.usda"),
+    )
+    parser.add_argument("--required-prim", action="append", default=[])
+    parser.add_argument("--runtime-scene", type=Path)
+    parser.add_argument("--assets-dir", type=Path)
+    parser.add_argument("--required-prims-json", type=Path)
+    parser.add_argument("--environment-report-json", type=Path)
+    parser.add_argument("--child-report-output", type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--child-timeout-seconds",
+        type=int,
+        default=DEFAULT_CHILD_TIMEOUT_SECONDS,
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    if args.child_pxr_compose:
+        required_prims = json.loads(args.required_prims_json.read_text(encoding="utf-8"))
+        environment_report = json.loads(
+            args.environment_report_json.read_text(encoding="utf-8")
+        )
+        report = run_child_pxr_compose(
+            runtime_scene=args.runtime_scene,
+            assets_dir=args.assets_dir,
+            required_prim_paths=required_prims,
+            environment_report=environment_report,
+        )
+        _write_json(args.child_report_output, report)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0 if report["status"] == PASS else 1
+    if args.mode != "pxr-compose":
+        if args.mode == "isaac-python-smoke" and (
+            not Path("/isaac-sim/python.sh").is_file()
+            or os.environ.get("LABUTOPIA_RUN_HEAVY_ISAAC_TESTS") != "1"
+        ):
+            report = {
+                "schema_version": 1,
+                "status": BLOCKED,
+                "mode": args.mode,
+                "reason": "heavy Isaac mode not enabled",
+            }
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 2
+        report = {
+            "schema_version": 1,
+            "status": BLOCKED,
+            "mode": args.mode,
+            "reason": "mode not implemented in v1",
+        }
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 2
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+    overlay_root = args.overlay_root or Path(manifest.get("overlay_root", ""))
+    report = run_parent_probe(
+        manifest_path=args.manifest,
+        package_root=args.package_root,
+        overlay_root=overlay_root,
+        runtime_scene_relative=args.runtime_scene_relative,
+        required_prim_paths=args.required_prim,
+        static_validation_runner=run_static_validation_command,
+        mode=args.mode,
+        child_timeout_seconds=args.child_timeout_seconds,
+    )
+    text = json.dumps(report, indent=2, sort_keys=True)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text + "\n", encoding="utf-8")
+    print(text)
+    return 0 if report["status"] == PASS else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

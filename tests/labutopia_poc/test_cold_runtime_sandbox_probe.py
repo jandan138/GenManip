@@ -377,3 +377,101 @@ def Xform "World"
         and record["resolved_path"].endswith("Aluminum_Anodized_Charcoal.mdl")
         for record in report["runtime"]["resolved_runtime_dependency_records"]
     )
+
+
+def test_parent_runner_uses_injected_static_validation_for_tiny_fixture(tmp_path):
+    package_root = tmp_path / "package"
+    overlay_root = tmp_path / "overlay"
+    _write(package_root / "common/assets_manifest.json", b'{"asset_id":"Tiny"}')
+    _write(
+        overlay_root / "scene.usda",
+        b'''#usda 1.0
+def Xform "World"
+{
+    def Xform "object" {}
+}
+''',
+    )
+
+    report = probe.run_parent_probe(
+        manifest_path=package_root / "common/assets_manifest.json",
+        package_root=package_root,
+        overlay_root=overlay_root,
+        runtime_scene_relative=Path("scene.usda"),
+        required_prim_paths=["/World/object"],
+        static_validation_runner=lambda: {"status": "PASS", "command": "stub"},
+        mode="pxr-compose",
+        sandbox_root=tmp_path / "sandbox",
+    )
+
+    assert report["status"] == "PASS"
+    assert report["static_validation"]["command"] == "stub"
+    assert Path(report["artifacts"]["stdout_path"]).exists()
+    assert Path(report["artifacts"]["stderr_path"]).exists()
+    assert Path(report["artifacts"]["child_report_path"]).exists()
+    assert report["artifacts"]["sha256"]["child_report_path"]
+    assert report["artifacts"]["child_exit_code"] == 0
+    assert report["claim_boundary"]["cold_runtime_sandbox_probe_passed"] is True
+    assert report["claim_boundary"]["official_leaderboard_claim_allowed"] is False
+
+
+def test_parent_runner_static_validation_fail_prevents_pass(tmp_path):
+    package_root = tmp_path / "package"
+    overlay_root = tmp_path / "overlay"
+    _write(package_root / "common/assets_manifest.json", b'{"asset_id":"Tiny"}')
+
+    report = probe.run_parent_probe(
+        manifest_path=package_root / "common/assets_manifest.json",
+        package_root=package_root,
+        overlay_root=overlay_root,
+        runtime_scene_relative=Path("missing.usda"),
+        required_prim_paths=[],
+        static_validation_runner=lambda: {"status": "FAIL", "command": "stub"},
+        mode="pxr-compose",
+        sandbox_root=tmp_path / "sandbox",
+    )
+
+    assert report["status"] == "FAIL"
+    assert report["started_at_utc"].endswith("Z")
+    assert report["ended_at_utc"].endswith("Z")
+    assert report["artifacts"]["sha256"] == {}
+    assert report["claim_boundary"]["cold_runtime_sandbox_probe_passed"] is False
+
+
+def test_parse_args_defaults_to_pxr_compose():
+    args = probe.parse_args([])
+
+    assert args.mode == "pxr-compose"
+    assert args.child_timeout_seconds == 120
+
+
+def test_child_cli_writes_report_for_tiny_fixture(tmp_path):
+    scene = tmp_path / "assets/scene.usda"
+    output = tmp_path / "child_report.json"
+    env_report = tmp_path / "environment.json"
+    required = tmp_path / "required_prims.json"
+    _write(scene, b'#usda 1.0\ndef Xform "World" {}\n')
+    env_report.write_text(
+        '{"non_allowlisted_search_path_count":0,"effective_mdl_system_path_entries":[]}',
+        encoding="utf-8",
+    )
+    required.write_text('["/World"]', encoding="utf-8")
+
+    exit_code = probe.main(
+        [
+            "--child-pxr-compose",
+            "--runtime-scene",
+            str(scene),
+            "--assets-dir",
+            str(tmp_path / "assets"),
+            "--required-prims-json",
+            str(required),
+            "--environment-report-json",
+            str(env_report),
+            "--child-report-output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 0
+    assert '"status": "PASS"' in output.read_text(encoding="utf-8")
