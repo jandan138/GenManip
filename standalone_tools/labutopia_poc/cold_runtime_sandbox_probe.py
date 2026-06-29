@@ -17,6 +17,11 @@ import sys
 import tempfile
 from typing import Any
 
+try:
+    import yaml
+except Exception:  # pragma: no cover - exercised by environments without PyYAML
+    yaml = None
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = ROOT / "configs/tasks/ebench/labutopia_lab_poc"
@@ -908,6 +913,39 @@ def run_parent_probe(
         }
 
 
+def load_yaml_mapping(path: Path) -> dict[str, Any]:
+    if yaml is None or not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
+
+
+def first_evaluation_config(task_config: dict[str, Any]) -> dict[str, Any]:
+    configs = task_config.get("evaluation_configs") or []
+    if isinstance(configs, list) and configs and isinstance(configs[0], dict):
+        return configs[0]
+    return task_config
+
+
+def default_open_door_task_config(package_root: Path) -> dict[str, Any]:
+    task_path = package_root / "lift2_candidate/level1_open_door.yml"
+    data = load_yaml_mapping(task_path)
+    first = first_evaluation_config(data)
+    root = "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+    first.setdefault("metric_joint_path", f"{root}/RevoluteJoint")
+    return first
+
+
+def extract_task_env_vars(task_config: dict[str, Any]) -> dict[str, str]:
+    first = first_evaluation_config(task_config)
+    env_vars = first.get("env_vars") or {}
+    return {
+        str(key): str(value)
+        for key, value in env_vars.items()
+        if isinstance(key, str) and isinstance(value, (str, int, float))
+    }
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--child-pxr-compose", action="store_true")
@@ -977,16 +1015,23 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 2
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+    task_config = default_open_door_task_config(args.package_root)
+    required_prims = args.required_prim or derive_required_prim_paths(
+        manifest,
+        task_config,
+    )
+    task_env_vars = extract_task_env_vars(task_config)
     overlay_root = args.overlay_root or Path(manifest.get("overlay_root", ""))
     report = run_parent_probe(
         manifest_path=args.manifest,
         package_root=args.package_root,
         overlay_root=overlay_root,
         runtime_scene_relative=args.runtime_scene_relative,
-        required_prim_paths=args.required_prim,
+        required_prim_paths=required_prims,
         static_validation_runner=run_static_validation_command,
         mode=args.mode,
         child_timeout_seconds=args.child_timeout_seconds,
+        task_env_vars=task_env_vars,
     )
     text = json.dumps(report, indent=2, sort_keys=True)
     if args.output:

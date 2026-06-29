@@ -176,6 +176,8 @@ Implementation rule: generic material shape checks live in `asset_acceptance_val
 
 Offline dependency rule: package-local MDL/texture records, source-scene copied MDL/texture records, helper MDL imports, and `static_material_dependency_gate.remote_dependency_records` use `offline_package_validation.py` for reusable local-file, SHA256, byte-count, remote URI, allowed-root, and waiver-claim checks. Configured runtime path fields must resolve under the packaged `common/` root, the asset overlay root, or an explicit staged scene root such as `overlay_root / scene_usds/.../lab_001`, and must point to files that actually exist. Asset-specific validators still own exact expected material names, expected texture sets, and task-specific claim boundaries.
 
+Cold runtime sandbox probe 是 static offline validation 后的下一层。它会把 package config、`common/` runtime files 和 overlay copy 到临时 `sandbox_root`，把 `{ASSETS_DIR}`、`MDL_SYSTEM_PATH`、`PXR_AR_DEFAULT_SEARCH_PATH` 指向 sandbox copy，再用 `pxr.Usd.Stage.Open` compose runtime scene。通过后只能说 `cold_runtime_sandbox_probe_passed=true`；它仍不等于 kernel-level network block、official leaderboard、policy success 或 PM showcase-ready。
+
 Material states:
 
 ```text

@@ -475,3 +475,47 @@ def test_child_cli_writes_report_for_tiny_fixture(tmp_path):
 
     assert exit_code == 0
     assert '"status": "PASS"' in output.read_text(encoding="utf-8")
+
+
+def test_default_required_prims_include_dryingbox_contract_paths():
+    manifest = {
+        "drying_box_runtime_asset": {
+            "wrapper_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01"
+        },
+        "articulation_part_paths": {
+            "obj_DryingBox_01_handle": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle"
+            )
+        },
+    }
+    task_config = {}
+
+    paths = probe.derive_required_prim_paths(manifest, task_config)
+
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01" in paths
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle" in paths
+    assert "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks" in paths
+
+
+def test_isaac_mode_requires_explicit_heavy_flag(monkeypatch):
+    monkeypatch.delenv("LABUTOPIA_RUN_HEAVY_ISAAC_TESTS", raising=False)
+
+    exit_code = probe.main(["--mode", "isaac-python-smoke"])
+
+    assert exit_code == 2
+
+
+def test_extract_task_env_vars_reads_first_evaluation_config():
+    task_config = {
+        "evaluation_configs": [
+            {
+                "env_vars": {
+                    "MDL_SYSTEM_PATH": "/isaac-sim/materials:{ASSETS_DIR}/miscs/mdl"
+                }
+            }
+        ]
+    }
+
+    assert probe.extract_task_env_vars(task_config) == {
+        "MDL_SYSTEM_PATH": "/isaac-sim/materials:{ASSETS_DIR}/miscs/mdl"
+    }

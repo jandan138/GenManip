@@ -142,6 +142,40 @@ Offline dependency record checklist:
 - `explicit_waiver` may explain an open dependency, but it cannot allow package/full/native closure claims by itself.
 - Offline dependency pass does not upgrade native material closure, official leaderboard, policy success, or PM showcase claims.
 
+## Cold Runtime Sandbox Probe 字段
+
+`cold_runtime_sandbox_probe` 记录 copied package 在冷目录里的最小 runtime compose 结果：
+
+```json
+{
+  "status": "PASS",
+  "mode": "pxr-compose",
+  "sandbox": {
+    "network_isolation_mode": "best_effort_env_and_resolved_dependency_probe"
+  },
+  "environment": {
+    "non_allowlisted_search_path_count": 0
+  },
+  "runtime": {
+    "remote_uri_count": 0,
+    "user_cache_path_count": 0,
+    "unauthorized_outside_sandbox_runtime_path_count": 0,
+    "allowlisted_builtin_runtime_path_count": 0,
+    "missing_required_prim_paths": []
+  },
+  "claim_boundary": {
+    "cold_runtime_sandbox_probe_passed": true,
+    "official_leaderboard_claim_allowed": false,
+    "policy_success_claim_allowed": false,
+    "pm_showcase_ready": false,
+    "native_material_closure_claim_allowed": false,
+    "full_native_material_closure_claim_allowed": false
+  }
+}
+```
+
+PM 可以说：复制到冷目录后，解析到的 runtime dependency 没有回源到原始 `/cpfs`、公网 URI 或用户 cache。PM 不能说：这已经是系统级断网证明，或 official/policy/render showcase 已完成。
+
 ## PM 文案映射
 
 | Manifest 字段 | PM 可以怎么说 | PM 不能怎么说 |
