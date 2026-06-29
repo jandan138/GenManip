@@ -20,6 +20,8 @@
 
 DryingBox 是第一套模板：我们已经证明 native complex `DryingBox_01` 能进入 EBench，door `RevoluteJoint` metric 可读，Lift2 local contract 可评，Aluminum remote material 已 local mirror，runtime material readback 中真正 `fallback_only` surface 已降为 0。当前它已经可以作为 EBench package-level reference asset；但 `button` 和 `Group/_900_1` 仍是 wrapper-local authored material，所以还不能宣称 source-native full material closure。
 
+更通俗地说：DryingBox 的 package material gate 已通过，因为所有 remote material dependency 已本地化、runtime fallback-only surface 为 0，并且 wrapper-local material override 已显式记录。DryingBox 的 source-native full material closure 仍未通过，因为 `button` 和 `Group/_900_1` 在原生 USD 中没有可恢复的有效 `material:binding`；我们保留 wrapper-local `PreviewSurface` 是为了任务可读性，不把它包装成 native claim。
+
 ## 术语边界：Gate 和 Acceptance Stage 不是一回事
 
 后续所有文档和代码统一使用这两个概念：
@@ -194,6 +196,7 @@ aluminum_material_closure_claim_allowed
 native_material_closure_claim_allowed
 full_native_material_closure_claim_allowed
 native_material_closure_reason
+native_material_provenance
 source_resolved_surface_records
 authored_material_records
 fallback_surface_records
@@ -256,6 +259,7 @@ Claim policy:
 - 当所有 remote dependency 已 local mirror/waiver 管理，runtime 没有 fallback-only surface，并且 wrapper-local override 均显式记录时，允许 `full_material_closure_claim_allowed=true`，表示 EBench package material gate 可过。
 - 全资产所有可见 surface 都恢复为 source-native material binding、MDL 和 texture 后，才允许 `full_native_material_closure_claim_allowed=true`。
 - overclaim 是非豁免错误：如果还有 fallback-only surface，任何 manifest 或文档把 package/full closure 写成 true，都必须 fail。
+- `native_material_provenance` 记录为什么 native claim 还不能升级；validator 会检查 blocker count、source/runtime path、runtime material path、`source_binding_status`、`source_material_binding=null` 和 `blocked_claims`。
 - 只要存在 wrapper-local authored material，就必须保持：
 
 ```text
@@ -273,6 +277,8 @@ button -> wrapper-local task_button_mat
 runtime fallback_only surface count -> 0
 full_material_closure_claim_allowed -> true
 full_native_material_closure_claim_allowed -> false
+native_material_provenance.status -> blocked_by_wrapper_local_overrides
+native_material_provenance.blockers -> Group/_900_1, button
 ```
 
 ## Gate 4: Physics Closure Gate
@@ -516,7 +522,7 @@ separately run and recorded.
 
 1. 先把 material report 扩展成通用 schema：不再只服务 Aluminum，而是覆盖任意 asset 的 MDL/texture/material binding、`GeomSubset`、wrapper-local override 和 fallback-only surface。
 2. 完成 DryingBox package material closure：Aluminum local mirror、`panel` source-resolved、`Group/_900_1` 和 `button` wrapper-local material override，runtime `fallback_surface_count=0`。
-3. 把 `validate_task_package.py` 中 DryingBox 专项断言抽成 reusable validator helpers。
+3. 把 `native_material_provenance` blocker 写进 manifest，并在 `validate_task_package.py` 里校验 blocker count、path、binding status 和 blocked claims。
 4. 增加 cold/offline package validation：验证不依赖公网和缓存。
 5. 对 DryingBox 重新跑 evaluator camera readback，产出 diagnostic image；如需对外展示，再单独补拍 PM-facing image 并通过 `pm_showcase_ready` 边界。
 6. 生成 `asset_acceptance_record.json`，把 Stage 0-7 的状态、hash、allowed claims 和 blocked claims 汇总到 `acceptance_stages`，同时保留 `gate_status` 作为兼容摘要。
@@ -556,4 +562,4 @@ separately run and recorded.
 
 ## 当前推荐下一步
 
-DryingBox 已经可以作为第一个 reference acceptance package。下一步把这套 pipeline 的 schema 和 validator helpers 从 DryingBox 专项抽成通用资产入口；真实 Lift2 baseline/policy gate 单独推进，source-native full material closure 作为 provenance follow-up 处理。
+DryingBox 已经可以作为第一个 reference acceptance package。下一步把这套 pipeline 的 schema 和 validator helpers 从 DryingBox 专项抽成通用资产入口；真实 Lift2 baseline/policy gate 单独推进。source-native full material closure 不是 package gate blocker，后续只有在需要升级 `full_native_material_closure_claim_allowed=true` 时，才继续做真实 native binding replacement。

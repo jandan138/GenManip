@@ -10,6 +10,20 @@
 
 ---
 
+## 2026-06-29 Execution Status
+
+| Task | Status | Evidence | Remaining work |
+| --- | --- | --- | --- |
+| 1. Freeze Native Claim Invariants | COMPLETE | `8d87843`; package material closure stays true while native/full-native claims stay false with two wrapper-local blockers | None. |
+| 2. Add Native Provenance Fields | COMPLETE | `0d29f3d`; `asset_acceptance.material_closure.native_material_provenance` records `Group/_900_1` and `button` blockers | None. |
+| 3. Validate Native Provenance Claims | COMPLETE | `7e1c9be`; validator rejects blocker path/count/status/claim mismatches | None. |
+| 4. Update Evidence Docs and PM SOP | COMPLETE | SOP, evidence field guide, and acceptance pipeline plan now record package gate versus source-native claim wording | None. |
+| 5. Final Verification | VERIFIED | `python standalone_tools/labutopia_poc/validate_task_package.py`; focused pytest `72 passed`; full `tests/labutopia_poc` `199 passed, 1 skipped`; `git diff --check` | None. |
+
+Current claim boundary: package material closure remains PASS; source-native full material closure remains blocked. A future upgrade to `full_native_material_closure_claim_allowed=true` requires real source-native material binding replacement for `button` and `Group/_900_1`.
+
+---
+
 ## Current Evidence
 
 Read-only audits agree that the remaining wrapper-local surfaces are not safely recoverable as source-native material bindings:

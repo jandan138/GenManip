@@ -82,7 +82,33 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
     "full_material_closure_claim_allowed": true,
     "native_material_closure_claim_allowed": false,
     "full_native_material_closure_claim_allowed": false,
-    "native_material_closure_reason": "wrapper_local_material_overrides_present"
+    "native_material_closure_reason": "wrapper_local_material_overrides_present",
+    "native_material_provenance": {
+      "schema_version": 1,
+      "status": "blocked_by_wrapper_local_overrides",
+      "source_native_blocker_surface_count": 2,
+      "native_wrapper_override_surface_count": 2,
+      "native_claim_blocker_records": [
+        {
+          "source_prim_path": "/World/DryingBox_01/Group/_900_1",
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+          "source_binding_status": "empty_authored_binding_in_stage2_source_readback",
+          "source_material_binding": null,
+          "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat",
+          "replacement_required_for_full_native_closure": true,
+          "blocked_claims": ["native_material_closure", "full_native_material_closure"]
+        },
+        {
+          "source_prim_path": "/World/DryingBox_01/button",
+          "runtime_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+          "source_binding_status": "unbound_in_stage2_source_readback",
+          "source_material_binding": null,
+          "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
+          "replacement_required_for_full_native_closure": true,
+          "blocked_claims": ["native_material_closure", "full_native_material_closure"]
+        }
+      ]
+    }
   }
 }
 ```
@@ -92,6 +118,7 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 - 单个 material dependency 已 local mirror，只能升级 scoped dependency claim。
 - 当 runtime `fallback_surface_count=0`，且 wrapper-local override 已显式记录时，`full_material_closure_claim_allowed` 可以是 `true`，表示 EBench package material gate 已通过。
 - 只要存在 wrapper-local authored material，`full_native_material_closure_claim_allowed` 必须是 `false`。
+- `native_material_provenance` 是 source-native claim 的刹车字段：它说明哪些 wrapper-local material override 还没有 source-native `material:binding` 证据，且每条 blocker 必须写清 source path、runtime path、runtime material path、source binding status 和 blocked claims。
 - hash mismatch、missing texture、stale `/World/Looks` binding、unknown unbound mesh 和 overclaim 都是 FAIL。
 - explicit waiver 可以保留资产验收边界，但不能让 package material closure 或 native material closure 自动变成 true。
 - `primvars:displayColor` 不自动等于 fallback；有有效 `material:binding` 时只算 authored auxiliary color，只有 fallback-only surface 才计入 `fallback_surface_count`。
@@ -115,8 +142,9 @@ Stage 7 local Lift2 contract: PASS
 Aluminum local mirror: PASS
 EBench package material closure: PASS
 full native material closure: BLOCKED by wrapper-local button and Group/_900_1 materials
+native material provenance: BLOCKED by /World/DryingBox_01/button and /World/DryingBox_01/Group/_900_1
 policy success: BLOCKED / not evaluated
 official leaderboard: BLOCKED / not an official run
 ```
 
-这说明 DryingBox 当前已经能证明“本地可评链路通过”和“包级材质闭环通过”，但还不能证明“策略成功”“官方成绩发布”或“source-native 全材质闭环完成”。
+这说明 DryingBox 当前已经能证明“本地可评链路通过”和“包级材质闭环通过”，但还不能证明“策略成功”“官方成绩发布”或“source-native 全材质闭环完成”。PM 汇报时可以说 package material gate 通过，不能把 `button` 和 `Group/_900_1` 的 wrapper-local `PreviewSurface` 说成原生材质已恢复。
