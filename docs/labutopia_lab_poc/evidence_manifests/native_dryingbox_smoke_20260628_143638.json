@@ -1,0 +1,4834 @@
+{
+  "active_non_target_world_child_count": 0,
+  "active_non_target_world_children": [],
+  "active_world_children": [
+    "Looks",
+    "PhysicsScene",
+    "DryingBox_01"
+  ],
+  "button_joint_index": 1,
+  "button_joint_path": "/World/DryingBox_01/button/PrismaticJoint",
+  "button_joint_position_max_m": 0.0,
+  "button_joint_position_min_m": 0.0,
+  "door_joint_angle_max_deg": 2.2799471561447267e-12,
+  "door_joint_angle_min_deg": 1.8239262474413186e-13,
+  "door_joint_angle_within_limits": true,
+  "door_joint_index": 0,
+  "door_joint_path": "/World/DryingBox_01/RevoluteJoint",
+  "errors": [],
+  "finite_trace": true,
+  "handle_pose": {
+    "orientation": [
+      -0.4999997019767761,
+      -0.5000001192092896,
+      0.5000001788139343,
+      0.5000000596046448
+    ],
+    "position": [
+      45.58914566040039,
+      2.060589551925659,
+      0.3285927474498749
+    ]
+  },
+  "handle_pose_finite": true,
+  "handle_prim_exists": true,
+  "handle_prim_path": "/World/DryingBox_01/handle/mesh",
+  "handle_translation_drift_tolerance_m": 0.0001,
+  "inactive_world_children": [
+    "CylinderLight",
+    "beaker1",
+    "lounge_booth_table",
+    "graduated_cylinder_03",
+    "GroundPlane",
+    "table",
+    "Cube",
+    "beaker2",
+    "conical_bottle03",
+    "DryingBox_02",
+    "MuffleFurnace",
+    "conical_bottle01",
+    "conical_bottle02",
+    "conical_bottle04",
+    "target_plat",
+    "target_plat2",
+    "Cabinet_01",
+    "Cabinet_02",
+    "DryingBox_03",
+    "DryingBox_04",
+    "beaker3"
+  ],
+  "initial_joint_positions": [
+    1.5916470115704654e-15,
+    0.0
+  ],
+  "isaac_log_path": "environment_logs/Kit/Isaac-Sim/4.1/kit_20260628_223639.log",
+  "joint_names": [
+    "RevoluteJoint",
+    "PrismaticJoint"
+  ],
+  "labutopia_root": "repo_root",
+  "material_fallback_overlay_paths": [
+    "/World/DryingBox_01/Group/_900_1",
+    "/World/DryingBox_01/button",
+    "/World/DryingBox_01/panel"
+  ],
+  "material_fallback_overlay_policy": "stage2_readability_displayColor_not_native_material_closure",
+  "material_runtime_notes": {
+    "bound_task_mesh_count": 29,
+    "collection_error": null,
+    "dryingbox_material_compiler_warnings": [],
+    "empty_authored_binding_count": 2,
+    "empty_authored_binding_paths": [
+      "/World/DryingBox_01/Group/_900_1",
+      "/World/DryingBox_01/panel"
+    ],
+    "fallback_status": "readability_evidence_accepted",
+    "material_binding_gap_count": 3,
+    "material_binding_gap_details": [
+      {
+        "bindings": [
+          {
+            "prim_path": "/World/DryingBox_01/Group/_900_1",
+            "relationship": "material:binding",
+            "targets": []
+          }
+        ],
+        "displayColor": {
+          "authored": true,
+          "fallback_status": "usable",
+          "value": [
+            [
+              0.11999999731779099,
+              0.2800000011920929,
+              0.949999988079071
+            ]
+          ]
+        },
+        "gap_type": "authored_empty",
+        "mesh_path": "/World/DryingBox_01/Group/_900_1",
+        "readability_evidence_status": "accepted"
+      },
+      {
+        "bindings": [],
+        "displayColor": {
+          "authored": true,
+          "fallback_status": "usable",
+          "value": [
+            [
+              1.0,
+              0.47999998927116394,
+              0.03999999910593033
+            ]
+          ]
+        },
+        "gap_type": "unbound",
+        "mesh_path": "/World/DryingBox_01/button",
+        "readability_evidence_status": "accepted"
+      },
+      {
+        "bindings": [
+          {
+            "prim_path": "/World/DryingBox_01/panel",
+            "relationship": "material:binding",
+            "targets": []
+          }
+        ],
+        "displayColor": {
+          "authored": true,
+          "fallback_status": "usable",
+          "value": [
+            [
+              0.8799999952316284,
+              0.9200000166893005,
+              0.9599999785423279
+            ]
+          ]
+        },
+        "gap_type": "authored_empty",
+        "mesh_path": "/World/DryingBox_01/panel",
+        "readability_evidence_status": "accepted"
+      }
+    ],
+    "material_binding_gap_paths": [
+      "/World/DryingBox_01/Group/_900_1",
+      "/World/DryingBox_01/button",
+      "/World/DryingBox_01/panel"
+    ],
+    "material_binding_gap_policy": "warning_requires_readability_evidence",
+    "material_binding_gap_readability_status": "accepted",
+    "material_collection_ok": true,
+    "material_compiler_warning_count": 0,
+    "material_runtime_status": "mixed_native_and_fallback",
+    "remote_material_dependency_count": 0,
+    "remote_material_dependency_paths": [],
+    "task_mesh_count": 32,
+    "unbound_task_mesh_count": 1,
+    "unbound_task_mesh_paths": [
+      "/World/DryingBox_01/button"
+    ],
+    "unresolved_binding_target_count": 0,
+    "unresolved_binding_target_paths": [],
+    "unresolved_task_material_count": 0,
+    "used_material_count": 3,
+    "used_material_paths": [
+      "/World/Looks/Aluminum_Anodized_Charcoal",
+      "/World/Looks/mdl_0007",
+      "/World/Looks/mdl_0009"
+    ],
+    "world_looks_present": true
+  },
+  "max_handle_translation_drift_m": 0.0,
+  "max_root_rotation_drift_deg": 0.0,
+  "max_root_translation_drift_m": 0.0,
+  "native_stage_mode": "full_source_world",
+  "non_door_dof_drift_tolerance": 0.0001,
+  "non_door_dof_drift_within_tolerance": true,
+  "physx_warning_allowlist": [
+    "2026-06-28 14:37:07 [28,222ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype",
+    "2026-06-28 14:37:07 [28,516ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype",
+    "2026-06-28 14:37:07 [28,526ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype"
+  ],
+  "physx_warning_denylist": [],
+  "physx_warning_policy": "capture_only_for_task4_triage",
+  "physx_warning_scope": "dryingbox_runtime_and_isaac_log_filtered_physics",
+  "physx_warning_sources": {
+    "isaac_log_count": 3,
+    "log_event_stream_count": 0
+  },
+  "physx_warnings": [
+    "2026-06-28 14:37:07 [28,222ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype",
+    "2026-06-28 14:37:07 [28,516ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype",
+    "2026-06-28 14:37:07 [28,526ms] [Warning] [omni.physx.tensors.plugin] Duplicate link name 'mesh' in articulation metatype"
+  ],
+  "post_step_handle_pose": {
+    "orientation": [
+      -0.4999997019767761,
+      -0.5000001192092896,
+      0.5000001788139343,
+      0.5000000596046448
+    ],
+    "position": [
+      45.58914566040039,
+      2.060589551925659,
+      0.3285927474498749
+    ]
+  },
+  "post_step_joint_positions": [
+    3.9792584646206747e-14,
+    0.0
+  ],
+  "post_step_root_pose": {
+    "orientation": [
+      -0.7071067690849304,
+      6.548361852765083e-11,
+      2.0372681319713593e-10,
+      0.70710688829422
+    ],
+    "position": [
+      45.92056655883789,
+      1.9321826696395874,
+      0.030001014471054077
+    ]
+  },
+  "root_articulation_api_present": true,
+  "root_pose": {
+    "orientation": [
+      -0.7071067690849304,
+      6.548361852765083e-11,
+      2.0372681319713593e-10,
+      0.70710688829422
+    ],
+    "position": [
+      45.92056655883789,
+      1.9321826696395874,
+      0.030001014471054077
+    ]
+  },
+  "root_pose_finite": true,
+  "root_prim_exists": true,
+  "root_rotation_drift_tolerance_deg": 0.001,
+  "root_translation_drift_tolerance_m": 0.0001,
+  "runtime_physics_stable": true,
+  "schema_version": 1,
+  "simulation_app_close_policy": "not_called_in_isaacsim41_conda_smoke; SimulationApp.close() segfaulted in this runtime before smoke.json could be written",
+  "smoke_prim_path": "/World/DryingBox_01",
+  "source_door_joint_limits_deg": [
+    0.0,
+    120.0
+  ],
+  "source_door_joint_limits_source": "source_usd",
+  "source_prim_path": "/World/DryingBox_01",
+  "stage2_passed": true,
+  "stage2_status": "passed",
+  "stage2_validation_errors": [],
+  "stage_path": "saved/diagnostics/native_dryingbox_smoke_20260628_143638/native_dryingbox.usda",
+  "step_count": 120,
+  "step_trace": [
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.8239262474413186e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.183351833139581e-15,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 1
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.7359059931709257e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        4.775056760587815e-15,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 2
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 3.6478857389005326e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        6.3667616880360486e-15,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 3
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 4.55986548463014e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        7.958466615484282e-15,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 4
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 5.471845473016812e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        9.55017196644899e-15,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 5
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 6.383825461403483e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.1141877317413697e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 6
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 7.295805449790155e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.2733582668378405e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 7
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 8.207784952862698e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.4325287172310165e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 8
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 9.119764941249369e-13,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.5916992523274873e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 9
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.0031744929636041e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.750869787423958e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 10
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.0943724918022713e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        1.9100403225204288e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 11
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.1855704906409385e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.0692108576168995e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 12
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.2767684894796057e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.2283813927133703e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 13
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.367966488318273e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.387551927809841e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 14
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.4591644871569401e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.5467224629063118e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 15
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.5503624859956074e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.7058929980027825e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 16
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.6415604848342746e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        2.865063533099253e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 17
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.7327585807357677e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.0242342376023135e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 18
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.823956676637261e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.1834049421053737e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 19
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 1.915154772538754e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.342575646608434e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 20
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.006352868440247e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.501746351111494e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 21
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.0975509643417405e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.660917055614554e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 22
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.1887490602432334e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.8200877601176145e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 23
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 24
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 25
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 26
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 27
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 28
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 29
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 30
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 31
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 32
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 33
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 34
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 35
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 36
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 37
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 38
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 39
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 40
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 41
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 42
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 43
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 44
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 45
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 46
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 47
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 48
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 49
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 50
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 51
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 52
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 53
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 54
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 55
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 56
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 57
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 58
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 59
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 60
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 61
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 62
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 63
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 64
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 65
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 66
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 67
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 68
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 69
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 70
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 71
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 72
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 73
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 74
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 75
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 76
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 77
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 78
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 79
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 80
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 81
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 82
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 83
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 84
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 85
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 86
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 87
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 88
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 89
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 90
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 91
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 92
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 93
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 94
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 95
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 96
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 97
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 98
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 99
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 100
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 101
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 102
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 103
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 104
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 105
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 106
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 107
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 108
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 109
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 110
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 111
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 112
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 113
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 114
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 115
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 116
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 117
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 118
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 119
+    },
+    {
+      "button_joint_position_m": 0.0,
+      "door_joint_angle_deg": 2.2799471561447267e-12,
+      "handle_pose": {
+        "orientation": [
+          -0.4999997019767761,
+          -0.5000001192092896,
+          0.5000001788139343,
+          0.5000000596046448
+        ],
+        "position": [
+          45.58914566040039,
+          2.060589551925659,
+          0.3285927474498749
+        ]
+      },
+      "handle_pose_finite": true,
+      "joint_positions": [
+        3.9792584646206747e-14,
+        0.0
+      ],
+      "joint_positions_finite": true,
+      "root_pose": {
+        "orientation": [
+          -0.7071067690849304,
+          6.548361852765083e-11,
+          2.0372681319713593e-10,
+          0.70710688829422
+        ],
+        "position": [
+          45.92056655883789,
+          1.9321826696395874,
+          0.030001014471054077
+        ]
+      },
+      "root_pose_finite": true,
+      "step": 120
+    }
+  ],
+  "unclassified_physx_warnings": [],
+  "used_ebench_wrapper": false,
+  "used_franka_shortcut": false,
+  "world_child_discovery_error": null,
+  "world_child_discovery_method": "isaac_python_sh",
+  "world_child_discovery_status": "ok"
+}

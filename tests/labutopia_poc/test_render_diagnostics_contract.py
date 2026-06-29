@@ -1,9 +1,11 @@
 import hashlib
 import json
+from types import SimpleNamespace
 
 from standalone_tools.labutopia_poc import capture_eval_render_diagnostics as render_diag
 from standalone_tools.labutopia_poc.capture_eval_render_diagnostics import (
     apply_camera_config_override,
+    build_asset_acceptance_record,
     build_camera_frame_stats,
     build_claim_boundary,
     classify_articulation_runtime_state,
@@ -716,6 +718,10 @@ def test_stage5_eval_manifest_records_claim_boundary_and_artifacts():
                     "stage": "readback_after_get_eval_camera_data",
                     "camera_name": "camera2",
                     "frame_path": "saved/diagnostics/run/camera2/00000.png",
+                    "source_frame_path": str(
+                        render_diag.REPO_ROOT
+                        / "saved/eval_results/example/camera2/00000.png"
+                    ),
                     "sha256": "a" * 64,
                 }
             ],
@@ -734,6 +740,311 @@ def test_stage5_eval_manifest_records_claim_boundary_and_artifacts():
     assert manifest["claim_boundary"]["lift2_contract_ready"] is False
     assert manifest["claim_boundary"]["native_material_closure_claim_allowed"] is False
     assert manifest["camera_frames"][0]["sha256"] == "a" * 64
+    assert (
+        manifest["camera_frames"][0]["source_frame_path"]
+        == "saved/eval_results/example/camera2/00000.png"
+    )
+
+
+def test_asset_acceptance_record_contains_allowed_and_blocked_claims(tmp_path):
+    diagnostics_path = tmp_path / "diagnostics.json"
+    stage5_path = tmp_path / "native_dryingbox_eval.json"
+    stage7_path = tmp_path / "native_dryingbox_stage7_lift2_contract.json"
+    assets_manifest_path = tmp_path / "assets_manifest.json"
+    for path in (diagnostics_path, stage5_path, stage7_path, assets_manifest_path):
+        path.write_text(f'{{"path": "{path.name}"}}\n', encoding="utf-8")
+    diagnostics = {
+        "run_id": "labutopia_native_open_door_eval_20260629_000000",
+        "native_eval_readback_ready": True,
+        "native_complex_dryingbox_ready": True,
+        "runtime_physics_stable": True,
+        "task_render_accepted": True,
+        "render_validation": {"passed": True},
+        "open_door_metric_contract": {"metric_reads_door_revolute_joint": True},
+    }
+    stage5_manifest = {
+        "stage": "acceptance_stage_5_eval_readback",
+        "native_eval_readback_ready": True,
+    }
+    stage7_manifest = {
+        "claim_boundary": {
+            "lift2_contract_ready": True,
+            "local_official_baseline_style_contract_ready": True,
+            "official_leaderboard_reproduction_claim_allowed": False,
+            "official_ebench_score_release_claim_allowed": False,
+            "model_task_success_claim_allowed": False,
+        }
+    }
+    assets_manifest = {
+        "asset_acceptance": {
+            "material_closure": {
+                "material_status": "mixed_native_and_fallback",
+                "aluminum_material_closure_claim_allowed": True,
+                "native_material_closure_claim_allowed": False,
+                "full_native_material_closure_claim_allowed": False,
+                "derived_counts": {
+                    "fallback_surface_count": 3,
+                    "explicit_material_waiver_count": 3,
+                },
+                "blockers": [
+                    "explicit_material_waiver_open",
+                    "fallback_surfaces_remain_after_aluminum_local_mirror",
+                ],
+            }
+        }
+    }
+
+    record = build_asset_acceptance_record(
+        asset_id="LabUtopia/DryingBox_01",
+        task_lane="ebench/labutopia_lab_poc/lift2_candidate",
+        diagnostics=diagnostics,
+        stage5_manifest=stage5_manifest,
+        stage7_manifest=stage7_manifest,
+        assets_manifest=assets_manifest,
+        artifact_paths=[
+            diagnostics_path,
+            stage5_path,
+            stage7_path,
+            assets_manifest_path,
+        ],
+        recorded_at_utc="2026-06-29T00:00:00Z",
+        command="conda run -p ENV python capture_eval_render_diagnostics.py --task level1_open_door",
+    )
+
+    assert record["status"] == "BLOCKED"
+    assert record["gate_status"]["task_runtime"] == "PASS"
+    assert record["gate_status"]["evaluator_robot_contract"] == "PASS"
+    assert record["gate_status"]["material_closure"] == "BLOCKED"
+    assert record["allowed_claims"]["lift2_contract_ready"] is True
+    assert record["allowed_claims"]["task_runtime_ready"] is True
+    assert record["allowed_claims"]["aluminum_material_closure_claim_allowed"] is True
+    assert record["blocked_claims"]["native_material_closure_claim_allowed"] is False
+    assert record["blocked_claims"]["full_native_material_closure_claim_allowed"] is False
+    assert record["blocked_claims"]["official_leaderboard_claim_allowed"] is False
+    assert record["blocked_claims"]["policy_success_claim_allowed"] is False
+    assert record["material_closure"]["native_material_closure_claim_allowed"] is False
+    assert record["artifact_sha256"][str(diagnostics_path)] == hashlib.sha256(
+        diagnostics_path.read_bytes()
+    ).hexdigest()
+
+
+def test_asset_acceptance_record_status_promotes_failures_above_warnings():
+    diagnostics = {
+        "run_id": "labutopia_native_open_door_eval_20260629_000000",
+        "native_eval_readback_ready": True,
+        "runtime_physics_stable": True,
+        "task_render_accepted": False,
+        "render_validation": {"passed": False},
+        "open_door_metric_contract": {"metric_reads_door_revolute_joint": True},
+    }
+    stage7_manifest = {"claim_boundary": {"lift2_contract_ready": True}}
+    assets_manifest = {
+        "asset_acceptance": {
+            "material_closure": {
+                "aluminum_material_closure_claim_allowed": True,
+                "full_native_material_closure_claim_allowed": True,
+            }
+        }
+    }
+
+    record = build_asset_acceptance_record(
+        asset_id="LabUtopia/DryingBox_01",
+        task_lane="ebench/labutopia_lab_poc/lift2_candidate",
+        diagnostics=diagnostics,
+        stage5_manifest={"native_eval_readback_ready": True},
+        stage7_manifest=stage7_manifest,
+        assets_manifest=assets_manifest,
+        artifact_paths=[],
+        recorded_at_utc="2026-06-29T00:00:00Z",
+        command="python capture_eval_render_diagnostics.py",
+    )
+
+    assert record["gate_status"]["render_evidence"] == "FAIL"
+    assert record["status"] == "FAIL"
+
+
+def test_asset_acceptance_record_uses_repo_relative_artifact_keys():
+    repo_file = render_diag.REPO_ROOT / "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json"
+
+    record = build_asset_acceptance_record(
+        asset_id="LabUtopia/DryingBox_01",
+        task_lane="ebench/labutopia_lab_poc/lift2_candidate",
+        diagnostics={
+            "native_eval_readback_ready": True,
+            "runtime_physics_stable": True,
+            "task_render_accepted": True,
+            "open_door_metric_contract": {
+                "metric_reads_door_revolute_joint": True,
+            },
+        },
+        stage5_manifest={"native_eval_readback_ready": True},
+        stage7_manifest={"claim_boundary": {"lift2_contract_ready": True}},
+        assets_manifest={
+            "asset_acceptance": {
+                "material_closure": {
+                    "full_native_material_closure_claim_allowed": True,
+                }
+            }
+        },
+        artifact_paths=[repo_file],
+        recorded_at_utc="2026-06-29T00:00:00Z",
+        command="python capture_eval_render_diagnostics.py",
+    )
+
+    assert record["artifact_paths"] == [
+        "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json"
+    ]
+    assert list(record["artifact_sha256"]) == [
+        "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json"
+    ]
+
+
+def test_evidence_diagnostics_sanitizes_machine_local_paths():
+    overlay_root = (
+        "/cpfs/shared/simulation/zhuzihou/dev/_datasets/"
+        "EBench-Assets-Overlay/labutopia_level1_poc/assets"
+    )
+    diagnostics = {
+        "applied_env_vars": {
+            "MDL_SYSTEM_PATH": (
+                f"/isaac-sim/materials/:{overlay_root}/scene_usds/labutopia/"
+                "level1_poc/lab_001/SubUSDs/materials:"
+                f"{overlay_root}/miscs/mdl/labutopia/mdl"
+            )
+        },
+        "assets_override": {
+            "overlay_root": overlay_root,
+            "runtime_scene": f"{overlay_root}/scene_usds/labutopia/level1_poc/lab_001/scene.usda",
+        },
+        "camera_frames": [
+            {
+                "source_frame_path": str(
+                    render_diag.REPO_ROOT
+                    / "saved/eval_results/example/camera2/00000.png"
+                )
+            }
+        ],
+        "stage_path": "/World/DryingBox_01/RevoluteJoint",
+        "source_url": "https://example.com/material.mdl",
+    }
+
+    sanitized = render_diag._sanitize_diagnostics_for_evidence(diagnostics)
+    serialized = json.dumps(sanitized, sort_keys=True)
+
+    assert "/root/" not in serialized
+    assert "/cpfs/" not in serialized
+    assert sanitized["assets_override"]["overlay_root"] == "{ASSETS_DIR}"
+    assert sanitized["assets_override"]["runtime_scene"] == (
+        "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/scene.usda"
+    )
+    assert sanitized["applied_env_vars"]["MDL_SYSTEM_PATH"] == (
+        "/isaac-sim/materials/:"
+        "{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:"
+        "{ASSETS_DIR}/miscs/mdl/labutopia/mdl"
+    )
+    assert sanitized["camera_frames"][0]["source_frame_path"] == (
+        "saved/eval_results/example/camera2/00000.png"
+    )
+    assert sanitized["stage_path"] == "/World/DryingBox_01/RevoluteJoint"
+    assert sanitized["source_url"] == "https://example.com/material.mdl"
+
+
+def test_diagnostics_command_label_includes_reproducibility_inputs():
+    command = render_diag._diagnostics_command_label(
+        SimpleNamespace(
+            config="ebench/labutopia_lab_poc/franka_poc",
+            task="level1_open_door",
+            output_dir="saved/diagnostics/dryingbox_asset_acceptance_manual",
+            run_id="labutopia_native_open_door_eval_20260629_asset_acceptance_manual",
+            camera_config_override=None,
+            native_asset_audit_json="saved/diagnostics/native_dryingbox_material_audit_manual/audit.json",
+            native_smoke_json="saved/diagnostics/native_dryingbox_smoke/smoke.json",
+            native_physics_override_json="saved/diagnostics/native_dryingbox_physics_override/physics_override.json",
+            assets_manifest="configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json",
+            stage7_contract_manifest="docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json",
+            asset_acceptance_record_output="docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json",
+        )
+    )
+
+    assert "--run-id labutopia_native_open_door_eval_20260629_asset_acceptance_manual" in command
+    assert "--assets-manifest configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json" in command
+    assert "--stage7-contract-manifest docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json" in command
+    assert "--asset-acceptance-record-output docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json" in command
+    assert "--native-asset-audit-json saved/diagnostics/native_dryingbox_material_audit_manual/audit.json" in command
+    assert "--native-smoke-json saved/diagnostics/native_dryingbox_smoke/smoke.json" in command
+    assert "--native-physics-override-json saved/diagnostics/native_dryingbox_physics_override/physics_override.json" in command
+
+
+def test_asset_acceptance_record_write_error_is_persisted(tmp_path):
+    diagnostics_path = tmp_path / "diagnostics.json"
+    stage5_path = tmp_path / "stage5.json"
+    stage5_path.write_text("{}", encoding="utf-8")
+    output_path = tmp_path / "acceptance.json"
+    diagnostics = {"run_id": "labutopia_native_open_door_eval_20260629_000000"}
+    args = SimpleNamespace(
+        task="level1_open_door",
+        config="ebench/labutopia_lab_poc/franka_poc",
+        output_dir=str(tmp_path),
+        run_id="labutopia_native_open_door_eval_20260629_000000",
+        camera_config_override=None,
+        native_asset_audit_json=None,
+        native_smoke_json=None,
+        native_physics_override_json=None,
+        assets_manifest=str(tmp_path / "missing_assets_manifest.json"),
+        stage7_contract_manifest=str(tmp_path / "missing_stage7_manifest.json"),
+        asset_acceptance_record_output=str(output_path),
+    )
+
+    record_path = render_diag._write_diagnostics_and_asset_acceptance_record(
+        diagnostics,
+        diagnostics_path=diagnostics_path,
+        stage5_manifest_path=stage5_path,
+        args=args,
+    )
+
+    assert record_path is None
+    saved = json.loads(diagnostics_path.read_text(encoding="utf-8"))
+    assert saved["asset_acceptance_record_path"] == str(output_path)
+    assert saved["asset_acceptance_record_error"] == "assets_manifest_missing"
+
+
+def test_asset_acceptance_record_generation_exception_is_persisted(tmp_path):
+    diagnostics_path = tmp_path / "diagnostics.json"
+    stage5_path = tmp_path / "stage5.json"
+    assets_manifest_path = tmp_path / "assets_manifest.json"
+    stage7_path = tmp_path / "stage7.json"
+    output_path = tmp_path / "acceptance.json"
+    stage5_path.write_text("{}", encoding="utf-8")
+    assets_manifest_path.write_text("{}", encoding="utf-8")
+    stage7_path.write_text("{not json", encoding="utf-8")
+    diagnostics = {"run_id": "labutopia_native_open_door_eval_20260629_000000"}
+    args = SimpleNamespace(
+        task="level1_open_door",
+        config="ebench/labutopia_lab_poc/franka_poc",
+        output_dir=str(tmp_path),
+        run_id="labutopia_native_open_door_eval_20260629_000000",
+        camera_config_override=None,
+        native_asset_audit_json=None,
+        native_smoke_json=None,
+        native_physics_override_json=None,
+        assets_manifest=str(assets_manifest_path),
+        stage7_contract_manifest=str(stage7_path),
+        asset_acceptance_record_output=str(output_path),
+    )
+
+    record_path = render_diag._write_diagnostics_and_asset_acceptance_record(
+        diagnostics,
+        diagnostics_path=diagnostics_path,
+        stage5_manifest_path=stage5_path,
+        args=args,
+    )
+
+    assert record_path is None
+    saved = json.loads(diagnostics_path.read_text(encoding="utf-8"))
+    assert saved["asset_acceptance_record_error"] == (
+        "asset_acceptance_record_generation_failed"
+    )
+    assert saved["asset_acceptance_record_exception"]["type"] == "JSONDecodeError"
 
 
 def test_native_eval_readback_summary_promotes_task5_claim_fields():

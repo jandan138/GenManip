@@ -17,6 +17,8 @@ HTML 版产品汇报页：
 
 2026-06-29 资产验收规范补充：我们把上述经验整理成 `EBench Asset Acceptance Pipeline`。这不是“模型拿分流水线”，而是把外部 asset package 验收到 GenManip/EBench 可评链路里的 evidence-gated workflow：asset intake、USD composition、material closure、physics、articulation、task runtime、render evidence 和 Lift2-style evaluator contract 每一项都要有 manifest 证据。PM 周报以后只引用 `allowed_claims`，不能把 `diagnostic/WARN` 图、单项材质 mirror 或本地 contract pass 写成 full closure、policy success 或 official leaderboard 成绩。
 
+2026-06-29 Task 6 补充：`DryingBox_01` 已生成第一份 `asset_acceptance_record`，作为 `EBench Asset Acceptance Pipeline` 的 reference asset 证据样板。通俗讲，这份 JSON 像一张资产准入清单：它明确写出哪些门已过、哪些话可以对外说、哪些话还不能说。当前可说的是：`task_runtime_ready=true`、`task_render_accepted=true`、`runtime_physics_stable=true`、`lift2_contract_ready=true`、Aluminum local mirror claim allowed；必须继续拦住的是：`full_native_material_closure_claim_allowed=false`、`official_leaderboard_claim_allowed=false`、`policy_success_claim_allowed=false`。因此 PM 周报可以说“DryingBox 已成为 reference asset，EBench 本地评测链路和 Lift2 contract 可评”，但不能说“官方榜单复现”“策略成功”或“full native material closure 完成”。
+
 ## 本周完成了什么
 
 ### 1. LabUtopia POC 任务包已可运行
@@ -236,7 +238,7 @@ docs/records/evidence/2026-06-22-labutopia-ebench-weekly-report/assets/labutopia
 | 任务求解能力 | 未验证 | 当前默认动作得分 0.0，不代表策略能力 |
 | Lift2 contract | 本地合同通过 | `lift2_candidate` 三任务可通过 Lift2/R5a eval path reset、step、写结果，并通过 observation/camera/action/reward/logging live probe |
 | 官方 baseline | 未发布官方成绩 | 本地 official-baseline-style contract 已通过，但这不是 official leaderboard reproduction；三任务当前 score/success_rate 仍是 0 |
-| 资产验收 SOP | 已规划 | `EBench Asset Acceptance Pipeline` 已新增为通用 SOP；后续 DryingBox 将作为第一套 reference asset acceptance package |
+| 资产验收 Record | 已生成 reference asset 记录 | `DryingBox_01` 已生成 `asset_acceptance_record`：task runtime、runtime physics、evaluator robot contract、USD composition 通过；material closure 仍为 `BLOCKED`，因为 fallback surfaces 还有 native binding 尾项 |
 
 ## 验证证据
 
@@ -253,10 +255,10 @@ total_episodes=3
 
 ```text
 python -m pytest tests/labutopia_poc -q
-92 passed, 1 skipped
+187 passed, 1 skipped, 1 xfailed
 
 python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q
-23 passed
+51 passed
 
 python standalone_tools/labutopia_poc/validate_task_package.py
 LabUtopia task package validation OK
@@ -288,6 +290,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - P2 native-only Isaac smoke: `saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json`, SHA256 `fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4`
 - P2 native EBench retake diagnostics: `saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json`, SHA256 `d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6`; boundary is `render_validation.passed=true`, `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
 - Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; historical boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
+- Stage 5 referenced native smoke mirror: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json), SHA256 `d6fefeec5ffea1b6b6209e512e3b9588a3f0c07e2abd1cfaa50d841dfd516c33`; committed mirror removes machine-local absolute paths.
 - Stage 6 acceptance evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
 - Stage 7 Lift2 readiness report: [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
 - Stage 7 machine evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json)
@@ -296,6 +299,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - Aluminum material mirror machine evidence: [docs/labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json](../labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json)
 - EBench Asset Acceptance Pipeline SOP: [docs/labutopia_lab_poc/ebench_asset_acceptance_pipeline.md](../labutopia_lab_poc/ebench_asset_acceptance_pipeline.md)
 - Evidence manifest field guide: [docs/labutopia_lab_poc/evidence_manifests/README.md](../labutopia_lab_poc/evidence_manifests/README.md)
+- DryingBox asset acceptance record: [docs/labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json](../labutopia_lab_poc/evidence_manifests/dryingbox_asset_acceptance_20260629_asset_acceptance_manual.json)
 - Asset acceptance implementation plan: [docs/superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md](../superpowers/plans/2026-06-29-ebench-asset-acceptance-pipeline.md)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
@@ -316,7 +320,7 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
 8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
 9. Material follow-up：Aluminum remote waiver 已由 local mirror 关闭，但 full native material closure 仍未完成；剩余是 fallback surfaces 的 native binding。
-10. Asset acceptance pipeline：已新增通用 SOP 和实现计划。下一步先把 material closure schema 抽成通用 validator，再关闭 DryingBox 三个 fallback surfaces，最后生成 `asset_acceptance_record.json` 作为后续所有资产接入 EBench 的模板。
+10. Asset acceptance record：已生成 DryingBox reference record。下一步是继续推进 full material closure，把 `Group/_900_1`、`button`、`panel` 从 fallback displayColor 收口到规范 native binding；然后再进入真实 Lift2 baseline/policy 评测和官方成绩边界。
 
 ## 新增调研和计划文档
 

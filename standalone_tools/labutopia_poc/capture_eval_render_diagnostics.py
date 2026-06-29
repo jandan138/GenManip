@@ -9,9 +9,11 @@ import hashlib
 import json
 import math
 import os
+import shlex
 import sys
 import traceback
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
@@ -869,6 +871,25 @@ def build_stage5_eval_manifest(
     diagnostics_path: str | Path,
 ) -> dict[str, Any]:
     material_status = diagnostics.get("native_material_closure_status")
+    artifacts = {
+        "result_dir": (diagnostics.get("diagnostic_logs") or {}).get("result_dir"),
+        "stdout_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
+            "stdout_log_path"
+        ),
+        "stderr_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
+            "stderr_log_path"
+        ),
+        "native_asset_audit_path": diagnostics.get("native_asset_audit_path"),
+        "native_asset_audit_sha256": diagnostics.get("native_asset_audit_sha256"),
+        "native_smoke_path": diagnostics.get("native_smoke_path"),
+        "native_smoke_sha256": diagnostics.get("native_smoke_sha256"),
+        "native_physics_override_path": diagnostics.get(
+            "native_physics_override_path"
+        ),
+        "native_physics_override_sha256": diagnostics.get(
+            "native_physics_override_sha256"
+        ),
+    }
     return {
         "stage": "acceptance_stage_5_eval_readback",
         "schema_version": 1,
@@ -876,7 +897,7 @@ def build_stage5_eval_manifest(
         "worker_id": diagnostics.get("worker_id"),
         "episode_id": diagnostics.get("episode_id"),
         "seed": diagnostics.get("seed"),
-        "diagnostics_path": str(diagnostics_path),
+        "diagnostics_path": _normalize_manifest_paths(str(diagnostics_path)),
         "native_eval_readback_ready": bool(
             diagnostics.get("native_eval_readback_ready")
         ),
@@ -899,26 +920,10 @@ def build_stage5_eval_manifest(
             "open_door_metric_contract": diagnostics.get("open_door_metric_contract"),
             "render_validation": diagnostics.get("render_validation"),
         },
-        "artifacts": {
-            "result_dir": (diagnostics.get("diagnostic_logs") or {}).get("result_dir"),
-            "stdout_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
-                "stdout_log_path"
-            ),
-            "stderr_log_path": (diagnostics.get("diagnostic_logs") or {}).get(
-                "stderr_log_path"
-            ),
-            "native_asset_audit_path": diagnostics.get("native_asset_audit_path"),
-            "native_asset_audit_sha256": diagnostics.get("native_asset_audit_sha256"),
-            "native_smoke_path": diagnostics.get("native_smoke_path"),
-            "native_smoke_sha256": diagnostics.get("native_smoke_sha256"),
-            "native_physics_override_path": diagnostics.get(
-                "native_physics_override_path"
-            ),
-            "native_physics_override_sha256": diagnostics.get(
-                "native_physics_override_sha256"
-            ),
-        },
-        "camera_frames": diagnostics.get("camera_frames") or [],
+        "artifacts": _normalize_manifest_paths(artifacts),
+        "camera_frames": _normalize_manifest_paths(
+            diagnostics.get("camera_frames") or []
+        ),
         "material_summary": {
             "remote_aluminum_disposition": diagnostics.get(
                 "remote_aluminum_disposition"
@@ -941,6 +946,222 @@ def build_stage5_eval_manifest(
     }
 
 
+def _artifact_path_hashes(
+    artifact_paths: list[str | Path],
+) -> tuple[list[str], dict[str, str | None]]:
+    paths: list[str] = []
+    hashes: dict[str, str | None] = {}
+    for raw_path in artifact_paths:
+        path = Path(raw_path)
+        resolved = path if path.is_absolute() else REPO_ROOT / path
+        key = _repo_relative_key(resolved, fallback=str(raw_path))
+        paths.append(key)
+        hashes[key] = _sha256_file(resolved) if resolved.is_file() else None
+    return paths, hashes
+
+
+def _repo_relative_key(path: Path, *, fallback: str) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return fallback
+
+
+def _normalize_manifest_paths(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _normalize_manifest_paths(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_manifest_paths(item) for item in value]
+    if isinstance(value, str):
+        path = Path(value)
+        if path.is_absolute():
+            return _repo_relative_key(path, fallback=value)
+    return value
+
+
+def _evidence_path_aliases(diagnostics: dict[str, Any]) -> list[tuple[str, str]]:
+    aliases: list[tuple[str, str]] = []
+    assets_override = diagnostics.get("assets_override")
+    if isinstance(assets_override, dict):
+        overlay_root = assets_override.get("overlay_root")
+        if isinstance(overlay_root, str) and overlay_root.startswith("/"):
+            aliases.append((overlay_root.rstrip("/"), "{ASSETS_DIR}"))
+    aliases.sort(key=lambda item: len(item[0]), reverse=True)
+    return aliases
+
+
+def _sanitize_evidence_string(value: str, aliases: list[tuple[str, str]]) -> str:
+    if "://" in value:
+        return value
+    if os.pathsep in value:
+        return os.pathsep.join(
+            _sanitize_evidence_string(part, aliases) for part in value.split(os.pathsep)
+        )
+    for prefix, replacement in aliases:
+        if value == prefix:
+            return replacement
+        if value.startswith(f"{prefix}/"):
+            return f"{replacement}/{value[len(prefix) + 1:]}"
+    path = Path(value)
+    if path.is_absolute():
+        relative = _repo_relative_key(path, fallback=value)
+        if relative != value:
+            return relative
+        if value.startswith("/cpfs/"):
+            return f"{{CPFS_ROOT}}/{value.removeprefix('/cpfs/')}"
+        if value.startswith("/root/"):
+            return f"{{LOCAL_HOME}}/{value.removeprefix('/root/')}"
+    return value
+
+
+def _sanitize_evidence_value(value: Any, aliases: list[tuple[str, str]]) -> Any:
+    if isinstance(value, dict):
+        return {key: _sanitize_evidence_value(item, aliases) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_evidence_value(item, aliases) for item in value]
+    if isinstance(value, str):
+        return _sanitize_evidence_string(value, aliases)
+    return value
+
+
+def _sanitize_diagnostics_for_evidence(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    aliases = _evidence_path_aliases(diagnostics)
+    return _sanitize_evidence_value(copy.deepcopy(diagnostics), aliases)
+
+
+def _derive_acceptance_record_status(gate_status: dict[str, str]) -> str:
+    statuses = set(gate_status.values())
+    if "FAIL" in statuses:
+        return "FAIL"
+    if "BLOCKED" in statuses:
+        return "BLOCKED"
+    if "WARN" in statuses:
+        return "WARN"
+    return "PASS"
+
+
+def build_asset_acceptance_record(
+    *,
+    asset_id: str,
+    task_lane: str,
+    diagnostics: dict[str, Any],
+    stage5_manifest: dict[str, Any],
+    stage7_manifest: dict[str, Any],
+    assets_manifest: dict[str, Any],
+    artifact_paths: list[str | Path],
+    recorded_at_utc: str,
+    command: str,
+    verification: list[str] | None = None,
+) -> dict[str, Any]:
+    material = (
+        (assets_manifest.get("asset_acceptance") or {}).get("material_closure")
+        or {}
+    )
+    stage7_boundary = stage7_manifest.get("claim_boundary") or {}
+    task_runtime_ready = bool(
+        diagnostics.get("native_eval_readback_ready")
+        or stage5_manifest.get("native_eval_readback_ready")
+    )
+    task_render_accepted = bool(
+        diagnostics.get("task_render_accepted")
+        or (diagnostics.get("render_validation") or {}).get("passed")
+    )
+    runtime_physics_stable = bool(diagnostics.get("runtime_physics_stable"))
+    lift2_contract_ready = bool(stage7_boundary.get("lift2_contract_ready"))
+    local_lift2_contract_ready = bool(
+        stage7_boundary.get("local_official_baseline_style_contract_ready")
+        or lift2_contract_ready
+    )
+    aluminum_material_closure_allowed = bool(
+        material.get("aluminum_material_closure_claim_allowed")
+    )
+    full_material_closure_allowed = bool(
+        material.get("full_native_material_closure_claim_allowed")
+    )
+    native_material_closure_allowed = bool(
+        material.get(
+            "native_material_closure_claim_allowed",
+            full_material_closure_allowed,
+        )
+    )
+    metric_contract = diagnostics.get("open_door_metric_contract")
+    metric_ready = (
+        isinstance(metric_contract, dict)
+        and metric_contract.get("metric_reads_door_revolute_joint") is True
+    )
+    artifact_path_strings, artifact_sha256 = _artifact_path_hashes(artifact_paths)
+    gate_status = {
+        "asset_intake": "PASS",
+        "usd_composition": "PASS",
+        "material_closure": "PASS" if full_material_closure_allowed else "BLOCKED",
+        "physics_closure": "PASS" if runtime_physics_stable else "BLOCKED",
+        "articulation_closure": "PASS" if metric_ready else "BLOCKED",
+        "task_runtime": "PASS" if task_runtime_ready else "BLOCKED",
+        "render_evidence": "WARN" if task_render_accepted else "FAIL",
+        "evaluator_robot_contract": "PASS" if lift2_contract_ready else "BLOCKED",
+    }
+    allowed_claims = {
+        "task_runtime_ready": task_runtime_ready,
+        "task_render_accepted": task_render_accepted,
+        "runtime_physics_stable": runtime_physics_stable,
+        "lift2_contract_ready": lift2_contract_ready,
+        "local_official_baseline_style_contract_ready": local_lift2_contract_ready,
+        "aluminum_material_closure_claim_allowed": (
+            aluminum_material_closure_allowed
+        ),
+    }
+    blocked_claims = {
+        "native_material_closure_claim_allowed": native_material_closure_allowed,
+        "full_native_material_closure_claim_allowed": (
+            full_material_closure_allowed
+        ),
+        "official_baseline_evaluable": bool(
+            stage7_boundary.get("official_baseline_evaluable")
+        ),
+        "official_leaderboard_claim_allowed": False,
+        "official_leaderboard_reproduction_claim_allowed": bool(
+            stage7_boundary.get("official_leaderboard_reproduction_claim_allowed")
+        ),
+        "official_ebench_score_release_claim_allowed": bool(
+            stage7_boundary.get("official_ebench_score_release_claim_allowed")
+        ),
+        "policy_success_claim_allowed": bool(
+            stage7_boundary.get("model_task_success_claim_allowed")
+        ),
+        "pm_showcase_ready": False,
+    }
+    return {
+        "schema_version": 1,
+        "recorded_at_utc": recorded_at_utc,
+        "asset_id": asset_id,
+        "task_lane": task_lane,
+        "stage": "acceptance_stage_7_asset_acceptance_record",
+        "status": _derive_acceptance_record_status(gate_status),
+        "run_id": diagnostics.get("run_id") or stage5_manifest.get("run_id"),
+        "command": command,
+        "gate_status": gate_status,
+        "allowed_claims": allowed_claims,
+        "blocked_claims": blocked_claims,
+        "material_closure": {
+            "material_status": material.get("material_status"),
+            "derived_counts": material.get("derived_counts"),
+            "blockers": material.get("blockers"),
+            "aluminum_material_closure_claim_allowed": (
+                aluminum_material_closure_allowed
+            ),
+            "native_material_closure_claim_allowed": (
+                native_material_closure_allowed
+            ),
+            "full_native_material_closure_claim_allowed": (
+                full_material_closure_allowed
+            ),
+        },
+        "artifact_paths": artifact_path_strings,
+        "artifact_sha256": artifact_sha256,
+        "verification": verification or [],
+    }
+
+
 def _stage5_eval_manifest_path(diagnostics: dict[str, Any]) -> Path:
     run_id = str(diagnostics.get("run_id") or "unknown")
     timestamp = run_id.rsplit("_eval_", 1)[-1]
@@ -958,11 +1179,170 @@ def _write_stage5_eval_manifest(
 ) -> Path:
     manifest_path = _stage5_eval_manifest_path(diagnostics)
     manifest = build_stage5_eval_manifest(
-        diagnostics,
+        _sanitize_diagnostics_for_evidence(diagnostics),
         diagnostics_path=diagnostics_path,
     )
     _write_json(manifest_path, manifest)
     return manifest_path
+
+
+def _asset_acceptance_record_path(diagnostics: dict[str, Any]) -> Path:
+    run_id = str(diagnostics.get("run_id") or "unknown")
+    timestamp = run_id.rsplit("_eval_", 1)[-1]
+    return (
+        REPO_ROOT
+        / "docs/labutopia_lab_poc/evidence_manifests"
+        / f"dryingbox_asset_acceptance_{timestamp}.json"
+    )
+
+
+def _latest_evidence_manifest(pattern: str) -> Path | None:
+    root = REPO_ROOT / "docs/labutopia_lab_poc/evidence_manifests"
+    candidates = sorted(root.glob(pattern))
+    return candidates[-1] if candidates else None
+
+
+def _diagnostics_command_label(args: argparse.Namespace) -> str:
+    parts = [
+        "python",
+        "standalone_tools/labutopia_poc/capture_eval_render_diagnostics.py",
+        "--config",
+        str(args.config),
+        "--task",
+        str(args.task),
+        "--run-id",
+        str(args.run_id),
+        "--output-dir",
+        str(args.output_dir),
+    ]
+    optional_args = [
+        ("--camera-config-override", args.camera_config_override),
+        ("--native-asset-audit-json", args.native_asset_audit_json),
+        ("--native-smoke-json", args.native_smoke_json),
+        ("--native-physics-override-json", args.native_physics_override_json),
+        ("--assets-manifest", args.assets_manifest),
+        ("--stage7-contract-manifest", args.stage7_contract_manifest),
+        ("--asset-acceptance-record-output", args.asset_acceptance_record_output),
+    ]
+    for flag, value in optional_args:
+        if value:
+            parts.extend([flag, str(value)])
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def _asset_acceptance_output_path(
+    diagnostics: dict[str, Any],
+    args: argparse.Namespace,
+) -> Path:
+    output_path = (
+        Path(args.asset_acceptance_record_output)
+        if args.asset_acceptance_record_output
+        else _asset_acceptance_record_path(diagnostics)
+    )
+    if not output_path.is_absolute():
+        output_path = REPO_ROOT / output_path
+    return output_path
+
+
+def _write_asset_acceptance_record(
+    diagnostics: dict[str, Any],
+    *,
+    diagnostics_path: Path,
+    stage5_manifest_path: Path,
+    args: argparse.Namespace,
+) -> Path | None:
+    if args.task != "level1_open_door":
+        return None
+    assets_manifest_path = Path(args.assets_manifest)
+    if not assets_manifest_path.is_absolute():
+        assets_manifest_path = REPO_ROOT / assets_manifest_path
+    stage7_path = (
+        Path(args.stage7_contract_manifest)
+        if args.stage7_contract_manifest
+        else _latest_evidence_manifest("native_dryingbox_stage7_lift2_contract_*.json")
+    )
+    if stage7_path is None:
+        diagnostics["asset_acceptance_record_error"] = "stage7_contract_manifest_missing"
+        return None
+    if not stage7_path.is_absolute():
+        stage7_path = REPO_ROOT / stage7_path
+    if not assets_manifest_path.exists():
+        diagnostics["asset_acceptance_record_error"] = "assets_manifest_missing"
+        return None
+    if not stage7_path.exists():
+        diagnostics["asset_acceptance_record_error"] = "stage7_contract_manifest_missing"
+        return None
+    output_path = _asset_acceptance_output_path(diagnostics, args)
+    frame_paths = [
+        frame.get("frame_path")
+        for frame in diagnostics.get("camera_frames") or []
+        if isinstance(frame, dict) and frame.get("frame_path")
+    ]
+    record = build_asset_acceptance_record(
+        asset_id="LabUtopia/DryingBox_01",
+        task_lane="ebench/labutopia_lab_poc/lift2_candidate",
+        diagnostics=diagnostics,
+        stage5_manifest=json.loads(stage5_manifest_path.read_text(encoding="utf-8")),
+        stage7_manifest=json.loads(stage7_path.read_text(encoding="utf-8")),
+        assets_manifest=json.loads(assets_manifest_path.read_text(encoding="utf-8")),
+        artifact_paths=[
+            diagnostics_path,
+            stage5_manifest_path,
+            stage7_path,
+            assets_manifest_path,
+            *[str(path) for path in frame_paths],
+        ],
+        recorded_at_utc=datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        command=_diagnostics_command_label(args),
+        verification=[
+            "python standalone_tools/labutopia_poc/validate_task_package.py",
+            "python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py -q",
+        ],
+    )
+    _write_json(output_path, record)
+    return output_path
+
+
+def _write_diagnostics_and_asset_acceptance_record(
+    diagnostics: dict[str, Any],
+    *,
+    diagnostics_path: Path,
+    stage5_manifest_path: Path,
+    args: argparse.Namespace,
+) -> Path | None:
+    if args.task != "level1_open_door":
+        _write_json(diagnostics_path, _sanitize_diagnostics_for_evidence(diagnostics))
+        return None
+    output_path = _asset_acceptance_output_path(diagnostics, args)
+    diagnostics["asset_acceptance_record_path"] = _repo_relative_key(
+        output_path,
+        fallback=str(output_path),
+    )
+    evidence_diagnostics = _sanitize_diagnostics_for_evidence(diagnostics)
+    _write_json(diagnostics_path, evidence_diagnostics)
+    try:
+        record_path = _write_asset_acceptance_record(
+            evidence_diagnostics,
+            diagnostics_path=diagnostics_path,
+            stage5_manifest_path=stage5_manifest_path,
+            args=args,
+        )
+    except Exception as exc:
+        evidence_diagnostics["asset_acceptance_record_error"] = (
+            "asset_acceptance_record_generation_failed"
+        )
+        evidence_diagnostics["asset_acceptance_record_exception"] = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+        }
+        _write_json(diagnostics_path, evidence_diagnostics)
+        return None
+    if record_path is None:
+        _write_json(diagnostics_path, evidence_diagnostics)
+    return record_path
 
 
 def apply_native_eval_readback_summary(
@@ -2275,8 +2655,16 @@ def run_runtime_diagnostics(args: argparse.Namespace) -> dict[str, Any]:
             diagnostics,
             diagnostics_path=diagnostics_path,
         )
-        diagnostics["stage5_eval_manifest_path"] = str(manifest_path)
-        _write_json(diagnostics_path, diagnostics)
+        diagnostics["stage5_eval_manifest_path"] = _repo_relative_key(
+            manifest_path,
+            fallback=str(manifest_path),
+        )
+        _write_diagnostics_and_asset_acceptance_record(
+            diagnostics,
+            diagnostics_path=diagnostics_path,
+            stage5_manifest_path=manifest_path,
+            args=args,
+        )
         if env is not None:
             try:
                 env.close()
@@ -2362,6 +2750,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stderr-log-path",
         default=None,
         help="Path where the caller is writing this diagnostics run stderr log.",
+    )
+    parser.add_argument(
+        "--assets-manifest",
+        default=(
+            "configs/tasks/ebench/labutopia_lab_poc/common/assets_manifest.json"
+        ),
+        help="Assets manifest used to derive material closure claim boundaries.",
+    )
+    parser.add_argument(
+        "--stage7-contract-manifest",
+        default=None,
+        help="Stage 7 Lift2 contract manifest. Defaults to latest evidence manifest.",
+    )
+    parser.add_argument(
+        "--asset-acceptance-record-output",
+        default=None,
+        help="Optional output path for dryingbox_asset_acceptance_*.json.",
     )
     args = parser.parse_args(argv)
     if args.output_dir is None and args.output_root is not None:

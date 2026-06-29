@@ -1,0 +1,302 @@
+{
+  "artifacts": {
+    "native_asset_audit_path": "saved/diagnostics/native_dryingbox_material_audit_manual/audit.json",
+    "native_asset_audit_sha256": "43f7a3589f6db59382687ba2d5bab768b78f4fe38a1ebd0f0bc3917fc8580f85",
+    "native_physics_override_path": "saved/diagnostics/native_dryingbox_physics_override_20260629_aluminum_mirror/physics_override.json",
+    "native_physics_override_sha256": "c95a448dce7440d4d61e34efe71897dc095f143f582bbde9ea4e104de207a0e7",
+    "native_smoke_path": "docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_smoke_20260628_143638.json",
+    "native_smoke_sha256": "d6fefeec5ffea1b6b6209e512e3b9588a3f0c07e2abd1cfaa50d841dfd516c33",
+    "result_dir": "saved/diagnostics/dryingbox_asset_acceptance_manual",
+    "stderr_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/stderr.log",
+    "stdout_log_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/stdout.log"
+  },
+  "camera_frames": [
+    {
+      "camera_name": "camera2",
+      "channel_max": [
+        228.0,
+        234.0,
+        254.0
+      ],
+      "channel_mean": [
+        178.58012008666992,
+        178.70812225341797,
+        178.90068817138672
+      ],
+      "channel_min": [
+        20.0,
+        36.0,
+        37.0
+      ],
+      "classification": "visible_frame",
+      "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png",
+      "height": 512,
+      "nonzero_pixels": 262144,
+      "sha256": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65",
+      "source": "genmanip.core.evaluator.env.get_eval_camera_data",
+      "stage": "readback_after_get_eval_camera_data",
+      "width": 512
+    },
+    {
+      "camera_name": "camera2",
+      "channel_max": [
+        228.0,
+        234.0,
+        254.0
+      ],
+      "channel_mean": [
+        178.57927703857422,
+        178.70752334594727,
+        178.89952850341797
+      ],
+      "channel_min": [
+        20.0,
+        36.0,
+        36.0
+      ],
+      "classification": "visible_frame",
+      "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00001.png",
+      "height": 512,
+      "nonzero_pixels": 262144,
+      "sha256": "225314a3808b2a35f333d408c46f00b2990fa97719dd07385ffb972516ace57c",
+      "source": "genmanip.core.evaluator.env.get_eval_camera_data",
+      "stage": "readback_after_get_eval_camera_data",
+      "width": 512
+    },
+    {
+      "camera_name": "camera2",
+      "channel_max": [
+        228.0,
+        234.0,
+        254.0
+      ],
+      "channel_mean": [
+        178.58012008666992,
+        178.70812225341797,
+        178.90068817138672
+      ],
+      "channel_min": [
+        20.0,
+        36.0,
+        37.0
+      ],
+      "classification": "visible_frame",
+      "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/recorder_png/camera2/00000.png",
+      "height": 512,
+      "nonzero_pixels": 262144,
+      "sha256": "8729bf036e7cb6b6df19681d26112045eeff9dd2b4c18be81b34759c29d8bd65",
+      "source_frame_path": "saved/eval_results/ebench/labutopia_native_open_door_eval_20260629_asset_acceptance_manual/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000/2775d72dce49425bbd26c79a025ea126/camera2/00000.png",
+      "stage": "recorder_png",
+      "width": 512
+    }
+  ],
+  "claim_boundary": {
+    "lift2_contract_ready": false,
+    "native_material_closure_claim_allowed": false,
+    "native_material_closure_status": "open_remote_dependency_waived",
+    "official_baseline_evaluable": false,
+    "runtime_material_dependency_status": "open_waived"
+  },
+  "contracts": {
+    "eval_step_contract": {
+      "action_finite": true,
+      "base_motion_finite": true,
+      "blockers": [],
+      "metric_raw_output_present": true,
+      "passed": true,
+      "termination_reason": null
+    },
+    "open_door_metric_contract": {
+      "button_joint_ignored_by_metric": true,
+      "goal_count": 1,
+      "ignored_button_joint_name": "PrismaticJoint",
+      "metric_angle_deg_range": [
+        30,
+        120
+      ],
+      "metric_articulation_obj_uid": "obj_DryingBox_01",
+      "metric_joint_name": "RevoluteJoint",
+      "metric_reads_door_revolute_joint": true,
+      "metric_type": "manip/default/check_joint_angle"
+    },
+    "render_validation": {
+      "failures": [],
+      "frame_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/readback_after_get_eval_camera_data/camera2/00000.png",
+      "passed": true,
+      "primary_camera": "camera2",
+      "reject_rule_results": {
+        "black_frame": false,
+        "low_texture": false,
+        "required_object_missing": false,
+        "severe_clipping": false
+      },
+      "required_objects": {
+        "obj_DryingBox_01": {
+          "bbox": null,
+          "bbox_area_fraction": 0.12,
+          "color_mask_failed_thresholds": [
+            "min_width_px",
+            "min_height_px",
+            "min_bbox_area_fraction"
+          ],
+          "color_mask_metrics": {
+            "bbox": [
+              220,
+              255,
+              237,
+              397
+            ],
+            "bbox_area_fraction": 0.00981903076171875,
+            "evidence_method": "rgb_contract_mask",
+            "height_px": 143,
+            "mask_area_fraction": 0.004261016845703125,
+            "mask_area_px": 1117,
+            "present": true,
+            "severe_clipping": false,
+            "width_px": 18
+          },
+          "evidence_method": "native_scene_readback",
+          "failed_thresholds": [],
+          "height_px": 150,
+          "image_height": 512,
+          "image_width": 512,
+          "mask_area_fraction": 0.0,
+          "mask_area_px": 0,
+          "passed": true,
+          "present": true,
+          "projected_rgb_evidence": {
+            "chroma_max": 2.0,
+            "luminance_range": 158.667,
+            "luminance_std": 37.172,
+            "mask_uid": "obj_DryingBox_01",
+            "object_mask_area_fraction": 0.061728,
+            "object_mask_area_px": 405,
+            "patch_bbox": [
+              243,
+              237,
+              323,
+              317
+            ],
+            "patch_radius_px": 40,
+            "present": true,
+            "required_object_mask_area_px": 13
+          },
+          "projection": {
+            "pixel": [
+              283.46074573914825,
+              276.7930143307112
+            ],
+            "pixel_finite": true,
+            "world_position": [
+              0.7870268821716309,
+              0.12035627663135529,
+              0.8100000023841858
+            ]
+          },
+          "projection_visible": true,
+          "readback_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01",
+          "severe_clipping": false,
+          "thresholds": {
+            "min_bbox_area_fraction": 0.12,
+            "min_height_px": 150,
+            "min_width_px": 160
+          },
+          "width_px": 160
+        },
+        "obj_DryingBox_01_handle": {
+          "bbox": null,
+          "bbox_area_fraction": 0.004,
+          "color_mask_failed_thresholds": [
+            "min_width_px",
+            "min_height_px",
+            "min_bbox_area_fraction"
+          ],
+          "color_mask_metrics": {
+            "bbox": [
+              231,
+              321,
+              232,
+              329
+            ],
+            "bbox_area_fraction": 6.866455078125e-05,
+            "evidence_method": "rgb_contract_mask",
+            "height_px": 9,
+            "mask_area_fraction": 5.7220458984375e-05,
+            "mask_area_px": 15,
+            "present": true,
+            "severe_clipping": false,
+            "width_px": 2
+          },
+          "evidence_method": "native_handle_part_readback",
+          "failed_thresholds": [],
+          "height_px": 64,
+          "image_height": 512,
+          "image_width": 512,
+          "mask_area_fraction": 0.0,
+          "mask_area_px": 0,
+          "passed": true,
+          "present": true,
+          "projected_rgb_evidence": {
+            "chroma_max": 141.0,
+            "luminance_range": 184.667,
+            "luminance_std": 51.696,
+            "mask_uid": "obj_DryingBox_01",
+            "object_mask_area_fraction": 0.348026,
+            "object_mask_area_px": 379,
+            "patch_bbox": [
+              206,
+              306,
+              238,
+              338
+            ],
+            "patch_radius_px": 16,
+            "present": true,
+            "required_object_mask_area_px": 4
+          },
+          "projection": {
+            "pixel": [
+              221.66886189807371,
+              321.71648803703516
+            ],
+            "pixel_finite": true,
+            "world_position": [
+              0.45560658900940265,
+              0.24876323274397508,
+              1.1085914786962476
+            ]
+          },
+          "projection_visible": true,
+          "readback_prim_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/handle",
+          "severe_clipping": false,
+          "thresholds": {
+            "min_bbox_area_fraction": 0.004,
+            "min_height_px": 64,
+            "min_width_px": 18
+          },
+          "width_px": 18
+        }
+      },
+      "schema_version": 1
+    },
+    "stage5_evidence_contract": {
+      "blockers": [],
+      "camera_frame_count": 3,
+      "passed": true
+    }
+  },
+  "diagnostics_path": "saved/diagnostics/dryingbox_asset_acceptance_manual/diagnostics.json",
+  "episode_id": "ebench/labutopia_native_open_door_eval_20260629_asset_acceptance_manual/ebench/labutopia_lab_poc/franka_poc/level1_open_door/000",
+  "material_summary": {
+    "fallback_surface_count": 30,
+    "material_closure_eligible": false,
+    "remote_aluminum_disposition": "local_mirror",
+    "remote_aluminum_waiver_id": null,
+    "runtime_material_record_count": 32
+  },
+  "native_eval_readback_ready": true,
+  "run_id": "labutopia_native_open_door_eval_20260629_asset_acceptance_manual",
+  "schema_version": 1,
+  "seed": "000",
+  "stage": "acceptance_stage_5_eval_readback",
+  "worker_id": "local"
+}
