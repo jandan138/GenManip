@@ -110,6 +110,8 @@ Pass condition:
 - 远端依赖必须二选一：`local_mirror` 或 `explicit_waiver`。
 - `explicit_waiver` 必须有 waiver id、reason、owner 和关闭计划。
 
+Cold/offline package validation 当前指静态依赖闭环：已知 runtime MDL、texture、package-local records 必须能在 package root 或 staged overlay root 下找到，SHA256/bytes 必须匹配，runtime path 不能指向公网、S3、`omniverse://` 或用户 cache。它还不是 network-blocked Isaac sandbox run；sandbox run 应在静态依赖闭环稳定后作为后续阶段补上。
+
 DryingBox 当前对应状态：
 
 ```text
@@ -171,6 +173,8 @@ Pass condition:
 | `evidence_manifest_consistency` | generator manifest、validator summary、docs manifest 的 count/blocker/claim 一致 |
 
 Implementation rule: generic material shape checks live in `asset_acceptance_validation.py`. Asset-specific validators pass a `MaterialClosureExpectation` that includes expected claim flags and native provenance status; they should not reimplement provenance blocker path/count/status checks by hand.
+
+Offline dependency rule: package-local MDL/texture records use `offline_package_validation.py` for reusable local-file, SHA256, byte-count, remote URI, and waiver-claim checks. Asset-specific validators still own exact expected material names, expected texture sets, and task-specific claim boundaries.
 
 Material states:
 

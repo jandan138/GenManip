@@ -129,6 +129,14 @@ Reusable validator boundary:
 - `NativeMaterialProvenanceBlocker` records are the reusable unit for surfaces that have package-visible wrapper material but cannot claim source-native material binding.
 - Asset-specific validators may still add package checks for source files, physics reports, camera contracts, or task semantics.
 
+Offline dependency record checklist:
+
+- Runtime path fields must be package-relative, `{ASSETS_DIR}`-relative, or under an explicit staged overlay root.
+- `source_url` is provenance only; it cannot be the runtime dependency path.
+- Package-local files must record SHA256 and byte count, and validators must reject hash or byte drift.
+- `explicit_waiver` may explain an open dependency, but it cannot allow package/full/native closure claims by itself.
+- Offline dependency pass does not upgrade native material closure, official leaderboard, policy success, or PM showcase claims.
+
 ## PM 文案映射
 
 | Manifest 字段 | PM 可以怎么说 | PM 不能怎么说 |
