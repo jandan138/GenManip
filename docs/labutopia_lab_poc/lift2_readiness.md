@@ -19,7 +19,10 @@ closure.
 - `local_official_baseline_style_contract_ready=true`.
 - `official_baseline_evaluable=false`; this is not an official leaderboard run.
 - `native_material_closure_claim_allowed=false`; Stage 7 consumes Stage 5/6
-  material status and does not close the remote Aluminum waiver.
+  material status and does not require material follow-up completion.
+- Post-Stage-7 follow-up on 2026-06-29 closed the Aluminum remote waiver via
+  package-local mirror, but full native material closure remains open because
+  fallback surfaces still need native material binding.
 - The complete three-task eval finished with `score=0.0` and `success_rate=0`
   for all tasks. That means the tested simple/default action did not solve the
   tasks; it does not invalidate the runtime/data contract.
@@ -29,6 +32,7 @@ Evidence:
 ```text
 docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json
 docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/
+docs/labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json
 ```
 
 Linked prior evidence:
@@ -163,5 +167,41 @@ policy-quality result, not a runtime-contract failure.
    separate from the local contract probes.
 2. Improve policy/controller behavior separately; Stage 7 only proves the lane
    can be evaluated.
-3. Keep `Aluminum_Anodized_Charcoal.mdl` material closure open until it is
-   locally mirrored or explicitly waived in the final material-closure claim.
+3. Close the remaining full material-closure blockers for `Group/_900_1`,
+   `button`, and `panel`; Aluminum is now local-mirrored, but those fallback
+   surfaces still prevent `resolved_native_material`.
+
+## Post-Stage-7 Material Follow-Up
+
+On 2026-06-29, `Aluminum_Anodized_Charcoal.mdl` was mirrored into the LabUtopia
+EBench package:
+
+```text
+miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl
+miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png
+miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png
+miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png
+```
+
+The wrapper layer now overrides the Aluminum Shader with
+`info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@`, and worker
+`MDL_SYSTEM_PATH` covers `{ASSETS_DIR}/miscs/mdl/labutopia/mdl`.
+
+This closes the Aluminum remote dependency:
+
+```text
+remote_aluminum_disposition=local_mirror
+remote_only_dependency_count=0
+waiver_count=0
+closure_claim_allowed=false
+aluminum_material_closure_claim_allowed=true
+```
+
+It does not change the Stage 7 Lift2 contract claim and does not allow full
+native material closure yet:
+
+```text
+native_material_closure_claim_allowed=false
+full_native_material_closure_claim_allowed=false
+native_material_closure_reason=fallback_surfaces_remain_after_aluminum_local_mirror
+```

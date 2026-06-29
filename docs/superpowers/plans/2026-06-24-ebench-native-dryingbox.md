@@ -471,3 +471,32 @@ official_baseline_evaluable=false
 ```
 
 Only after Lift2 official gates pass may `official_baseline_evaluable` be reconsidered.
+
+## Post-Stage-7 Material Follow-Up
+
+### Aluminum local mirror
+
+Scope: independent material dependency follow-up after the Stage 7 local
+Lift2 contract pass. This is not a new Stage 7 pass/fail condition.
+
+Pass condition:
+
+```text
+remote_aluminum_disposition=local_mirror
+remote_only_dependency_count=0
+waiver_count=0
+Aluminum_Anodized_Charcoal.mdl resolves from package-local miscs/mdl/labutopia/mdl
+Aluminum_Anodized_BaseColor.png, Aluminum_Anodized_Normal.png, and Aluminum_Anodized_ORM.png are package-local and hashed
+```
+
+Non-goal:
+
+```text
+material_status=resolved_native_material
+native_material_closure_claim_allowed=true
+official_baseline_evaluable=true
+```
+
+The full native material closure remains open until the remaining fallback
+surfaces (`Group/_900_1`, `button`, `panel`) are converted from
+`displayColor` fallback to native material binding.

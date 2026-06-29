@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import hashlib
 import io
 import json
 import math
@@ -145,8 +146,9 @@ EXPECTED_DRYING_BOX_RUNTIME_ASSET = {
     "material_policy": "owned_world_looks_payload_with_wrapper_local_rebind",
     "material_scope_policy": "preserve_owned_world_looks",
     "material_status": "mixed_native_and_fallback",
-    "remote_aluminum_disposition": "explicit_waiver",
+    "remote_aluminum_disposition": "local_mirror",
     "material_closure_kept_open": True,
+    "native_material_closure_reason": "fallback_surfaces_remain_after_aluminum_local_mirror",
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -162,6 +164,7 @@ EXPECTED_NATIVE_DRYING_BOX_SCENE_TOKENS = [
     "float state:angular:physics:position = 0",
     'def Scope "Looks" (',
     "prepend payload = @scene.usd@</World/Looks>",
+    "asset info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@",
     'def PhysicsScene "PhysicsScene"',
 ]
 FORBIDDEN_NATIVE_DRYING_BOX_SCENE_TOKENS = [
@@ -196,12 +199,34 @@ EXPECTED_DRYING_BOX_TEXTURE_PATHS = {
     "mdl_0008": ["SubUSDs/textures/image4.jpg"],
     "mdl_0009": ["SubUSDs/textures/image1.JPG"],
 }
+EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH = (
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+)
+EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_SHA256 = (
+    "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+)
+EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_BYTES = 1600
+EXPECTED_DRYING_BOX_ALUMINUM_SOURCE_URL = (
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+    "Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl"
+)
+EXPECTED_DRYING_BOX_ALUMINUM_TEXTURE_HASHES = {
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png": (
+        "d1d042502d7d94bca13cee10c63ab5b3801fb0a46e26d79169e13f5b9c7b5a31"
+    ),
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png": (
+        "6dc1cb1b23a9abd766188a85ccbad1a2639d0a9a334f284e359c6c5d4438608e"
+    ),
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png": (
+        "768f2dbb4f702a9624b912b431efd1a6a8e0ff3e93744cf54f3866ef8f7986e9"
+    ),
+}
 EXPECTED_DRYING_BOX_REMOTE_ALUMINUM_GATE = {
     "status": "passed",
     "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
     "remote_unmirrored_unwaived_count": 0,
-    "remote_waiver_count": 1,
-    "local_mirror_count": 0,
+    "remote_waiver_count": 0,
+    "local_mirror_count": 1,
     "remote_dependency_records": [
         {
             "material_name": "Aluminum_Anodized_Charcoal",
@@ -210,16 +235,22 @@ EXPECTED_DRYING_BOX_REMOTE_ALUMINUM_GATE = {
                 "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
                 "Aluminum_Anodized_Charcoal"
             ),
-            "resolution_mode": "explicit_waiver",
-            "local_mirror_path": None,
-            "local_mirror_sha256": None,
-            "local_mirror_bytes": None,
-            "worker_resolved_path": None,
-            "waiver_id": "ALUMINUM_REMOTE_MDL_001",
-            "waiver_reason": (
-                "remote source is intentionally not mirrored in this package revision"
+            "source_url": EXPECTED_DRYING_BOX_ALUMINUM_SOURCE_URL,
+            "resolution_mode": "local_mirror",
+            "local_mirror_path": EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH,
+            "local_mirror_sha256": EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_SHA256,
+            "local_mirror_bytes": EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_BYTES,
+            "worker_resolved_path": (
+                "{ASSETS_DIR}/"
+                "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
             ),
+            "worker_mdl_system_path_covered": True,
+            "waiver_id": None,
+            "waiver_reason": None,
             "closure_claim_allowed": False,
+            "aluminum_material_closure_claim_allowed": True,
+            "native_material_closure_claim_allowed": False,
+            "full_native_material_closure_claim_allowed": False,
         }
     ],
 }
@@ -372,6 +403,14 @@ def _load_json(path: Path) -> Any:
 def _load_yaml(path: Path) -> Any:
     with path.open(encoding="utf-8") as handle:
         return yaml.safe_load(handle)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _assert(condition: bool, message: str) -> None:
@@ -829,16 +868,64 @@ def _validate_drying_box_wrapper_composition(
                 f"{manifest_path}: {material_name} texture {texture_path} must record sha256",
             )
     aluminum = dependency_by_name["Aluminum_Anodized_Charcoal"]
+    package_mirror = PACKAGE_ROOT / "common" / EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH
+    overlay_root = Path(str(manifest["overlay_root"]))
+    overlay_mirror = overlay_root / EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH
     _assert(
-        aluminum.get("dependency_location_status") == "external_remote_mdl_dependency"
-        and aluminum.get("offline_material_closure_status") == "open_remote_dependency",
-        f"{manifest_path}: Aluminum material must remain labelled as an external remote MDL dependency",
+        package_mirror.exists()
+        and _sha256(package_mirror) == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_SHA256
+        and package_mirror.stat().st_size == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_BYTES,
+        f"{manifest_path}: packaged Aluminum mirror MDL must exist with expected hash",
     )
     _assert(
-        aluminum.get("remote_aluminum_disposition") == "explicit_waiver"
-        and aluminum.get("waiver_id") == "ALUMINUM_REMOTE_MDL_001"
-        and aluminum.get("material_closure_kept_open") is True,
-        f"{manifest_path}: Aluminum material must record explicit remote dependency waiver",
+        overlay_mirror.exists()
+        and _sha256(overlay_mirror) == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_SHA256
+        and overlay_mirror.stat().st_size == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_BYTES,
+        f"{manifest_path}: overlay Aluminum mirror MDL must exist with expected hash",
+    )
+    _assert(
+        aluminum.get("dependency_location_status") == "local_mirror_copied_with_package"
+        and aluminum.get("offline_material_closure_status") == "resolved_local_mirror",
+        f"{manifest_path}: Aluminum material must be labelled as a package-local mirror",
+    )
+    _assert(
+        aluminum.get("remote_aluminum_disposition") == "local_mirror"
+        and aluminum.get("waiver_id") is None
+        and aluminum.get("waiver_reason") is None
+        and aluminum.get("material_closure_kept_open") is False,
+        f"{manifest_path}: Aluminum material must close the remote waiver via local mirror",
+    )
+    _assert(
+        aluminum.get("source_url") == EXPECTED_DRYING_BOX_ALUMINUM_SOURCE_URL
+        and aluminum.get("local_mirror_path") == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH
+        and aluminum.get("worker_resolved_path")
+        == f"{{ASSETS_DIR}}/{EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_PATH}"
+        and aluminum.get("worker_mdl_system_path_covered") is True
+        and aluminum.get("sha256") == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_SHA256
+        and aluminum.get("bytes") == EXPECTED_DRYING_BOX_ALUMINUM_MIRROR_BYTES,
+        f"{manifest_path}: Aluminum mirror must record source URL, local path, worker path, hash, and bytes",
+    )
+    texture_hashes = aluminum.get("texture_hashes")
+    _assert(
+        isinstance(texture_hashes, dict),
+        f"{manifest_path}: Aluminum texture_hashes must be a mapping",
+    )
+    for texture_path, expected_hash in EXPECTED_DRYING_BOX_ALUMINUM_TEXTURE_HASHES.items():
+        package_texture = PACKAGE_ROOT / "common" / texture_path
+        overlay_texture = overlay_root / texture_path
+        _assert(
+            package_texture.exists()
+            and _sha256(package_texture) == expected_hash
+            and overlay_texture.exists()
+            and _sha256(overlay_texture) == expected_hash
+            and texture_hashes.get(texture_path) == expected_hash,
+            f"{manifest_path}: Aluminum texture mirror must exist and match hash for {texture_path}",
+        )
+    texture_records = aluminum.get("texture_dependency_records")
+    _assert(
+        isinstance(texture_records, list)
+        and len(texture_records) == len(EXPECTED_DRYING_BOX_ALUMINUM_TEXTURE_HASHES),
+        f"{manifest_path}: Aluminum texture dependency records must cover all mirrored textures",
     )
     _validate_drying_box_static_material_dependency_gate(
         manifest_path,
@@ -846,23 +933,24 @@ def _validate_drying_box_wrapper_composition(
         report.get("material_status"),
     )
     _assert(
-        report.get("remote_aluminum_disposition") == "explicit_waiver",
-        f"{manifest_path}: wrapper report must record remote_aluminum_disposition=explicit_waiver",
+        report.get("remote_aluminum_disposition") == "local_mirror",
+        f"{manifest_path}: wrapper report must record remote_aluminum_disposition=local_mirror",
     )
     _assert(
-        report.get("material_closure_kept_open") is True,
-        f"{manifest_path}: wrapper report must keep material closure open for remote Aluminum waiver",
+        report.get("material_closure_kept_open") is True
+        and report.get("native_material_closure_reason")
+        == "fallback_surfaces_remain_after_aluminum_local_mirror",
+        f"{manifest_path}: wrapper report must keep full material closure open only for fallback surfaces",
     )
-    waiver = report.get("remote_aluminum_waiver")
-    _assert(isinstance(waiver, dict), f"{manifest_path}: missing remote Aluminum waiver")
+    followup = report.get("aluminum_local_mirror_followup")
     _assert(
-        waiver.get("waiver_id") == "ALUMINUM_REMOTE_MDL_001"
-        and waiver.get("affected_material_path")
-        == "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal"
-        and waiver.get("material_closure_kept_open") is True
-        and isinstance(waiver.get("affected_task_visible_surfaces"), list)
-        and waiver.get("affected_task_visible_surfaces"),
-        f"{manifest_path}: remote Aluminum waiver must record id, affected material, surfaces, and open closure",
+        isinstance(followup, dict)
+        and followup.get("status") == "passed"
+        and followup.get("does_not_change_lift2_contract") is True
+        and followup.get("aluminum_material_closure_claim_allowed") is True
+        and followup.get("native_material_closure_claim_allowed") is False
+        and followup.get("full_native_material_closure_claim_allowed") is False,
+        f"{manifest_path}: wrapper report must record independent Aluminum mirror follow-up boundary",
     )
     _assert(
         report.get("worker_mdl_system_path")
@@ -992,8 +1080,11 @@ def _validate_drying_box_static_material_dependency_gate(
         _assert(
             record.get("waiver_id") is None
             and record.get("waiver_reason") is None
-            and record.get("closure_claim_allowed") is True,
-            f"{manifest_path}: local_mirror must not keep a remote waiver open",
+            and record.get("closure_claim_allowed") is False
+            and record.get("aluminum_material_closure_claim_allowed") is True
+            and record.get("native_material_closure_claim_allowed") is False
+            and record.get("full_native_material_closure_claim_allowed") is False,
+            f"{manifest_path}: local_mirror must scope closure claims to Aluminum only",
         )
     else:
         raise AssertionError(
@@ -1061,20 +1152,25 @@ def _validate_drying_box_physics_override_report(
         manifest["drying_box_runtime_asset"].get("material_status"),
     )
     _assert(
-        report.get("remote_aluminum_disposition") == "explicit_waiver"
-        and report.get("material_closure_kept_open") is True,
-        f"{manifest_path}: physics override must record explicit Aluminum waiver with open material closure",
+        report.get("remote_aluminum_disposition") == "local_mirror"
+        and report.get("material_closure_kept_open") is True
+        and report.get("native_material_closure_reason")
+        == "fallback_surfaces_remain_after_aluminum_local_mirror",
+        f"{manifest_path}: physics override must record Aluminum local mirror with full closure still open for fallback surfaces",
     )
     material_summary = report.get("material_validator_summary")
     _assert(
         material_summary
         == {
             "unresolved_binding_target_count": 0,
-            "remote_only_dependency_count": 1,
+            "remote_only_dependency_count": 0,
             "fallback_surface_count": 3,
-            "waiver_count": 1,
-            "remote_aluminum_disposition": "explicit_waiver",
+            "waiver_count": 0,
+            "remote_aluminum_disposition": "local_mirror",
             "native_material_closure_open": True,
+            "native_material_closure_reason": (
+                "fallback_surfaces_remain_after_aluminum_local_mirror"
+            ),
         },
         f"{manifest_path}: material_validator_summary must record Stage 4 material boundary",
     )

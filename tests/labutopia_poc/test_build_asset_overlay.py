@@ -548,9 +548,27 @@ def test_build_asset_overlay_native_strategy_preserves_drying_box_materials(
     assert material_dependencies["mdl_0009"]["texture_hashes"] == {
         "SubUSDs/textures/image1.JPG": texture_hashes["image1.JPG"]
     }
-    assert material_dependencies["Aluminum_Anodized_Charcoal"][
-        "dependency_location_status"
-    ] == "external_remote_mdl_dependency"
+    aluminum = material_dependencies["Aluminum_Anodized_Charcoal"]
+    assert aluminum["dependency_location_status"] == "local_mirror_copied_with_package"
+    assert aluminum["offline_material_closure_status"] == "resolved_local_mirror"
+    assert aluminum["remote_aluminum_disposition"] == "local_mirror"
+    assert aluminum["material_closure_kept_open"] is False
+    assert aluminum["local_mirror_path"] == (
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+    )
+    assert aluminum["worker_resolved_path"] == (
+        "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+    )
+    assert aluminum["worker_mdl_system_path_covered"] is True
+    assert aluminum["sha256"] == (
+        "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+    )
+    assert aluminum["bytes"] == 1600
+    assert aluminum["texture_paths"] == [
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+    ]
 
 
 def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_report(
@@ -593,14 +611,46 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
     assert report["generated_wrapper_stage_path"] == report["override_layer_path"]
     assert report["source_usd_path"] == str(source_scene)
     assert report["source_usd_sha256"] == build_overlay._sha256(source_scene)
-    assert report["remote_aluminum_disposition"] == "explicit_waiver"
+    assert report["remote_aluminum_disposition"] == "local_mirror"
     assert report["material_closure_kept_open"] is True
+    assert report["native_material_closure_reason"] == (
+        "fallback_surfaces_remain_after_aluminum_local_mirror"
+    )
+
+    scene_text = (
+        overlay_root
+        / "scene_usds"
+        / "labutopia"
+        / "level1_poc"
+        / "lab_001"
+        / "scene.usda"
+    ).read_text(encoding="utf-8")
+    assert "https://omniverse-content-production.s3.us-west-2.amazonaws.com" not in scene_text
+    assert (
+        "asset info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@"
+        in scene_text
+    )
+    assert (
+        overlay_root
+        / "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+    ).exists()
+    assert (
+        overlay_root
+        / "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png"
+    ).exists()
+    copied_paths = {item["relative_path"] for item in manifest["copied_files"]}
+    assert {
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl",
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+    }.issubset(copied_paths)
 
     gate = report["static_material_dependency_gate"]
     assert gate["status"] == "passed"
     assert gate["remote_unmirrored_unwaived_count"] == 0
-    assert gate["remote_waiver_count"] == 1
-    assert gate["local_mirror_count"] == 0
+    assert gate["remote_waiver_count"] == 0
+    assert gate["local_mirror_count"] == 1
     assert gate["remote_dependency_records"] == [
         {
             "material_name": "Aluminum_Anodized_Charcoal",
@@ -609,16 +659,29 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
                 "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
                 "Aluminum_Anodized_Charcoal"
             ),
-            "resolution_mode": "explicit_waiver",
-            "local_mirror_path": None,
-            "local_mirror_sha256": None,
-            "local_mirror_bytes": None,
-            "worker_resolved_path": None,
-            "waiver_id": "ALUMINUM_REMOTE_MDL_001",
-            "waiver_reason": (
-                "remote source is intentionally not mirrored in this package revision"
+            "source_url": (
+                "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+                "Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl"
             ),
+            "resolution_mode": "local_mirror",
+            "local_mirror_path": (
+                "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+            ),
+            "local_mirror_sha256": (
+                "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+            ),
+            "local_mirror_bytes": 1600,
+            "worker_resolved_path": (
+                "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/"
+                "Aluminum_Anodized_Charcoal.mdl"
+            ),
+            "worker_mdl_system_path_covered": True,
+            "waiver_id": None,
+            "waiver_reason": None,
             "closure_claim_allowed": False,
+            "aluminum_material_closure_claim_allowed": True,
+            "native_material_closure_claim_allowed": False,
+            "full_native_material_closure_claim_allowed": False,
         }
     ]
 
@@ -638,11 +701,14 @@ def test_build_asset_overlay_native_strategy_writes_stage4_physics_override_repo
     ]
     assert saved_report["material_validator_summary"] == {
         "unresolved_binding_target_count": 0,
-        "remote_only_dependency_count": 1,
+        "remote_only_dependency_count": 0,
         "fallback_surface_count": 3,
-        "waiver_count": 1,
-        "remote_aluminum_disposition": "explicit_waiver",
+        "waiver_count": 0,
+        "remote_aluminum_disposition": "local_mirror",
         "native_material_closure_open": True,
+        "native_material_closure_reason": (
+            "fallback_surfaces_remain_after_aluminum_local_mirror"
+        ),
     }
 
 

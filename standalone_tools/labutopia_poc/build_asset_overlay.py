@@ -10,6 +10,8 @@ import shutil
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_COMMON_ROOT = ROOT / "configs/tasks/ebench/labutopia_lab_poc/common"
 DEFAULT_LABUTOPIA_ROOT = Path("/cpfs/shared/simulation/zhuzihou/dev/LabUtopia")
 DEFAULT_OVERLAY_ROOT = Path(
     "/cpfs/shared/simulation/zhuzihou/dev/_datasets/"
@@ -251,11 +253,31 @@ DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS = {
         "mdl_subidentifier": "mdl_0009",
     },
     "Aluminum_Anodized_Charcoal": {
-        "mdl_source_asset": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl",
+        "mdl_source_asset": "Aluminum_Anodized_Charcoal.mdl",
         "mdl_subidentifier": "Aluminum_Anodized_Charcoal",
     },
 }
 DRYING_BOX_REMOTE_ALUMINUM_MATERIAL = "Aluminum_Anodized_Charcoal"
+DRYING_BOX_ALUMINUM_SOURCE_URL = (
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+    "Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl"
+)
+DRYING_BOX_ALUMINUM_TEXTURE_SOURCE_BASE_URL = (
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/"
+    "Materials/Base/Metals/Aluminum_Anodized"
+)
+DRYING_BOX_ALUMINUM_MIRROR_RELATIVE = (
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+)
+DRYING_BOX_ALUMINUM_MDL_SOURCE_ASSET = "Aluminum_Anodized_Charcoal.mdl"
+DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES = (
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+    "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+)
+DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON = (
+    "fallback_surfaces_remain_after_aluminum_local_mirror"
+)
 DRYING_BOX_REMOTE_ALUMINUM_WAIVER = {
     "waiver_id": "ALUMINUM_REMOTE_MDL_001",
     "waiver_reason": "remote source is intentionally not mirrored in this package revision",
@@ -290,8 +312,9 @@ DRYING_BOX_NATIVE_RUNTIME_ASSET = {
     "material_policy": DRYING_BOX_NATIVE_MATERIAL_POLICY,
     "material_scope_policy": DRYING_BOX_NATIVE_MATERIAL_SCOPE_POLICY,
     "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
-    "remote_aluminum_disposition": "explicit_waiver",
+    "remote_aluminum_disposition": "local_mirror",
     "material_closure_kept_open": True,
+    "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
     "door_joint_name": "RevoluteJoint",
     "door_reset_target": [0.0],
     "button_prismatic_joint_policy": "ignored_by_open_door_metric",
@@ -593,6 +616,15 @@ def _native_drying_box_material_scope_def() -> str:
                 prepend payload = @scene.usd@<{SOURCE_WORLD_LOOKS_PATH}>
             )
             {{
+                over "{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
+                {{
+                    over "Shader"
+                    {{
+                        uniform token info:implementationSource = "sourceAsset"
+                        asset info:mdl:sourceAsset = @{DRYING_BOX_ALUMINUM_MDL_SOURCE_ASSET}@
+                        token info:mdl:sourceAsset:subIdentifier = "{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
+                    }}
+                }}
             }}"""
 
 
@@ -856,6 +888,94 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _worker_asset_path(relative_path: str) -> str:
+    return f"{{ASSETS_DIR}}/{relative_path}"
+
+
+def _file_record(path: Path, relative_path: str) -> dict[str, object]:
+    return {
+        "relative_path": relative_path,
+        "sha256": _sha256(path),
+        "bytes": path.stat().st_size,
+    }
+
+
+def _copy_aluminum_local_mirror(overlay_root: Path) -> dict[str, object]:
+    records = []
+    for relative_path in (
+        DRYING_BOX_ALUMINUM_MIRROR_RELATIVE,
+        *DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES,
+    ):
+        source = PACKAGE_COMMON_ROOT / relative_path
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"Missing Aluminum local mirror package asset: {source}"
+            )
+        destination = overlay_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        records.append(_file_record(destination, relative_path))
+    return {"mdl": records[0], "textures": records[1:]}
+
+
+def _aluminum_local_mirror_mdl_record(overlay_root: Path) -> dict[str, object]:
+    path = overlay_root / DRYING_BOX_ALUMINUM_MIRROR_RELATIVE
+    return _file_record(path, DRYING_BOX_ALUMINUM_MIRROR_RELATIVE)
+
+
+def _aluminum_texture_dependency_records(
+    overlay_root: Path,
+) -> list[dict[str, object]]:
+    records = []
+    for relative_path in DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES:
+        path = overlay_root / relative_path
+        texture_name = Path(relative_path).name
+        record = _file_record(path, relative_path)
+        record.update(
+            {
+                "source_url": (
+                    f"{DRYING_BOX_ALUMINUM_TEXTURE_SOURCE_BASE_URL}/{texture_name}"
+                ),
+                "local_mirror_path": relative_path,
+                "worker_resolved_path": _worker_asset_path(relative_path),
+                "dependency_location_status": "local_mirror_copied_with_package",
+            }
+        )
+        records.append(record)
+    return records
+
+
+def _aluminum_local_mirror_followup(overlay_root: Path) -> dict[str, object]:
+    mdl = _aluminum_local_mirror_mdl_record(overlay_root)
+    textures = _aluminum_texture_dependency_records(overlay_root)
+    return {
+        "schema_version": 1,
+        "status": "passed",
+        "scope": "post_stage7_independent_material_dependency_followup",
+        "does_not_change_lift2_contract": True,
+        "closed_dependency": "Aluminum remote MDL waiver",
+        "source_url": DRYING_BOX_ALUMINUM_SOURCE_URL,
+        "runtime_material_path": _remote_aluminum_runtime_material_path(),
+        "local_mirror_path": DRYING_BOX_ALUMINUM_MIRROR_RELATIVE,
+        "local_mirror_sha256": mdl["sha256"],
+        "local_mirror_bytes": mdl["bytes"],
+        "worker_resolved_path": _worker_asset_path(
+            DRYING_BOX_ALUMINUM_MIRROR_RELATIVE
+        ),
+        "worker_mdl_system_path_covered": True,
+        "texture_dependency_records": textures,
+        "waiver_id": None,
+        "waiver_reason": None,
+        "closure_claim_allowed": False,
+        "aluminum_material_closure_claim_allowed": True,
+        "native_material_closure_claim_allowed": False,
+        "full_native_material_closure_claim_allowed": False,
+        "remaining_full_closure_blockers": [
+            "fallback_surfaces_remain_after_aluminum_local_mirror"
+        ],
+    }
+
+
 def _source_relative_path(source_dir: Path, path: Path) -> str:
     try:
         return path.relative_to(source_dir).as_posix()
@@ -987,14 +1107,16 @@ def _remote_aluminum_affected_surfaces() -> list[str]:
     ]
 
 
-def _drying_box_static_material_dependency_gate() -> dict[str, object]:
-    waiver = DRYING_BOX_REMOTE_ALUMINUM_WAIVER
+def _drying_box_static_material_dependency_gate(
+    overlay_root: Path,
+) -> dict[str, object]:
+    mirror = _aluminum_local_mirror_mdl_record(overlay_root)
     return {
         "status": "passed",
         "remote_dependency_policy": "local_mirror_required_or_explicit_waiver",
         "remote_unmirrored_unwaived_count": 0,
-        "remote_waiver_count": 1,
-        "local_mirror_count": 0,
+        "remote_waiver_count": 0,
+        "local_mirror_count": 1,
         "remote_dependency_records": [
             {
                 "material_name": DRYING_BOX_REMOTE_ALUMINUM_MATERIAL,
@@ -1002,14 +1124,21 @@ def _drying_box_static_material_dependency_gate() -> dict[str, object]:
                     f"{SOURCE_WORLD_LOOKS_PATH}/{DRYING_BOX_REMOTE_ALUMINUM_MATERIAL}"
                 ),
                 "runtime_material_path": _remote_aluminum_runtime_material_path(),
-                "resolution_mode": "explicit_waiver",
-                "local_mirror_path": None,
-                "local_mirror_sha256": None,
-                "local_mirror_bytes": None,
-                "worker_resolved_path": None,
-                "waiver_id": waiver["waiver_id"],
-                "waiver_reason": waiver["waiver_reason"],
+                "source_url": DRYING_BOX_ALUMINUM_SOURCE_URL,
+                "resolution_mode": "local_mirror",
+                "local_mirror_path": DRYING_BOX_ALUMINUM_MIRROR_RELATIVE,
+                "local_mirror_sha256": mirror["sha256"],
+                "local_mirror_bytes": mirror["bytes"],
+                "worker_resolved_path": _worker_asset_path(
+                    DRYING_BOX_ALUMINUM_MIRROR_RELATIVE
+                ),
+                "worker_mdl_system_path_covered": True,
+                "waiver_id": None,
+                "waiver_reason": None,
                 "closure_claim_allowed": False,
+                "aluminum_material_closure_claim_allowed": True,
+                "native_material_closure_claim_allowed": False,
+                "full_native_material_closure_claim_allowed": False,
             }
         ],
     }
@@ -1017,6 +1146,7 @@ def _drying_box_static_material_dependency_gate() -> dict[str, object]:
 
 def _drying_box_material_dependency_report(
     labutopia_root: Path,
+    overlay_root: Path,
 ) -> list[dict[str, object]]:
     source_dir = labutopia_root / SOURCE_DIR_RELATIVE
     root_path = _drying_box_root_path()
@@ -1025,14 +1155,24 @@ def _drying_box_material_dependency_report(
         DRYING_BOX_NATIVE_MATERIAL_SOURCE_ASSETS.items()
     ):
         mdl_source_asset = str(metadata["mdl_source_asset"])
+        is_aluminum = material_name == DRYING_BOX_REMOTE_ALUMINUM_MATERIAL
         is_remote = mdl_source_asset.startswith(("http://", "https://"))
-        local_path = None if is_remote else source_dir / mdl_source_asset
+        local_path = (
+            overlay_root / DRYING_BOX_ALUMINUM_MIRROR_RELATIVE
+            if is_aluminum
+            else None if is_remote else source_dir / mdl_source_asset
+        )
         local_status = "external_remote_mdl_dependency"
         sha256 = None
         bytes_count = None
         helper_imports: list[dict[str, object]] = []
         texture_records: list[dict[str, object]] = []
-        if local_path is not None:
+        if is_aluminum:
+            local_status = "local_mirror_copied_with_package"
+            sha256 = _sha256(local_path)
+            bytes_count = local_path.stat().st_size
+            texture_records = _aluminum_texture_dependency_records(overlay_root)
+        elif local_path is not None:
             if local_path.exists():
                 local_status = "local_file_copied_with_source_scene"
                 sha256 = _sha256(local_path)
@@ -1081,22 +1221,26 @@ def _drying_box_material_dependency_report(
                 "sha256": sha256,
                 "bytes": bytes_count,
                 "offline_material_closure_status": (
-                    "open_remote_dependency"
+                    "resolved_local_mirror"
+                    if is_aluminum
+                    else "open_remote_dependency"
                     if is_remote
                     else local_status
                 ),
                 **(
                     {
-                        "remote_aluminum_disposition": "explicit_waiver",
-                        "waiver_id": DRYING_BOX_REMOTE_ALUMINUM_WAIVER[
-                            "waiver_id"
-                        ],
-                        "waiver_reason": DRYING_BOX_REMOTE_ALUMINUM_WAIVER[
-                            "waiver_reason"
-                        ],
-                        "material_closure_kept_open": True,
+                        "source_url": DRYING_BOX_ALUMINUM_SOURCE_URL,
+                        "local_mirror_path": DRYING_BOX_ALUMINUM_MIRROR_RELATIVE,
+                        "worker_resolved_path": _worker_asset_path(
+                            DRYING_BOX_ALUMINUM_MIRROR_RELATIVE
+                        ),
+                        "worker_mdl_system_path_covered": True,
+                        "remote_aluminum_disposition": "local_mirror",
+                        "waiver_id": None,
+                        "waiver_reason": None,
+                        "material_closure_kept_open": False,
                     }
-                    if material_name == DRYING_BOX_REMOTE_ALUMINUM_MATERIAL
+                    if is_aluminum
                     else {}
                 ),
             }
@@ -1144,6 +1288,7 @@ def _drying_box_fallback_display_records() -> list[dict[str, object]]:
 
 def _drying_box_wrapper_composition_report(
     labutopia_root: Path,
+    overlay_root: Path,
 ) -> dict[str, object]:
     root_path = _drying_box_root_path()
     binding_records = _drying_box_source_binding_records()
@@ -1187,17 +1332,19 @@ def _drying_box_wrapper_composition_report(
             f"{root_path}/Looks/{material_name}" for material_name in material_names
         ],
         "material_dependency_report": _drying_box_material_dependency_report(
-            labutopia_root
+            labutopia_root,
+            overlay_root,
         ),
-        "static_material_dependency_gate": _drying_box_static_material_dependency_gate(),
-        "remote_aluminum_disposition": "explicit_waiver",
+        "static_material_dependency_gate": _drying_box_static_material_dependency_gate(
+            overlay_root
+        ),
+        "remote_aluminum_disposition": "local_mirror",
         "material_closure_kept_open": True,
-        "remote_aluminum_waiver": {
-            **DRYING_BOX_REMOTE_ALUMINUM_WAIVER,
-            "affected_material_path": _remote_aluminum_runtime_material_path(),
-            "affected_task_visible_surfaces": _remote_aluminum_affected_surfaces(),
-        },
+        "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         "worker_mdl_system_path": REQUIRED_WORKER_MDL_SYSTEM_PATH,
+        "aluminum_local_mirror_followup": _aluminum_local_mirror_followup(
+            overlay_root
+        ),
         "fallback_display_color_policy": {
             "policy": "stage3_task_visible_readability_overlay",
             "material_status": DRYING_BOX_NATIVE_MATERIAL_STATUS,
@@ -1305,7 +1452,7 @@ def _drying_box_physics_override_report(
         else packaged_report_path
     )
     root_path = _drying_box_root_path()
-    static_material_gate = _drying_box_static_material_dependency_gate()
+    static_material_gate = _drying_box_static_material_dependency_gate(overlay_root)
     return {
         "schema_version": 1,
         "stage": "acceptance_stage_4",
@@ -1369,20 +1516,18 @@ def _drying_box_physics_override_report(
         },
         "material_validator_summary": {
             "unresolved_binding_target_count": 0,
-            "remote_only_dependency_count": 1,
+            "remote_only_dependency_count": 0,
             "fallback_surface_count": len(DRYING_BOX_NATIVE_FALLBACK_DISPLAY_OVERRIDES),
-            "waiver_count": 1,
-            "remote_aluminum_disposition": "explicit_waiver",
+            "waiver_count": 0,
+            "remote_aluminum_disposition": "local_mirror",
             "native_material_closure_open": True,
+            "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         },
         "static_material_dependency_gate": static_material_gate,
-        "remote_aluminum_disposition": "explicit_waiver",
-        "remote_aluminum_waiver": {
-            **DRYING_BOX_REMOTE_ALUMINUM_WAIVER,
-            "affected_material_path": _remote_aluminum_runtime_material_path(),
-            "affected_task_visible_surfaces": _remote_aluminum_affected_surfaces(),
-        },
+        "remote_aluminum_disposition": "local_mirror",
+        "aluminum_local_mirror_followup": _aluminum_local_mirror_followup(overlay_root),
         "material_closure_kept_open": True,
+        "native_material_closure_reason": DRYING_BOX_NATIVE_MATERIAL_CLOSURE_REASON,
         "physx_warning_diff": {
             "collected": False,
             "reason": "static Stage 4 report; runtime warning diff is collected in Stage 5",
@@ -1496,17 +1641,30 @@ def build_asset_overlay(
     shutil.copy2(source_scene, scene_usd)
     scene_usda = overlay_scene_dir / "scene.usda"
     _write_scene_wrapper(scene_usda, drying_box_strategy=drying_box_strategy)
+    aluminum_mirror_paths: list[Path] = []
+    aluminum_mirror_followup = None
+    if drying_box_strategy == DRYING_BOX_STRATEGY_NATIVE_COMPLEX:
+        _copy_aluminum_local_mirror(overlay_root)
+        aluminum_mirror_paths = [
+            overlay_root / relative_path
+            for relative_path in (
+                DRYING_BOX_ALUMINUM_MIRROR_RELATIVE,
+                *DRYING_BOX_ALUMINUM_TEXTURE_RELATIVES,
+            )
+        ]
+        aluminum_mirror_followup = _aluminum_local_mirror_followup(overlay_root)
 
     copied_paths = [
         path
         for path in overlay_scene_dir.rglob("*")
         if path.is_file() and path.name != "scene.usda"
-    ]
+    ] + aluminum_mirror_paths
     manifest = {
         "source_repo": str(labutopia_root),
         "source_scene": str(source_scene),
         "overlay_root": str(overlay_root),
         "usd_name": USD_NAME,
+        "runtime_usd_name": USD_NAME,
         "scene_uid": SCENE_UID,
         "source_task_prims": SOURCE_TASK_PRIMS,
         "source_prim_paths": list(SOURCE_TO_RUNTIME_OBJECT_KEY.keys()),
@@ -1540,11 +1698,15 @@ def build_asset_overlay(
                 encoding="utf-8",
             )
         manifest["drying_box_wrapper_composition"] = (
-            _drying_box_wrapper_composition_report(labutopia_root)
+            _drying_box_wrapper_composition_report(labutopia_root, overlay_root)
         )
         manifest["drying_box_physics_override"] = physics_override_report
+        manifest["material_closure_followups"] = {
+            "aluminum_local_mirror": aluminum_mirror_followup
+        }
 
     manifest_path = overlay_root / MANIFEST_RELATIVE
+    manifest["generated_manifest"] = str(manifest_path)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

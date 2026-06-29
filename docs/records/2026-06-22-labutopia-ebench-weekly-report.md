@@ -13,6 +13,8 @@ HTML 版产品汇报页：
 
 2026-06-29 Stage 7 补充：Lift2 official-baseline-style contract check 已通过本地合同验证。我们先把官方/default `robot_usds/lift2`、`miscs/curobo/R5a` 和 LabUtopia overlay 合成 composite asset root，再用隔离端口 `18188` 跑完整三任务 `gmp submit/eval/status`，`level1_pick`、`level1_place`、`level1_open_door` 都完成 reset/step/result_info/metric logging；随后又对三条任务分别跑 live contract probe，observation keys、camera input keys、action dialects、reward/success fields、logging fields 全部为 `PASS`。结论升级为 `Stage 7 passed`、`lift2_contract_ready=true`、`local_official_baseline_style_contract_ready=true`。边界仍然明确：三任务分数都是 `0.0`，说明当前简单动作没有解任务；`official_baseline_evaluable=false`，因为这还不是 official leaderboard 复现或官方 EBench score release。
 
+2026-06-29 材质依赖收尾补充：`Aluminum_Anodized_Charcoal.mdl` 已作为独立 material closure follow-up 做 local mirror，不再依赖远端 Omniverse/S3 MDL。我们把 MDL 和三张 texture 放进 `miscs/mdl/labutopia/mdl`，并在 wrapper layer 里把 Aluminum Shader 的 `info:mdl:sourceAsset` 指向本地 `Aluminum_Anodized_Charcoal.mdl`。这关闭的是 Aluminum remote waiver，提升离线可复现性；它不改变 Stage 7 Lift2 contract、不提升任务分数、不代表 official baseline 成绩发布，也不代表 full native material closure 已完成。剩余材质尾项是 `Group/_900_1`、`button`、`panel` 的 fallback displayColor native binding。
+
 ## 本周完成了什么
 
 ### 1. LabUtopia POC 任务包已可运行
@@ -282,11 +284,13 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 - P2 native DryingBox audit: `saved/diagnostics/native_dryingbox_audit_20260624_091136/audit.json`, SHA256 `e6eab4a6fc6a6b3ddddbabc2717a674c606c83255467db8b97bfbdac085aad4d`
 - P2 native-only Isaac smoke: `saved/diagnostics/native_dryingbox_smoke_20260624_091152/smoke.json`, SHA256 `fdab719564440d8528623785b55662acb38b74cf607d249dce963885082664a4`
 - P2 native EBench retake diagnostics: `saved/diagnostics/native_dryingbox_visual_retake_final_20260624_0002/diagnostics.json`, SHA256 `d93069572347c6a30260bc856de126193c531633be3167f4ecc7fb76ce8d7bf6`; boundary is `render_validation.passed=true`, `native_complex_dryingbox_ready=true`, `task_render_accepted=true`, `official_baseline_evaluable=false`
-- Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
+- Stage 5 native eval readback diagnostics: `saved/diagnostics/labutopia_native_open_door_eval_20260628_183219/diagnostics.json`; historical boundary is `native_eval_readback_ready=true`, `native_complex_dryingbox_ready=true`, `runtime_physics_stable=true`, `metric_reads_door_revolute_joint=true`, `native_material_closure_status=open_remote_dependency_waived`, `lift2_contract_ready=false`
 - Stage 6 acceptance evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json)
 - Stage 7 Lift2 readiness report: [docs/labutopia_lab_poc/lift2_readiness.md](../labutopia_lab_poc/lift2_readiness.md)
 - Stage 7 machine evidence manifest: [docs/labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json](../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json)
 - Stage 7 evidence bundle: [docs/labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/](../labutopia_lab_poc/evidence_manifests/lift2_contract_probe_20260629_0404/)
+- Aluminum material mirror follow-up: [docs/records/2026-06-29-labutopia-aluminum-material-mirror-closure.md](2026-06-29-labutopia-aluminum-material-mirror-closure.md)
+- Aluminum material mirror machine evidence: [docs/labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json](../labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json)
 - static direct-render evidence: visual QA failed on 2026-06-23
 - investigation: [docs/labutopia_lab_poc/render_visual_investigation_20260623.md](../labutopia_lab_poc/render_visual_investigation_20260623.md)
 - plan: [docs/superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md](../superpowers/plans/2026-06-23-labutopia-ebench-render-layout-closure.md)
@@ -303,8 +307,9 @@ saved/eval_results/ebench/labutopia_franka_smoke_clean8_20260622_100208/.../leve
 4. P1c：已完成任务级相机/构图复验，三任务 `render_validation.passed=true`。
 5. P1d：已用正常 eval-path 重新抓三任务关键帧，写 evidence manifest，并完成独立视觉复核。
 6. P2 / Acceptance Stage 5：已完成 LabUtopia native complex `DryingBox_01` eval-path readback：asset audit、native-only Isaac smoke、EBench wrapper、additive physics override、runtime material readback、door `RevoluteJoint` metric 和 frame hash 都有证据。
-7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。Aluminum remote waiver 仍然 open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
-8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 Aluminum remote material waiver 边界。
+7. Acceptance Stage 6：已新增 acceptance manifest 和 PM claim boundary。历史边界是 Aluminum remote waiver open，最新图为机器诊断证据且视觉审阅 `WARN`，不能写成 full material closure 或 polished showcase。
+8. Acceptance Stage 7：本地 Lift2 official-baseline-style contract 已通过。下一步不再是补 composite asset root，而是把这条 `lift2_candidate` lane 交给真实 Lift2 baseline runner 做策略评测；同时保留 0% score 边界和 official baseline 边界。
+9. Material follow-up：Aluminum remote waiver 已由 local mirror 关闭，但 full native material closure 仍未完成；剩余是 fallback surfaces 的 native binding。
 
 ## 新增调研和计划文档
 

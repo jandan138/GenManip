@@ -413,7 +413,7 @@
       <div>
         <p class="eyebrow">Weekly report · 2026-06-22 · PM-facing evidence page</p>
         <h1><span>LabUtopia x EBench</span><span>接入周报</span></h1>
-          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。2026-06-29 Stage 7 已通过本地 Lift2 official-baseline-style contract：composite asset root 已合入 <code>robot_usds/lift2</code>、<code>miscs/curobo/R5a</code> 和 LabUtopia overlay，三条 <code>lift2_candidate</code> 任务都能 reset/step/result_info/metric logging，三条 live probe 的 observation、camera、action、reward/success 和 logging schema 都是 <code>PASS</code>。当前仍不能宣称 official leaderboard 复现或 full native MDL/texture material closure，因为 score 仍为 <code>0.0</code>，Aluminum 材质仍是 explicit waiver。</p>
+          <p class="lede">本周 Franka POC 已经跑通端到端 smoke：任务能提交，LabUtopia 场景能加载，三个 level-1 任务能 reset/step，结果能落盘并正常 complete。2026-06-23 到 2026-06-24 的 P1 复核后，三任务 eval <code>camera2</code> 都能读回非黑画面，静态资产坐标也已归一到 Franka 工作区；最新正式复核显示 <code>pick</code>、<code>place</code>、<code>open_door</code> 三张任务图均已通过任务渲染门禁。2026-06-28 Stage 5/6 又把 <code>open_door</code> 推进到 LabUtopia native complex <code>DryingBox_01</code> eval-path readback：资产不是 surrogate cube，reset/render/step/metric/readback 有机器证据，metric 读取门的 <code>RevoluteJoint</code>。2026-06-29 Stage 7 已通过本地 Lift2 official-baseline-style contract：composite asset root 已合入 <code>robot_usds/lift2</code>、<code>miscs/curobo/R5a</code> 和 LabUtopia overlay，三条 <code>lift2_candidate</code> 任务都能 reset/step/result_info/metric logging，三条 live probe 的 observation、camera、action、reward/success 和 logging schema 都是 <code>PASS</code>。随后 Aluminum 材质作为独立 follow-up 已做 local mirror；当前仍不能宣称 official leaderboard 复现或 full native MDL/texture material closure，因为 score 仍为 <code>0.0</code>，且还有 fallback surfaces 未完成 native binding。</p>
         <div class="pill-row">
           <span class="pill ok">wiring smoke complete</span>
           <span class="pill ok">3/3 episodes finalized</span>
@@ -591,7 +591,7 @@
         </div>
         <div class="panel warn">
           <h3>仍要守住的边界</h3>
-            <p>本地 Lift2 contract 已通过，但 official leaderboard reproduction、official EBench score release 和策略成功率仍未闭环。当前三任务 score/success_rate 是 <code>0.0</code>，说明默认/简单动作没有解任务；Aluminum remote material waiver 也仍让 full native MDL/texture material closure 保持 open。</p>
+            <p>本地 Lift2 contract 已通过，但 official leaderboard reproduction、official EBench score release 和策略成功率仍未闭环。当前三任务 score/success_rate 是 <code>0.0</code>，说明默认/简单动作没有解任务；Aluminum remote material waiver 已由 local mirror 关闭，但 full native MDL/texture material closure 仍因 fallback surfaces 保持 open。</p>
         </div>
       </div>
     </section>
@@ -799,7 +799,7 @@
         </div>
         <div class="panel warn">
           <h3>渲染证据状态</h3>
-          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 native complex <code>DryingBox_01</code> eval-path readback。Stage 5 最终诊断为 <code>native_eval_readback_ready=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>metric_reads_door_revolute_joint=true</code>；Stage 7 进一步记录 <code>lift2_contract_ready=true</code>、<code>local_official_baseline_style_contract_ready=true</code>。材质边界仍是 <code>native_material_closure_status=open_remote_dependency_waived</code>。</p>
+          <p>当前三任务均为 <code>readback_visible</code> 且 <code>render_validation.passed=true</code>。最新任务级隐藏后，<code>level1_pick</code> 只保留抓取瓶子，目标清楚；<code>level1_place</code> 同时保留烧杯和黄色目标托盘，任务关系可读；<code>level1_open_door</code> 已从 P1 surrogate baseline 推进到 native complex <code>DryingBox_01</code> eval-path readback。Stage 5 最终诊断为 <code>native_eval_readback_ready=true</code>、<code>native_complex_dryingbox_ready=true</code>、<code>runtime_physics_stable=true</code>、<code>metric_reads_door_revolute_joint=true</code>；Stage 7 进一步记录 <code>lift2_contract_ready=true</code>、<code>local_official_baseline_style_contract_ready=true</code>。材质边界更新为 Aluminum 已 local mirror，但 full closure 仍因 fallback surfaces open。</p>
       </div>
 
       <div class="panel warn">
@@ -872,7 +872,7 @@
       </div>
 
       <h3>新图：当前 EBench eval readback</h3>
-      <p>这三张是当前更可信的诊断图，因为它们来自 evaluator camera readback。它们证明底层加载、任务级构图和相机读回已经闭环到任务渲染门禁；Stage 7 又补上了本地 Lift2 contract。剩余风险不再是 composite asset root，而是真实 baseline/policy 能不能拿分、official leaderboard 边界怎么管理，以及 Aluminum remote material waiver 什么时候关闭。</p>
+      <p>这三张是当前更可信的诊断图，因为它们来自 evaluator camera readback。它们证明底层加载、任务级构图和相机读回已经闭环到任务渲染门禁；Stage 7 又补上了本地 Lift2 contract。剩余风险不再是 composite asset root 或 Aluminum remote waiver，而是真实 baseline/policy 能不能拿分、official leaderboard 边界怎么管理，以及 fallback surfaces 的 native binding 什么时候关闭。</p>
       <div class="render-grid">
         <figure class="render-card">
           <img src="assets/labutopia-franka-level1-pick-eval-readback-p1.png" alt="level1_pick eval readback after EBench LabUtopia asset loading">
@@ -974,7 +974,7 @@
             <tr>
               <td>Native physics override</td>
               <td class="status-ok"><code>Stage 4 passed</code></td>
-              <td><code>saved/diagnostics/native_dryingbox_physics_override_20260628_172756/physics_override.json</code>，SHA256 <code>b4942edfe3519938834aca9c137141880746fe80772a8ae481da716708bc87dc</code>。这一步用 additive USD override 修 physics/articulation closure，并记录 <code>remote_aluminum_disposition=explicit_waiver</code>，但不升级为 full material closure。</td>
+              <td><code>saved/diagnostics/native_dryingbox_physics_override_20260628_172756/physics_override.json</code>，SHA256 <code>b4942edfe3519938834aca9c137141880746fe80772a8ae481da716708bc87dc</code>。这一步用 additive USD override 修 physics/articulation closure；当时记录的历史材质边界是 <code>remote_aluminum_disposition=explicit_waiver</code>，不升级为 full material closure。</td>
             </tr>
             <tr>
               <td>Native open_door eval readback</td>
@@ -984,12 +984,12 @@
             <tr>
               <td>Stage 6 acceptance manifest</td>
               <td class="status-ok"><code>claim boundary recorded</code></td>
-              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">native_dryingbox_acceptance_20260628_183219.json</a> 绑定 GenManip SHA、LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、Stage 1-5 commands/artifacts/hash、三张 frame hash、Aluminum waiver 和 PM claim boundary。</td>
+              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_acceptance_20260628_183219.json">native_dryingbox_acceptance_20260628_183219.json</a> 绑定 GenManip SHA、LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、Stage 1-5 commands/artifacts/hash、三张 frame hash、历史 Aluminum waiver 和 PM claim boundary。</td>
             </tr>
             <tr>
               <td>Material closure</td>
-              <td class="status-warn"><code>open_remote_dependency_waived</code></td>
-              <td>Stage 5 完成 runtime material readback 分类，但 <code>Aluminum_Anodized_Charcoal.mdl</code> 仍是 explicit waiver <code>ALUMINUM_REMOTE_MDL_001</code>，<code>native_material_closure_claim_allowed=false</code>。可以说任务可读性和 eval readback 通过，不能说 full native MDL/texture material closure 已完成。</td>
+              <td class="status-warn"><code>mixed_native_and_fallback</code></td>
+              <td>Stage 5/6 的历史边界是 Aluminum explicit waiver；2026-06-29 follow-up 已将 <code>Aluminum_Anodized_Charcoal.mdl</code> 和三张 texture 做 local mirror，<code>remote_only_dependency_count=0</code>、<code>waiver_count=0</code>。仍不能说 full native MDL/texture material closure 已完成，因为 <code>Group/_900_1</code>、<code>button</code>、<code>panel</code> 还有 fallback displayColor。</td>
             </tr>
             <tr>
               <td>visual QA</td>
@@ -1122,8 +1122,9 @@
 	              <li>可以说 <code>open_door</code> 的 P1 <code>sanitized_surrogate</code> 对照组稳定了关节读数和 readback 证据。</li>
 	              <li>可以说 P2 已把 <code>open_door</code> 回到 LabUtopia native complex <code>DryingBox_01</code>，原生 visual/hierarchy/nested handle 保留，并且 retake 图中蓝色门、白色侧面、把手、观察窗和控制面板可见，<code>native_complex_dryingbox_ready=true</code>。</li>
 	              <li>可以说 Stage 5 已通过 Franka/native eval-path readback：<code>native_eval_readback_ready=true</code>、<code>eval_step_contract.passed=true</code>，metric 读取门的 <code>RevoluteJoint</code>，并显式忽略按钮 <code>PrismaticJoint</code>。</li>
-	              <li>可以说 Stage 6 已记录证据边界：Aluminum remote dependency 使用 explicit waiver，native MDL/texture material closure 仍 open。</li>
-	              <li>可以说 Stage 7 已通过本地 Lift2 official-baseline-style contract：三任务完整 eval 和三任务 live probe 都有证据。</li>
+		              <li>可以说 Stage 6 已记录历史证据边界：当时 Aluminum remote dependency 使用 explicit waiver，native MDL/texture material closure 仍 open。</li>
+		              <li>可以说 Stage 7 已通过本地 Lift2 official-baseline-style contract：三任务完整 eval 和三任务 live probe 都有证据。</li>
+		              <li>可以说 2026-06-29 material follow-up 已把 Aluminum remote waiver 改为 local mirror，但这是 Stage 7 之后的独立材质依赖收尾。</li>
           </ul>
         </div>
         <div class="panel blocked">
@@ -1134,7 +1135,7 @@
 	              <li>不能把当前任务渲染 PASS 或 native gate PASS 等同于策略成功率、官方分数或官方 baseline 成绩。</li>
 	              <li>不能说当前 P2 native readback 复现了 LabUtopia viewer 的原生展示视角；它是 evaluator camera 的任务证据图。</li>
 	            <li>不能说已经发布 EBench 官方 Lift2 baseline score；当前闭环的是 GenManip/EBench 本地任务渲染门禁、Franka/native DryingBox eval readback 和本地 Lift2 contract。</li>
-	            <li>不能说 full native MDL/texture material closure 已完成；当前状态是 <code>open_remote_dependency_waived</code>，waiver id 为 <code>ALUMINUM_REMOTE_MDL_001</code>。</li>
+		            <li>不能说 full native MDL/texture material closure 已完成；当前 Aluminum 已 local mirror，但 full closure 仍被 fallback surfaces 阻塞。</li>
 	            <li>不能把 Stage 5 最新截图称为 polished PM showcase；它是诊断图，视觉审阅为 <code>WARN</code>。</li>
           </ul>
         </div>
@@ -1177,7 +1178,7 @@
 	        <div class="milestone">
 	          <span class="tag">Stage 6</span>
 	          <h3>Evidence package</h3>
-	          <p>已新增 acceptance manifest，记录 GenManip/LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、frame hash、Aluminum waiver 和 PM claim boundary。</p>
+	          <p>已新增 acceptance manifest，记录 GenManip/LabUtopia SHA、推荐 conda env、<code>ASSET_OVERLAY_ROOT</code>、<code>MDL_SYSTEM_PATH</code>、frame hash、历史 Aluminum waiver 和 PM claim boundary。</p>
 	        </div>
 		        <div class="milestone">
 		          <span class="tag">Stage 7</span>
@@ -1264,6 +1265,16 @@
 		              <td>机器可读证据：composite asset preflight、probe hash、gmp log hash、result_info、schema rows、task rows 和 forbidden claims。</td>
 		              <td><a href="../../../labutopia_lab_poc/evidence_manifests/native_dryingbox_stage7_lift2_contract_20260629_0404.json">打开</a></td>
 		            </tr>
+		            <tr>
+		              <td>Aluminum material follow-up</td>
+		              <td>独立材质依赖收尾：Aluminum MDL 和三张 texture 已做 package-local mirror，remote waiver 归零；不改变 Stage 7 Lift2 contract，也不宣称 full native material closure。</td>
+		              <td><a href="../../../labutopia_lab_poc/evidence_manifests/aluminum_material_mirror_closure_20260629_045413.json">打开</a></td>
+		            </tr>
+		            <tr>
+		              <td>Aluminum PM note</td>
+		              <td>给产品和实习生看的通俗说明：local mirror 解决什么、为什么不等于任务分数提升、为什么 full material closure 仍保持 open。</td>
+		              <td><a href="../../../records/2026-06-29-labutopia-aluminum-material-mirror-closure.md">打开</a></td>
+		            </tr>
 	            <tr>
 	              <td>Render/layout closure plan</td>
 	              <td>P0-P2 修复计划：camera 诊断、reset 布局、eval-path 重拍和视觉 QA。</td>
@@ -1294,7 +1305,7 @@
       </div>
     </section>
 
-    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, native DryingBox Stage 5 eval readback, Stage 6 claim boundary, and Stage 7 local Lift2 contract pass; official leaderboard reproduction, policy success, and full native MDL/texture material closure remain unverified.</p>
+    <p class="footer-note">Static HTML, zero-build, designed for GitHub Pages. Evidence scope: Franka POC wiring smoke, P1 task-render gate, native DryingBox Stage 5 eval readback, Stage 6 claim boundary, Stage 7 local Lift2 contract pass, and the independent Aluminum local mirror follow-up; official leaderboard reproduction, policy success, and full native MDL/texture material closure remain unverified.</p>
   </main>
 </body>
 </html>

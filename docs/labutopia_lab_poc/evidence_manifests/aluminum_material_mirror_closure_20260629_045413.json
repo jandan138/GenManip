@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-06-29T04:54:13Z",
+  "scope": "post_stage7_independent_material_dependency_followup",
+  "status": "passed",
+  "does_not_change_lift2_contract": true,
+  "closed_dependency": "Aluminum remote MDL waiver",
+  "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized_Charcoal.mdl",
+  "runtime_material_path": "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/Aluminum_Anodized_Charcoal",
+  "shader_override": {
+    "attribute": "info:mdl:sourceAsset",
+    "value": "Aluminum_Anodized_Charcoal.mdl",
+    "worker_mdl_system_path_covered": true
+  },
+  "local_mirror": {
+    "path": "configs/tasks/ebench/labutopia_lab_poc/common/miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl",
+    "package_relative_path": "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl",
+    "worker_resolved_path": "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl",
+    "bytes": 1600,
+    "sha256": "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+  },
+  "texture_dependency_records": [
+    {
+      "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+      "package_relative_path": "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+      "worker_resolved_path": "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_BaseColor.png",
+      "bytes": 16903,
+      "sha256": "d1d042502d7d94bca13cee10c63ab5b3801fb0a46e26d79169e13f5b9c7b5a31"
+    },
+    {
+      "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+      "package_relative_path": "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+      "worker_resolved_path": "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png",
+      "bytes": 3321558,
+      "sha256": "6dc1cb1b23a9abd766188a85ccbad1a2639d0a9a334f284e359c6c5d4438608e"
+    },
+    {
+      "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/Base/Metals/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+      "package_relative_path": "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+      "worker_resolved_path": "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_ORM.png",
+      "bytes": 637843,
+      "sha256": "768f2dbb4f702a9624b912b431efd1a6a8e0ff3e93744cf54f3866ef8f7986e9"
+    }
+  ],
+  "closure_claim_allowed": false,
+  "aluminum_material_closure_claim_allowed": true,
+  "native_material_closure_claim_allowed": false,
+  "full_native_material_closure_claim_allowed": false,
+  "remaining_full_closure_blockers": [
+    "fallback_surfaces_remain_after_aluminum_local_mirror"
+  ],
+  "verification_commands": [
+    {
+      "command": "python -m pytest tests/labutopia_poc/test_build_asset_overlay.py tests/labutopia_poc/test_validate_task_package.py -q",
+      "result": "50 passed"
+    },
+    {
+      "command": "python -m pytest tests/labutopia_poc/test_render_diagnostics_contract.py tests/labutopia_poc/test_lift2_eval_contract_probe.py -q",
+      "result": "56 passed"
+    }
+  ]
+}

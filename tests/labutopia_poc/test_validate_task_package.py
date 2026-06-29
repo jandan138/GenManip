@@ -245,6 +245,15 @@ def Xform "World"
                 prepend payload = @scene.usd@</World/Looks>
             )
             {{
+                over "Aluminum_Anodized_Charcoal"
+                {{
+                    over "Shader"
+                    {{
+                        uniform token info:implementationSource = "sourceAsset"
+                        asset info:mdl:sourceAsset = @Aluminum_Anodized_Charcoal.mdl@
+                        token info:mdl:sourceAsset:subIdentifier = "Aluminum_Anodized_Charcoal"
+                    }}
+                }}
             }}
             over "FixedJoint_01"
             {{
@@ -606,9 +615,20 @@ def test_labutopia_assets_manifest_declares_p1_render_object_contracts():
     assert material_dependencies["mdl_0009"]["texture_hashes"][
         "SubUSDs/textures/image1.JPG"
     ]
-    assert material_dependencies["Aluminum_Anodized_Charcoal"][
-        "dependency_location_status"
-    ] == "external_remote_mdl_dependency"
+    aluminum = material_dependencies["Aluminum_Anodized_Charcoal"]
+    assert aluminum["dependency_location_status"] == "local_mirror_copied_with_package"
+    assert aluminum["offline_material_closure_status"] == "resolved_local_mirror"
+    assert aluminum["remote_aluminum_disposition"] == "local_mirror"
+    assert aluminum["material_closure_kept_open"] is False
+    assert aluminum["local_mirror_path"] == (
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+    )
+    assert aluminum["sha256"] == (
+        "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+    )
+    assert aluminum["texture_hashes"][
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized/Aluminum_Anodized_Normal.png"
+    ] == "6dc1cb1b23a9abd766188a85ccbad1a2639d0a9a334f284e359c6c5d4438608e"
 
     runtime_scene = (
         validate_task_package.Path(manifest["overlay_root"])
@@ -634,8 +654,11 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     manifest = validate_task_package._load_json(manifest_path)
 
     runtime_asset = manifest["drying_box_runtime_asset"]
-    assert runtime_asset["remote_aluminum_disposition"] == "explicit_waiver"
+    assert runtime_asset["remote_aluminum_disposition"] == "local_mirror"
     assert runtime_asset["material_closure_kept_open"] is True
+    assert runtime_asset["native_material_closure_reason"] == (
+        "fallback_surfaces_remain_after_aluminum_local_mirror"
+    )
 
     wrapper_gate = manifest["drying_box_wrapper_composition"][
         "static_material_dependency_gate"
@@ -644,8 +667,11 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     assert report["stage"] == "acceptance_stage_4"
     assert report["status"] == "passed"
     assert report["generated_wrapper_stage_path"] == report["override_layer_path"]
-    assert report["remote_aluminum_disposition"] == "explicit_waiver"
+    assert report["remote_aluminum_disposition"] == "local_mirror"
     assert report["material_closure_kept_open"] is True
+    assert report["native_material_closure_reason"] == (
+        "fallback_surfaces_remain_after_aluminum_local_mirror"
+    )
     assert report["static_material_dependency_gate"] == wrapper_gate
 
     report_path = validate_task_package.Path(report["physics_override_json"])
@@ -662,20 +688,32 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
         "local_mirror_required_or_explicit_waiver"
     )
     assert gate["remote_unmirrored_unwaived_count"] == 0
-    assert gate["remote_waiver_count"] == 1
-    assert gate["local_mirror_count"] == 0
+    assert gate["remote_waiver_count"] == 0
+    assert gate["local_mirror_count"] == 1
     aluminum_records = gate["remote_dependency_records"]
     assert len(aluminum_records) == 1
     assert aluminum_records[0]["material_name"] == "Aluminum_Anodized_Charcoal"
-    assert aluminum_records[0]["resolution_mode"] == "explicit_waiver"
-    assert aluminum_records[0]["waiver_id"] == "ALUMINUM_REMOTE_MDL_001"
+    assert aluminum_records[0]["resolution_mode"] == "local_mirror"
+    assert aluminum_records[0]["local_mirror_path"] == (
+        "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
+    )
+    assert aluminum_records[0]["local_mirror_sha256"] == (
+        "640855d3890c6faaae6346a850ef9f366d4b397c0f4313e25c7ac0b9230c106a"
+    )
+    assert aluminum_records[0]["waiver_id"] is None
     assert aluminum_records[0]["closure_claim_allowed"] is False
+    assert aluminum_records[0]["aluminum_material_closure_claim_allowed"] is True
+    assert aluminum_records[0]["native_material_closure_claim_allowed"] is False
+    assert aluminum_records[0]["full_native_material_closure_claim_allowed"] is False
     assert report["material_validator_summary"][
         "remote_aluminum_disposition"
-    ] == "explicit_waiver"
+    ] == "local_mirror"
     assert report["material_validator_summary"][
         "native_material_closure_open"
     ] is True
+    assert report["material_validator_summary"][
+        "native_material_closure_reason"
+    ] == "fallback_surfaces_remain_after_aluminum_local_mirror"
     assert report["dof_map"]["metric_dof"]["joint_name"] == "RevoluteJoint"
     assert report["dof_map"]["ignored_dofs"][0]["joint_name"] == "PrismaticJoint"
 
@@ -730,18 +768,21 @@ def test_static_material_dependency_gate_accepts_local_mirror_disposition(tmp_pa
                 ),
                 "resolution_mode": "local_mirror",
                 "local_mirror_path": (
-                    "miscs/mdl/labutopia/Aluminum_Anodized_Charcoal.mdl"
+                    "miscs/mdl/labutopia/mdl/Aluminum_Anodized_Charcoal.mdl"
                 ),
                 "local_mirror_sha256": "a" * 64,
                 "local_mirror_bytes": 12345,
                 "worker_resolved_path": (
-                    "{ASSETS_DIR}/miscs/mdl/labutopia/"
+                    "{ASSETS_DIR}/miscs/mdl/labutopia/mdl/"
                     "Aluminum_Anodized_Charcoal.mdl"
                 ),
                 "worker_mdl_system_path_covered": True,
                 "waiver_id": None,
                 "waiver_reason": None,
-                "closure_claim_allowed": True,
+                "closure_claim_allowed": False,
+                "aluminum_material_closure_claim_allowed": True,
+                "native_material_closure_claim_allowed": False,
+                "full_native_material_closure_claim_allowed": False,
             }
         ],
     }
