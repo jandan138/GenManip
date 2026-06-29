@@ -247,6 +247,18 @@ def _drying_box_material_closure_expectation() -> MaterialClosureExpectation:
             "source_resolved_surface_count": 1,
             "wrapper_authored_material_count": 2,
         },
+        claim_flags={
+            "closure_claim_allowed": True,
+            "full_material_closure_claim_allowed": True,
+            "aluminum_material_closure_claim_allowed": True,
+            "native_material_closure_claim_allowed": False,
+            "full_native_material_closure_claim_allowed": False,
+        },
+        native_material_closure_reason=(
+            "wrapper_local_material_overrides_present"
+        ),
+        forbidden_claims=["full_native_material_closure"],
+        native_provenance_status="blocked_by_wrapper_local_overrides",
         source_resolved_runtime_paths=EXPECTED_DRYING_BOX_SOURCE_RESOLVED_PATHS,
         wrapper_authored_runtime_paths=EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_PATHS,
         wrapper_authored_material_targets=(

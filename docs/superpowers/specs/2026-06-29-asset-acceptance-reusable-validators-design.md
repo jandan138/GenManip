@@ -25,12 +25,12 @@ standalone_tools/labutopia_poc/asset_acceptance_validation.py
 It owns validation primitives that are asset-agnostic:
 
 - `NativeMaterialProvenanceBlocker`: expected source prim, runtime prim, runtime material, and source binding status.
-- `MaterialClosureExpectation`: expected asset id, material status, derived counts, source-resolved runtime paths, wrapper-authored runtime paths, wrapper-authored material targets, and native provenance blockers.
-- `assert_asset_acceptance_material_closure(manifest_path, material, expectation, related_reports=None)`: validates schema, counts, claim boundary, records, and native provenance blockers.
+- `MaterialClosureExpectation`: expected asset id, material status, derived counts, claim flags, forbidden claims, native material closure reason, native provenance status, source-resolved runtime paths, wrapper-authored runtime paths, wrapper-authored material targets, and native provenance blockers.
+- `assert_asset_acceptance_material_closure(manifest_path, material, expectation)`: validates schema, counts, claim boundary, records, and native provenance blockers.
 
 The helper should raise `AssertionError` with the same message fragments currently used by `validate_task_package.py`, such as `material closure derived_counts mismatch`, `native material provenance blocker mismatch`, and `native material provenance blockers must retain source evidence and blocked claims`.
 
-`validate_task_package.py` remains the package-level orchestrator. It should keep DryingBox constants and package cross-checks that are not generic, such as static gate dependency records deriving from `drying_box_wrapper_composition`. The new helper handles the reusable material closure shape, while DryingBox-specific USD/material dependency checks stay in place.
+`validate_task_package.py` remains the package-level orchestrator. It should keep DryingBox constants and package cross-checks that are not generic, such as static gate dependency records deriving from `drying_box_wrapper_composition`. The new helper handles the reusable material closure shape, while DryingBox-specific USD/material dependency checks stay in place. The helper intentionally does not accept `related_reports`; cross-report consistency belongs in the asset-specific validator.
 
 ## Data Flow
 
@@ -50,6 +50,7 @@ The helper must reject:
 - wrong `asset_id` or `schema_version`
 - derived count mismatches
 - package/native claim boundary overclaims
+- claim flag, forbidden claim, native reason, or native provenance status mismatches against `MaterialClosureExpectation`
 - missing or malformed source-resolved and wrapper-authored records
 - missing or malformed `native_material_provenance`
 - wrong provenance blocker paths, material targets, source binding statuses, blocker count, `source_material_binding`, replacement flag, or `blocked_claims`
@@ -65,6 +66,8 @@ tests/labutopia_poc/test_asset_acceptance_validation.py
 Tests should cover:
 
 - a minimal valid material closure with two native provenance blockers
+- a non-Aluminum source-native-closed material closure whose claim boundary is accepted from the expectation object
+- helper API remains material-only and does not expose a misleading `related_reports` parameter
 - mismatch in provenance blocker path
 - mismatch in source binding status
 - native/full-native overclaim while wrapper-authored materials remain

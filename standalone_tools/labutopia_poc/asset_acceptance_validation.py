@@ -35,6 +35,10 @@ class MaterialClosureExpectation:
     asset_id: str
     material_status: str
     derived_counts: dict[str, int]
+    claim_flags: dict[str, bool]
+    native_material_closure_reason: str | None
+    forbidden_claims: list[str]
+    native_provenance_status: str
     source_resolved_runtime_paths: set[str]
     wrapper_authored_runtime_paths: set[str]
     wrapper_authored_material_targets: set[str]
@@ -65,13 +69,8 @@ def assert_asset_acceptance_material_closure(
     manifest_path: object,
     material: object,
     expectation: MaterialClosureExpectation,
-    related_reports: dict[str, Any] | None = None,
 ) -> None:
     prefix = _path(manifest_path)
-    _require(
-        related_reports is None or isinstance(related_reports, dict),
-        f"{prefix}: related_reports must be a mapping when provided",
-    )
     _require(
         isinstance(material, dict),
         f"{prefix}: missing asset_acceptance.material_closure",
@@ -95,7 +94,7 @@ def assert_asset_acceptance_material_closure(
     )
     _require(
         material.get("material_status") == expectation.material_status,
-        f"{prefix}: material closure must use local override status",
+        f"{prefix}: material closure status mismatch",
     )
     _require(
         material.get("blockers") == [],
@@ -111,18 +110,7 @@ def assert_asset_acceptance_material_closure(
         assert_material_claims_are_derived(material)
     except AssertionError as exc:
         raise AssertionError(f"{prefix}: {exc}") from exc
-    _require(
-        material.get("aluminum_material_closure_claim_allowed") is True
-        and material.get("closure_claim_allowed") is True
-        and material.get("full_material_closure_claim_allowed") is True
-        and material.get("native_material_closure_claim_allowed") is False
-        and material.get("full_native_material_closure_claim_allowed") is False,
-        f"{prefix}: material closure claim boundary mismatch",
-    )
-    _require(
-        material.get("forbidden_claims") == ["full_native_material_closure"],
-        f"{prefix}: full native material closure must remain forbidden",
-    )
+    _assert_claim_boundary(prefix, material, expectation)
     source_resolved_records = material.get("source_resolved_surface_records")
     _require(
         isinstance(source_resolved_records, list)
@@ -132,7 +120,7 @@ def assert_asset_acceptance_material_closure(
             if isinstance(record, dict)
         }
         == expectation.source_resolved_runtime_paths,
-        f"{prefix}: source_resolved_surface_records must cover panel GeomSubset material coverage",
+        f"{prefix}: source_resolved_surface_records mismatch",
     )
     for record in source_resolved_records:
         _require(
@@ -165,6 +153,27 @@ def assert_asset_acceptance_material_closure(
     _assert_native_material_provenance(prefix, material, expectation)
 
 
+def _assert_claim_boundary(
+    prefix: str,
+    material: dict[str, Any],
+    expectation: MaterialClosureExpectation,
+) -> None:
+    for field, expected_value in expectation.claim_flags.items():
+        _require(
+            material.get(field) is expected_value,
+            f"{prefix}: material closure claim boundary mismatch",
+        )
+    _require(
+        material.get("native_material_closure_reason")
+        == expectation.native_material_closure_reason,
+        f"{prefix}: native material closure reason mismatch",
+    )
+    _require(
+        material.get("forbidden_claims") == expectation.forbidden_claims,
+        f"{prefix}: material closure forbidden claims mismatch",
+    )
+
+
 def _assert_native_material_provenance(
     prefix: str,
     material: dict[str, Any],
@@ -180,7 +189,7 @@ def _assert_native_material_provenance(
         f"{prefix}: native material provenance schema_version must be 1",
     )
     _require(
-        provenance.get("status") == "blocked_by_wrapper_local_overrides",
+        provenance.get("status") == expectation.native_provenance_status,
         f"{prefix}: native provenance status mismatch",
     )
     expected_count = len(expectation.native_provenance_blockers)

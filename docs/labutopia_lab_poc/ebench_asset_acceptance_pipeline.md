@@ -170,7 +170,7 @@ Pass condition:
 | `claim_derivation` | claim flags 只能由证据字段派生，不能手写成 true |
 | `evidence_manifest_consistency` | generator manifest、validator summary、docs manifest 的 count/blocker/claim 一致 |
 
-Implementation rule: generic material shape checks live in `asset_acceptance_validation.py`. Asset-specific validators pass a `MaterialClosureExpectation`; they should not reimplement provenance blocker path/count/status checks by hand.
+Implementation rule: generic material shape checks live in `asset_acceptance_validation.py`. Asset-specific validators pass a `MaterialClosureExpectation` that includes expected claim flags and native provenance status; they should not reimplement provenance blocker path/count/status checks by hand.
 
 Material states:
 

@@ -125,7 +125,7 @@ PM 文案只能说对应 `PASS` 的部分。比如 `task_runtime=PASS` 可以说
 
 Reusable validator boundary:
 
-- New assets should construct `MaterialClosureExpectation` instead of copy/pasting DryingBox assertions.
+- New assets should construct `MaterialClosureExpectation` instead of copy/pasting DryingBox assertions; the expectation includes material status, claim flags, forbidden claims, native provenance status, and blocker paths.
 - `NativeMaterialProvenanceBlocker` records are the reusable unit for surfaces that have package-visible wrapper material but cannot claim source-native material binding.
 - Asset-specific validators may still add package checks for source files, physics reports, camera contracts, or task semantics.
 
