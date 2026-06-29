@@ -17,6 +17,14 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from standalone_tools.labutopia_poc.material_closure import (
+    assert_material_claims_are_derived,
+)
+
+
 TASK_ROOT = ROOT / "configs/tasks"
 PACKAGE_ROOT = TASK_ROOT / "ebench/labutopia_lab_poc"
 TASK_PREFIX = "ebench/labutopia_lab_poc/"
@@ -582,6 +590,7 @@ def _validate_assets_manifest() -> None:
         "primvars:displayColor" in runtime_scene_text,
         f"{runtime_scene}: missing task object displayColor overrides",
     )
+    _validate_asset_acceptance_material_closure(path, manifest)
     _validate_drying_box_wrapper_composition(path, manifest, runtime_scene_text)
     _validate_drying_box_physics_override_report(path, manifest, runtime_scene)
 
@@ -606,6 +615,7 @@ def _validate_assets_manifest() -> None:
         "articulation_part_paths": "articulation_part_paths",
         "render_object_contracts": "render_object_contracts",
         "drying_box_runtime_asset": "drying_box_runtime_asset",
+        "asset_acceptance": "asset_acceptance",
         "drying_box_wrapper_composition": "drying_box_wrapper_composition",
         "drying_box_physics_override": "drying_box_physics_override",
     }.items():
@@ -613,6 +623,89 @@ def _validate_assets_manifest() -> None:
             manifest.get(common_key) == generated.get(generated_key),
             f"{path}: {common_key} differs from {generated_path}:{generated_key}",
         )
+
+
+def _validate_asset_acceptance_material_closure(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+) -> None:
+    asset_acceptance = manifest.get("asset_acceptance")
+    _assert(
+        isinstance(asset_acceptance, dict),
+        f"{manifest_path}: missing asset_acceptance",
+    )
+    material = asset_acceptance.get("material_closure")
+    _assert(
+        isinstance(material, dict),
+        f"{manifest_path}: missing asset_acceptance.material_closure",
+    )
+    _assert(
+        material.get("asset_id") == "LabUtopia/DryingBox_01",
+        f"{manifest_path}: material closure asset_id mismatch",
+    )
+    _assert(
+        material.get("schema_version") == 1,
+        f"{manifest_path}: material closure schema_version must be 1",
+    )
+    counts = material.get("derived_counts")
+    _assert(
+        isinstance(counts, dict),
+        f"{manifest_path}: material closure derived_counts must be a mapping",
+    )
+    expected_counts = {
+        "remote_unmirrored_unwaived_count": 0,
+        "remote_waiver_count": 0,
+        "local_mirror_count": 1,
+        "unsupported_dependency_resolution_mode_count": 0,
+        "fallback_surface_count": 3,
+    }
+    _assert(
+        counts == expected_counts,
+        f"{manifest_path}: material closure derived_counts mismatch",
+    )
+    _assert(
+        material.get("material_status") == "mixed_native_and_fallback",
+        f"{manifest_path}: material closure must stay mixed native/fallback",
+    )
+    _assert(
+        material.get("blockers")
+        == ["fallback_surfaces_remain_after_aluminum_local_mirror"],
+        f"{manifest_path}: material closure blockers must explain fallback surfaces",
+    )
+    try:
+        assert_material_claims_are_derived(material)
+    except AssertionError as exc:
+        raise AssertionError(f"{manifest_path}: {exc}") from exc
+    _assert(
+        material.get("aluminum_material_closure_claim_allowed") is True
+        and material.get("closure_claim_allowed") is False
+        and material.get("native_material_closure_claim_allowed") is False
+        and material.get("full_native_material_closure_claim_allowed") is False,
+        f"{manifest_path}: material closure claim boundary mismatch",
+    )
+    _assert(
+        material.get("forbidden_claims") == ["full_native_material_closure"],
+        f"{manifest_path}: full native material closure must remain forbidden",
+    )
+    wrapper_report = manifest.get("drying_box_wrapper_composition")
+    _assert(
+        isinstance(wrapper_report, dict),
+        f"{manifest_path}: drying_box_wrapper_composition must exist before material closure validation",
+    )
+    static_gate = wrapper_report.get("static_material_dependency_gate")
+    fallback_policy = wrapper_report.get("fallback_display_color_policy")
+    _assert(
+        isinstance(static_gate, dict)
+        and material.get("dependency_records")
+        == static_gate.get("remote_dependency_records"),
+        f"{manifest_path}: material closure dependency_records must derive from static material gate",
+    )
+    _assert(
+        isinstance(fallback_policy, dict)
+        and material.get("fallback_surface_records")
+        == fallback_policy.get("fallback_records"),
+        f"{manifest_path}: material closure fallback records must derive from wrapper fallback policy",
+    )
 
 
 def _validate_drying_box_wrapper_composition(

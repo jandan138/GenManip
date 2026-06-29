@@ -313,6 +313,8 @@ def _write_generated_manifest_from_common(manifest):
         generated["drying_box_physics_override"] = manifest[
             "drying_box_physics_override"
         ]
+    if "asset_acceptance" in manifest:
+        generated["asset_acceptance"] = manifest["asset_acceptance"]
     _write_json(validate_task_package.Path(manifest["generated_manifest"]), generated)
 
 
@@ -542,6 +544,51 @@ def test_assets_manifest_rejects_stale_world_looks_material_binding(
     monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
 
     with pytest.raises(AssertionError, match="stale /World/Looks material binding"):
+        validate_task_package._validate_assets_manifest()
+
+
+def test_assets_manifest_rejects_missing_asset_acceptance(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    manifest.pop("asset_acceptance", None)
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="missing asset_acceptance"):
+        validate_task_package._validate_assets_manifest()
+
+
+def test_assets_manifest_rejects_full_material_closure_overclaim(
+    tmp_path,
+    monkeypatch,
+):
+    package_root = tmp_path / "tasks/ebench/labutopia_lab_poc"
+    common_root = package_root / "common"
+    common_root.mkdir(parents=True)
+    real_manifest = validate_task_package._load_json(
+        validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+    )
+    manifest = copy.deepcopy(real_manifest)
+    manifest["generated_manifest"] = str(tmp_path / "generated_manifest.json")
+    material = manifest["asset_acceptance"]["material_closure"]
+    material["closure_claim_allowed"] = True
+    material["native_material_closure_claim_allowed"] = True
+    material["full_native_material_closure_claim_allowed"] = True
+    _write_generated_manifest_from_common(manifest)
+    _write_json(common_root / "assets_manifest.json", manifest)
+    monkeypatch.setattr(validate_task_package, "PACKAGE_ROOT", package_root)
+
+    with pytest.raises(AssertionError, match="full material closure overclaim"):
         validate_task_package._validate_assets_manifest()
 
 
