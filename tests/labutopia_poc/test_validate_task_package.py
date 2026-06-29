@@ -642,6 +642,51 @@ def test_assets_manifest_rejects_full_material_closure_overclaim(
         validate_task_package._validate_assets_manifest()
 
 
+def test_asset_acceptance_rejects_native_material_provenance_mismatch():
+    manifest = copy.deepcopy(
+        validate_task_package._load_json(
+            validate_task_package.PACKAGE_ROOT / "common/assets_manifest.json"
+        )
+    )
+    material = manifest["asset_acceptance"]["material_closure"]
+    material["native_material_closure_claim_allowed"] = False
+    material["full_native_material_closure_claim_allowed"] = False
+    material["native_material_provenance"]["status"] = (
+        "blocked_by_wrapper_local_overrides"
+    )
+    material["native_material_provenance"]["source_native_blocker_surface_count"] = 2
+    material["native_material_provenance"]["native_wrapper_override_surface_count"] = 2
+    material["native_material_provenance"]["native_claim_blocker_records"] = [
+        {
+            "source_prim_path": "/World/DryingBox_01/not_the_button",
+            "runtime_prim_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/"
+                "not_the_button"
+            ),
+            "source_binding_status": "unbound_in_stage2_source_readback",
+            "source_material_binding": None,
+            "runtime_material_path": (
+                "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/"
+                "task_button_mat"
+            ),
+            "replacement_required_for_full_native_closure": True,
+            "blocked_claims": [
+                "native_material_closure",
+                "full_native_material_closure",
+            ],
+        }
+    ]
+
+    with pytest.raises(
+        AssertionError,
+        match="native material provenance blocker mismatch",
+    ):
+        validate_task_package._validate_asset_acceptance_material_closure(
+            validate_task_package.Path("assets_manifest.json"),
+            manifest,
+        )
+
+
 def test_asset_acceptance_material_closure_rejects_malformed_waiver_record():
     manifest = copy.deepcopy(
         validate_task_package._load_json(

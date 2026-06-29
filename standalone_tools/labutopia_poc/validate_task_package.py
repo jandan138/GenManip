@@ -200,6 +200,24 @@ EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS = {
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat",
     "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
 }
+EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BLOCKERS = {
+    (
+        "/World/DryingBox_01/Group/_900_1",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Group/_900_1",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_indicator_mat",
+    ),
+    (
+        "/World/DryingBox_01/button",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/button",
+        "/World/labutopia_level1_poc/obj_obj_DryingBox_01/Looks/task_button_mat",
+    ),
+}
+EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BINDING_STATUS = {
+    "/World/DryingBox_01/Group/_900_1": (
+        "empty_authored_binding_in_stage2_source_readback"
+    ),
+    "/World/DryingBox_01/button": "unbound_in_stage2_source_readback",
+}
 EXPECTED_DRYING_BOX_MATERIAL_PATHS = (
     EXPECTED_DRYING_BOX_SOURCE_MATERIAL_PATHS
     | EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS
@@ -845,6 +863,65 @@ def _validate_asset_acceptance_material_closure(
             in EXPECTED_DRYING_BOX_AUTHORED_MATERIAL_TARGETS
             and record.get("native_material_closure_claim_allowed") is False,
             f"{manifest_path}: wrapper-authored material record must keep native claim blocked",
+        )
+    provenance = material.get("native_material_provenance")
+    _assert(
+        isinstance(provenance, dict),
+        f"{manifest_path}: missing native material provenance",
+    )
+    _assert(
+        provenance.get("schema_version") == 1,
+        f"{manifest_path}: native material provenance schema_version must be 1",
+    )
+    _assert(
+        provenance.get("status") == "blocked_by_wrapper_local_overrides",
+        f"{manifest_path}: native provenance status mismatch",
+    )
+    _assert(
+        provenance.get("source_native_blocker_surface_count") == 2,
+        f"{manifest_path}: source-native blocker surface count mismatch",
+    )
+    _assert(
+        provenance.get("native_wrapper_override_surface_count") == 2,
+        f"{manifest_path}: native wrapper override surface count mismatch",
+    )
+    blocker_records = provenance.get("native_claim_blocker_records")
+    _assert(
+        isinstance(blocker_records, list)
+        and all(isinstance(record, dict) for record in blocker_records),
+        f"{manifest_path}: missing native provenance blockers",
+    )
+    actual_blockers = {
+        (
+            record.get("source_prim_path"),
+            record.get("runtime_prim_path"),
+            record.get("runtime_material_path"),
+        )
+        for record in blocker_records
+    }
+    _assert(
+        actual_blockers == EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BLOCKERS,
+        f"{manifest_path}: native material provenance blocker mismatch",
+    )
+    _assert(
+        len(blocker_records) == len(EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BLOCKERS),
+        f"{manifest_path}: native material provenance blocker count mismatch",
+    )
+    expected_blocked_claims = [
+        "native_material_closure",
+        "full_native_material_closure",
+    ]
+    for record in blocker_records:
+        source_prim_path = record.get("source_prim_path")
+        _assert(
+            record.get("source_binding_status")
+            == EXPECTED_DRYING_BOX_NATIVE_PROVENANCE_BINDING_STATUS.get(
+                source_prim_path
+            )
+            and record.get("source_material_binding") is None
+            and record.get("replacement_required_for_full_native_closure") is True
+            and record.get("blocked_claims") == expected_blocked_claims,
+            f"{manifest_path}: native material provenance blockers must retain source evidence and blocked claims",
         )
 
 
