@@ -1350,14 +1350,22 @@ def _validate_drying_box_physics_override_report(
         )
     report_path = report.get("physics_override_json")
     _assert(
-        isinstance(report_path, str) and Path(report_path).exists(),
-        f"{manifest_path}: physics_override_json must point to an existing report file",
+        isinstance(report_path, str) and report_path,
+        f"{manifest_path}: physics_override_json must record the source report path",
     )
-    saved_report = _load_json(Path(report_path))
-    _assert(
-        saved_report == report,
-        f"{manifest_path}: physics_override_json contents must match manifest report",
-    )
+    report_file = Path(report_path)
+    if report_file.exists():
+        saved_report = _load_json(report_file)
+        _assert(
+            saved_report == report,
+            f"{manifest_path}: physics_override_json contents must match manifest report",
+        )
+    else:
+        _assert(
+            report_path.startswith("saved/diagnostics/")
+            and report_file.name == "physics_override.json",
+            f"{manifest_path}: missing physics_override_json is only allowed for ignored saved/diagnostics reports",
+        )
     packaged_report_path = report.get("packaged_physics_override_json")
     _assert(
         isinstance(packaged_report_path, str) and Path(packaged_report_path).exists(),

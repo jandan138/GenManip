@@ -839,13 +839,15 @@ def test_assets_manifest_declares_stage4_physics_override_and_material_gate():
     assert report["static_material_dependency_gate"] == wrapper_gate
 
     report_path = validate_task_package.Path(report["physics_override_json"])
-    assert report_path.exists()
+    assert str(report_path).startswith("saved/diagnostics/")
+    assert report_path.name == "physics_override.json"
     packaged_report_path = validate_task_package.Path(
         report["packaged_physics_override_json"]
     )
     assert packaged_report_path.exists()
-    saved_report = validate_task_package._load_json(report_path)
-    assert saved_report == report
+    if report_path.exists():
+        saved_report = validate_task_package._load_json(report_path)
+        assert saved_report == report
     packaged_report = validate_task_package._load_json(packaged_report_path)
     assert packaged_report == report
 
