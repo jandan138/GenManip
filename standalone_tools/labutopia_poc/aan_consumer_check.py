@@ -29,6 +29,12 @@ REQUIRED_ENTRYPOINTS = (
     "metric_evaluator",
 )
 RESOLVED_DEPENDENCY_STATUSES = {"packaged", "pass", "resolved"}
+UNRESOLVED_DEPENDENCY_CLOSURE_FIELDS = (
+    "missing",
+    "remote_uri",
+    "unauthorized_remote_uri",
+    "unrewritable_layers",
+)
 DEFAULT_EVIDENCE_DIR = Path("docs/labutopia_lab_poc/evidence_manifests")
 
 
@@ -158,6 +164,14 @@ def _iter_dependency_entries(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     entries = closure.get("local_files", [])
     return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _dependency_path(value: Any) -> Any:
+    if isinstance(value, dict):
+        for key in ("package_path", "raw_asset_path", "uri", "layer", "path"):
+            if value.get(key):
+                return value[key]
+    return value
 
 
 def validate_consumer_manifest(
@@ -301,6 +315,22 @@ def validate_consumer_manifest(
                     "status": status,
                 }
             )
+
+    closure = manifest.get("dependency_closure")
+    if isinstance(closure, dict):
+        for field in UNRESOLVED_DEPENDENCY_CLOSURE_FIELDS:
+            values = closure.get(field)
+            if not values:
+                continue
+            value_list = values if isinstance(values, list) else [values]
+            for index, value in enumerate(value_list):
+                blockers.append(
+                    {
+                        "code": "unresolved_dependency",
+                        "field": f"dependency_closure.{field}[{index}]",
+                        "path": _dependency_path(value),
+                    }
+                )
 
     passed = not blockers
     return {

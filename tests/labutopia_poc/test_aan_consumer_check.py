@@ -215,3 +215,69 @@ def test_unresolved_dependency_records_structured_blocker(tmp_path):
         "path": "deps/missing.usd",
         "status": "missing",
     } in consumer["blockers"]
+
+
+def test_dependency_closure_missing_blocks_mount(tmp_path):
+    manifest = _base_manifest()
+    manifest["dependency_closure"]["missing"] = [
+        {"raw_asset_path": "textures/missing.png", "source_layer": "asset.usd"}
+    ]
+    package_dir, manifest_path = _write_ready_fixture(
+        tmp_path, {"dependency_closure": manifest["dependency_closure"]}
+    )
+
+    exit_code, consumer, _intake = _run_check(tmp_path, package_dir, manifest_path)
+
+    assert exit_code == 1
+    assert consumer["aan_package_mount_allowed"] is False
+    assert {
+        "code": "unresolved_dependency",
+        "field": "dependency_closure.missing[0]",
+        "path": "textures/missing.png",
+    } in consumer["blockers"]
+
+
+def test_dependency_closure_remote_uri_blocks_mount(tmp_path):
+    manifest = _base_manifest()
+    manifest["dependency_closure"]["remote_uri"] = [
+        "omniverse://assets.example.invalid/library/asset.usd"
+    ]
+    manifest["dependency_closure"]["unauthorized_remote_uri"] = [
+        {"uri": "s3://private-bucket/material.mdl"}
+    ]
+    package_dir, manifest_path = _write_ready_fixture(
+        tmp_path, {"dependency_closure": manifest["dependency_closure"]}
+    )
+
+    exit_code, consumer, _intake = _run_check(tmp_path, package_dir, manifest_path)
+
+    assert exit_code == 1
+    assert {
+        "code": "unresolved_dependency",
+        "field": "dependency_closure.remote_uri[0]",
+        "path": "omniverse://assets.example.invalid/library/asset.usd",
+    } in consumer["blockers"]
+    assert {
+        "code": "unresolved_dependency",
+        "field": "dependency_closure.unauthorized_remote_uri[0]",
+        "path": "s3://private-bucket/material.mdl",
+    } in consumer["blockers"]
+
+
+def test_dependency_closure_unrewritable_layers_blocks_mount(tmp_path):
+    manifest = _base_manifest()
+    manifest["dependency_closure"]["unrewritable_layers"] = [
+        {"layer": "/tmp/source/asset.usd", "reason": "anonymous_layer"}
+    ]
+    package_dir, manifest_path = _write_ready_fixture(
+        tmp_path, {"dependency_closure": manifest["dependency_closure"]}
+    )
+
+    exit_code, consumer, _intake = _run_check(tmp_path, package_dir, manifest_path)
+
+    assert exit_code == 1
+    assert {
+        "code": "unresolved_dependency",
+        "field": "dependency_closure.unrewritable_layers[0]",
+        "path": "/tmp/source/asset.usd",
+    } in consumer["blockers"]
