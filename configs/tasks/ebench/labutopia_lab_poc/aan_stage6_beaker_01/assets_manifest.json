@@ -1,0 +1,11 @@
+{
+  "generic_smoke": true,
+  "legacy_overlay_used": false,
+  "mount_record": "/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/docs/labutopia_lab_poc/evidence_manifests/aan_beaker_01_task_mount_20260701_094802.json",
+  "mounted_root_usd": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets/labutopia_aan_packages/stage6_codex_20260701_beaker_01/asset.usd",
+  "namespace": "labutopia_aan_packages/stage6_codex_20260701_beaker_01",
+  "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets",
+  "runtime_usd_name": "scene_usds/labutopia/aan/stage6_beaker_01_scene",
+  "schema_version": 1,
+  "usd_name": "scene_usds/labutopia/aan/stage6_beaker_01_scene"
+}

@@ -1,0 +1,9 @@
+{
+  "run_id": "labutopia_aan_lift2_live_20260701_082330",
+  "worker_id": "0",
+  "episode_id": "live_probe",
+  "seed": "000",
+  "result_path": "saved/eval_results/ebench/labutopia_aan_lift2_live_20260701_082330/ebench/labutopia_lab_poc/aan_lift2_candidate/level1_open_door/000/result_info.json",
+  "stdout_path": "docs/labutopia_lab_poc/evidence_manifests/aan_runtime_smoke_labutopia_aan_lift2_live_20260701_082330/live_probe.stdout.txt",
+  "stderr_path": "docs/labutopia_lab_poc/evidence_manifests/aan_runtime_smoke_labutopia_aan_lift2_live_20260701_082330/live_probe.stderr.txt"
+}

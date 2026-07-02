@@ -1,0 +1,15 @@
+2026-07-01 18:47:47,273	INFO worker.py:1606 -- Using address local set in the environment variable RAY_ADDRESS
+Traceback (most recent call last):
+  File "/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/ray_eval_server.py", line 127, in <module>
+    ray_context = ray.init()
+  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/ray/_private/client_mode_hook.py", line 104, in wrapper
+    return func(*args, **kwargs)
+  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/ray/_private/worker.py", line 1825, in init
+    _global_node = ray._private.node.Node(
+  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/ray/_private/node.py", line 286, in __init__
+    self._plasma_store_socket_name = self._prepare_socket_file(
+  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/ray/_private/node.py", line 1020, in _prepare_socket_file
+    validate_socket_filepath(result.split("://", 1)[-1])
+  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/ray/_private/utils.py", line 1607, in validate_socket_filepath
+    raise OSError(
+OSError: validate_socket_filename failed: AF_UNIX path length cannot exceed 107 bytes: /tmp/gm_labutopia_aan_stage6_muffle_stage4b_20260701_104737/ray/session_2026-07-01_18-47-47_293743_1989606/sockets/plasma_store

@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/cli.py", line 57, in main
+    return _load_module(".eval_cli").run(args)
+  File "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_cli.py", line 101, in run
+    return run_eval_cli(args)
+  File "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py", line 1348, in run_cli
+    obs, done = client.step(action)
+  File "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py", line 983, in step
+    return self._step_single(action_input)
+  File "/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py", line 925, in _step_single
+    raise RuntimeError(f"HTTP error from server: {resp.status_code} - {detail}")
+RuntimeError: HTTP error from server: 500 - {'detail': 'RayTaskError(ValueError): \x1b[36mray::IsaacWorker.step()\x1b[39m (pid=1195168, ip=10.150.153.120, actor_id=e169f650bbbf812647e55fa901000000, repr=<genmanip.core.evaluator.isaac_worker.IsaacWorker object at 0x7f87ab97c040>)\n  File "/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/isaac_worker.py", line 220, in step\n    obs, _, done, info = self.env.step(action)\n  File "/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/env.py", line 491, in step\n    self.scene.robot_list[0].robot_view.set_joint_position_targets(\n  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/isaacsim/exts/omni.isaac.core/omni/isaac/core/articulations/articulation_view.py", line 927, in set_joint_position_targets\n    action = self._backend_utils.assign(\n  File "/cpfs/shared/simulation/zhuzihou/dev/conda-managed/envs/embodied-eval-os-sim-isaacsim41-genmanip-py310/lib/python3.10/site-packages/isaacsim/exts/omni.isaac.core/omni/isaac/core/utils/numpy/tensor.py", line 91, in assign\n    dst[tuple(indices)] = src\nValueError: shape mismatch: value array of shape (9,) could not be broadcast to indexing result of shape (1,16)'}

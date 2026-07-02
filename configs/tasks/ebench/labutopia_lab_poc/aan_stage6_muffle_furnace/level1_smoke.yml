@@ -1,0 +1,99 @@
+evaluation_configs:
+- task_name: ebench/labutopia_lab_poc/aan_stage6_muffle_furnace/level1_smoke
+  instruction: Run AAN package reset/step smoke.
+  usd_name: scene_usds/labutopia/aan/stage6_muffle_furnace_scene
+  table_uid: table
+  mode: manual
+  num_test: 1
+  num_steps: 1000
+  physics_dt: 0.0166666667
+  rendering_dt: 0.0166666667
+  robots:
+  - type: manip/lift2/R5a
+    position:
+    - 0.0
+    - 0.0
+    - 0.0
+  domain_randomization:
+    cameras:
+      config_path: configs/cameras/fixed_camera_lift2_simbox.yml
+      type: fixed
+    random_environment:
+      has_wall: false
+      hdr: false
+      robot_base_position: false
+      robot_eepose: false
+      table_texture: false
+      table_type: false
+      wall_texture: false
+    rewrite_instruction: false
+  labutopia_lift2_contract:
+    schema_version: 1
+    baseline_robot: manip/lift2/R5a
+    required_observation_keys:
+    - instruction
+    - state.joints
+    - state.gripper
+    - state.base
+    - state.ee_pose
+    - video.overlook_camera_view
+    - video.left_camera_view
+    - video.right_camera_view
+    - timestep
+    - reset
+    - robot_id
+    baseline_camera_input_keys:
+    - video.overlook_camera_view
+    - video.left_camera_view
+    - video.right_camera_view
+    camera_config_to_observation_key:
+      overlook_camera: video.overlook_camera_view
+      left_camera: video.left_camera_view
+      right_camera: video.right_camera_view
+    additional_observation_camera_keys:
+      top_camera: video.top_camera_view
+    action_contract:
+      required_fields:
+      - action
+      - base_motion
+      - control_type
+      - is_rel
+      - base_is_rel
+      action_shape:
+      - 16
+      base_motion_shape:
+      - 3
+      control_type: joint_position
+    reward_success_source: genmanip_ebench_metric_output
+    logging_required_fields:
+    - run_id
+    - worker_id
+    - episode_id
+    - seed
+    - result_path
+    - stdout_path
+    - stderr_path
+    material_boundary: aan_package_material_closure_from_manifest
+    readiness_rule: all_rows_pass_required_for_lift2_contract_ready
+  generation_config:
+    action_path:
+      mode: manual
+      robot: 0
+    articulation: []
+    goal: []
+    mode: manual
+    planner: curobo
+  object_config: {}
+  preprocess_config: []
+  layout_config:
+    ignored_objects: []
+    type: null
+  env_vars:
+    MDL_SYSTEM_PATH: /isaac-sim/materials/:{ASSETS_DIR}/scene_usds/labutopia/level1_poc/lab_001/SubUSDs/materials:{ASSETS_DIR}/miscs/mdl/labutopia/mdl:{ASSETS_DIR}/labutopia_aan_packages/stage6_codex_20260701_muffle_furnace/deps/mdl
+  labutopia_aan_consumer:
+    schema_version: 1
+    runtime_adapter: aan_usda_wrapper
+    namespace: labutopia_aan_packages/stage6_codex_20260701_muffle_furnace
+    mounted_root_usd: labutopia_aan_packages/stage6_codex_20260701_muffle_furnace/asset.usd
+    legacy_overlay_used: false
+    generic_smoke: true

@@ -124,12 +124,22 @@ def _load_required_prim_rows(path: Path) -> list[dict[str, Any]]:
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
             raise ValueError(f"required_prims[{index}] must be a mapping")
+        prim_path = row.get("path")
+        status = row.get("status")
+        not_applicable = (
+            isinstance(prim_path, str)
+            and prim_path.strip().upper() == "N/A"
+        ) or status == "not_applicable"
+        normalized_row = {
+            "role": row.get("role"),
+            "path": prim_path,
+            "required": row.get("required", True) is not False
+            and not not_applicable,
+        }
+        if not_applicable:
+            normalized_row["status"] = "not_applicable"
         normalized.append(
-            {
-                "role": row.get("role"),
-                "path": row.get("path"),
-                "required": row.get("required", True) is not False,
-            }
+            normalized_row
         )
     return normalized
 
@@ -193,13 +203,20 @@ def _dry_run_composition(
     if required_prims_exists:
         for index, row in enumerate(_load_required_prim_rows(mounted_required_prims)):
             prim_path = row["path"]
-            exists = bool(stage and isinstance(prim_path, str) and stage.GetPrimAtPath(prim_path))
+            if row.get("status") == "not_applicable":
+                exists: bool | None = None
+            else:
+                exists = bool(
+                    stage and isinstance(prim_path, str) and stage.GetPrimAtPath(prim_path)
+                )
             resolved_row = {
                 "role": row["role"],
                 "path": prim_path,
                 "required": row["required"],
                 "exists": exists,
             }
+            if row.get("status") == "not_applicable":
+                resolved_row["status"] = "not_applicable"
             rows.append(resolved_row)
             if row["required"] and not exists:
                 blockers.append(

@@ -234,6 +234,55 @@ def test_dry_run_blocks_when_required_prim_is_missing(tmp_path):
     } in record["blockers"]
 
 
+def test_dry_run_allows_not_applicable_required_prim_roles(tmp_path):
+    package_dir, manifest_path = _write_package(tmp_path, required_prim="/World/Asset")
+    _write_yaml(
+        package_dir / "task" / "required_prims.yaml",
+        {
+            "required_prims": [
+                {
+                    "role": "asset_root",
+                    "path": "/World/Asset",
+                    "required": True,
+                    "status": "pass",
+                },
+                {
+                    "role": "goal_target",
+                    "path": "N/A",
+                    "required": True,
+                    "status": "not_applicable",
+                },
+            ]
+        },
+    )
+    consumer_check_path = _write_consumer_check(tmp_path, mount_allowed=True)
+    composite_root = tmp_path / "assets"
+
+    exit_code, record = _run_mount(
+        tmp_path, package_dir, manifest_path, consumer_check_path, composite_root
+    )
+
+    assert exit_code == 0
+    assert record["status"] == "pass"
+    assert record["dry_run_composition"]["all_required_prims_found"] is True
+    assert record["required_prim_resolution_rows"] == [
+        {
+            "role": "asset_root",
+            "path": "/World/Asset",
+            "required": True,
+            "exists": True,
+        },
+        {
+            "role": "goal_target",
+            "path": "N/A",
+            "required": False,
+            "exists": None,
+            "status": "not_applicable",
+        },
+    ]
+    assert record["blockers"] == []
+
+
 def test_script_path_cli_runs_without_pythonpath(tmp_path):
     package_dir, manifest_path = _write_package(tmp_path)
     consumer_check_path = _write_consumer_check(tmp_path, mount_allowed=True)

@@ -1,0 +1,10 @@
+{
+  "legacy_overlay_used": false,
+  "mount_record": "/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/docs/labutopia_lab_poc/evidence_manifests/aan_dryingbox_task_mount_20260701_0000.json",
+  "mounted_root_usd": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets/labutopia_aan_packages/dryingbox_01_overlay/asset.usd",
+  "namespace": "labutopia_aan_packages/dryingbox_01_overlay",
+  "overlay_root": "/cpfs/shared/simulation/zhuzihou/dev/_datasets/EBench-Assets-Composite/labutopia_level1_poc_lift2_codex/assets",
+  "runtime_usd_name": "scene_usds/labutopia/aan/dryingbox_01_overlay_scene",
+  "schema_version": 1,
+  "usd_name": "scene_usds/labutopia/aan/dryingbox_01_overlay_scene"
+}

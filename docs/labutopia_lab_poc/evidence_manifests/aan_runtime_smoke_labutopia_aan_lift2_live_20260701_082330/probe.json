@@ -1,0 +1,184 @@
+{
+  "action_dialect_matrix": [
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": true,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "zero_action"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": true,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "openpi_relative_base_motion"
+    },
+    {
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "base_is_rel": false,
+      "base_motion": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "control_type": "joint_position",
+      "is_rel": false,
+      "name": "xvla_absolute_base_motion"
+    }
+  ],
+  "claim_boundary": {
+    "aggregate_stage7_manifest_required": true,
+    "blocked_rows": [
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "observation keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no reset observation schema was provided",
+        "name": "camera input keys",
+        "status": "BLOCKED"
+      },
+      {
+        "finding": "no GenManip/EBench step response was provided",
+        "name": "reward/success fields",
+        "status": "BLOCKED"
+      }
+    ],
+    "claim_scope": "single_task_live_schema_probe_only",
+    "failed_rows": [],
+    "lift2_contract_ready": null,
+    "local_official_baseline_style_contract_ready": null,
+    "native_material_closure_claim_allowed": false,
+    "official_baseline_evaluable": false,
+    "probe_status": "single-task live schema probe blocked",
+    "stage7_status": "Stage 7 not evaluated by single-task live schema probe"
+  },
+  "live_probe": {
+    "exception_message": "HTTP error on reset_result: 500 - {'detail': 'RuntimeError: Worker 0 reset failed for task=ebench/labutopia_lab_poc/aan_lift2_candidate/level1_open_door seed=000: RayTaskError(FileNotFoundError): \\x1b[36mray::IsaacWorker.reset()\\x1b[39m (pid=1162459, ip=10.150.153.120, actor_id=f8f45c700ef83a699de49a3801000000, repr=<genmanip.core.evaluator.isaac_worker.IsaacWorker object at 0x7f7302cd7f70>)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/isaac_worker.py\", line 193, in reset\\n    obs, self.current_task_info = self.env.reset(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/env.py\", line 258, in reset\\n    self._maybe_initialize_task(current_eval_config)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/env.py\", line 233, in _maybe_initialize_task\\n    self.scene.initialize(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 372, in initialize\\n    self._initialize_before_reset(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 169, in _initialize_before_reset\\n    self.robot_list = [\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 170, in <listcomp>\\n    RobotFactory.build(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/registry.py\", line 31, in build\\n    return cls(*args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/extensions/robots/default/r5a/lift2.py\", line 47, in __init__\\n    super().__init__(config, *args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/robot/dualarm_manip.py\", line 62, in __init__\\n    super().__init__(config, *args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/robot/base.py\", line 73, in __init__\\n    planner_list = self.set_planner(kwargs[\"default_config\"][\"current_dir\"])\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/extensions/robots/default/r5a/lift2.py\", line 91, in set_planner\\n    lift2_cfg = load_yaml(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/utils/standalone/file_utils.py\", line 100, in load_yaml\\n    with open(config_path, \"r\") as file:\\nFileNotFoundError: [Errno 2] No such file or directory: \\'/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/saved/assets/miscs/curobo/R5a/r5a_left_arm.yml\\''}",
+    "exception_stack": "Traceback (most recent call last):\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/standalone_tools/labutopia_poc/lift2_eval_contract_probe.py\", line 562, in run_live_probe\n    reset_response = client.reset()\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 831, in reset\n    obs_dict = self._resolve_pending_resets(obs_dict)\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 891, in _resolve_pending_resets\n    polled_result = self._get_pending_reset_results(sorted(pending_worker_set))\n  File \"/cpfs/shared/simulation/zhuzihou/dev/genmanip-client/src/genmanip_client/eval_client.py\", line 860, in _get_pending_reset_results\n    raise RuntimeError(\nRuntimeError: HTTP error on reset_result: 500 - {'detail': 'RuntimeError: Worker 0 reset failed for task=ebench/labutopia_lab_poc/aan_lift2_candidate/level1_open_door seed=000: RayTaskError(FileNotFoundError): \\x1b[36mray::IsaacWorker.reset()\\x1b[39m (pid=1162459, ip=10.150.153.120, actor_id=f8f45c700ef83a699de49a3801000000, repr=<genmanip.core.evaluator.isaac_worker.IsaacWorker object at 0x7f7302cd7f70>)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/isaac_worker.py\", line 193, in reset\\n    obs, self.current_task_info = self.env.reset(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/env.py\", line 258, in reset\\n    self._maybe_initialize_task(current_eval_config)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/evaluator/env.py\", line 233, in _maybe_initialize_task\\n    self.scene.initialize(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 372, in initialize\\n    self._initialize_before_reset(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 169, in _initialize_before_reset\\n    self.robot_list = [\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/scene/scene.py\", line 170, in <listcomp>\\n    RobotFactory.build(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/registry.py\", line 31, in build\\n    return cls(*args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/extensions/robots/default/r5a/lift2.py\", line 47, in __init__\\n    super().__init__(config, *args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/robot/dualarm_manip.py\", line 62, in __init__\\n    super().__init__(config, *args, **kwargs)\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/core/robot/base.py\", line 73, in __init__\\n    planner_list = self.set_planner(kwargs[\"default_config\"][\"current_dir\"])\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/extensions/robots/default/r5a/lift2.py\", line 91, in set_planner\\n    lift2_cfg = load_yaml(\\n  File \"/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/genmanip/utils/standalone/file_utils.py\", line 100, in load_yaml\\n    with open(config_path, \"r\") as file:\\nFileNotFoundError: [Errno 2] No such file or directory: \\'/root/.config/superpowers/worktrees/GenManip/labutopia-aan-consumer/saved/assets/miscs/curobo/R5a/r5a_left_arm.yml\\''}\n",
+    "exception_type": "RuntimeError",
+    "status": "blocked",
+    "worker_id": "0"
+  },
+  "logging": {
+    "episode_id": "live_probe",
+    "result_path": "saved/eval_results/ebench/labutopia_aan_lift2_live_20260701_082330/ebench/labutopia_lab_poc/aan_lift2_candidate/level1_open_door/000/result_info.json",
+    "run_id": "labutopia_aan_lift2_live_20260701_082330",
+    "seed": "000",
+    "stderr_path": "docs/labutopia_lab_poc/evidence_manifests/aan_runtime_smoke_labutopia_aan_lift2_live_20260701_082330/live_probe.stderr.txt",
+    "stdout_path": "docs/labutopia_lab_poc/evidence_manifests/aan_runtime_smoke_labutopia_aan_lift2_live_20260701_082330/live_probe.stdout.txt",
+    "worker_id": "0"
+  },
+  "observation_schema": {
+    "camera_keys": [],
+    "entries": {},
+    "keys": [],
+    "present": false
+  },
+  "required_tasks": [
+    "level1_pick",
+    "level1_place",
+    "level1_open_door"
+  ],
+  "schema_rows": [
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "observation keys",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "no reset observation schema was provided",
+      "name": "camera input keys",
+      "status": "BLOCKED"
+    },
+    {
+      "details": {
+        "dialects": [
+          "zero_action",
+          "openpi_relative_base_motion",
+          "xvla_absolute_base_motion"
+        ]
+      },
+      "finding": "all supplied action dialects match the Lift2 action contract",
+      "name": "action dialects",
+      "status": "PASS"
+    },
+    {
+      "finding": "no GenManip/EBench step response was provided",
+      "name": "reward/success fields",
+      "status": "BLOCKED"
+    },
+    {
+      "finding": "run id, worker, episode, seed, result path, and logs are recorded",
+      "name": "logging fields",
+      "status": "PASS"
+    }
+  ],
+  "schema_version": 1,
+  "stage": "acceptance_stage_7_lift2_contract_probe",
+  "step_response_summary": null,
+  "task_name": "level1_open_door"
+}
